@@ -326,15 +326,20 @@ DONE. Generates test_dm.c + CMakeLists.txt per model.
 
 # Task ID: 17
 # Title: Example data models
-# Status: pending
+# Status: done
 # Dependencies: 1, 9
 # Priority: P3
 # Description: Create example TOML models with generated output.
 # Details:
-  - minimal.toml: 3 keys, 2 types — quickstart example
-  - battery.toml: port of battery namespace from Bissell UDM
-  - full.toml: comprehensive example exercising all features
-Include pre-generated C output for each in examples/generated/.
+DONE. Three example models with pre-generated C output:
+  - minimal.toml: 5 keys, 2 classes — quickstart example (16 C tests)
+  - battery.toml: 18 keys, 2 classes, 2 enums — real-world port of UDM (54 C tests)
+  - full.toml: 38 keys, 4 classes, 3 enums — comprehensive feature exercise (105 C tests)
+    Covers all 8 implemented types (bool, uint8/int8/uint16/int16/uint32/int32, string),
+    all flags (read_only, thread_safe, persistent, event, helpers),
+    enums with per-variant overrides, per-variant defaults, units, docs
+  - Pre-generated C output in examples/generated/{minimal,battery,full}/
+  - invoke test now runs all 3 models × 2 modes = 6 C test suites (350 total tests)
 
 ---
 

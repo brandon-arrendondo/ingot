@@ -1,0 +1,164 @@
+metadata:
+  ingot_version: 0.1.0
+namespaces:
+- classes:
+  - data:
+    - define_name: BATTERY_NAMESPACE_VERSION
+      generate_helpers: false
+      id: 57
+      max_size: 12
+      name: version
+      type:
+        default_value: 0.0.1
+        mem: string
+    name: namespace
+  - data:
+    - define_name: BATTERY_STATUS_STATE_OF_CHARGE
+      generate_helpers: true
+      id: 131100
+      max_size: 0
+      name: state_of_charge
+      type:
+        default_value: 99
+        mem: uint16
+    - define_name: BATTERY_STATUS_RUNTIME_TO_EMPTY
+      generate_helpers: true
+      id: 131228
+      max_size: 0
+      name: runtime_to_empty
+      type:
+        default_value: 0
+        mem: uint16
+    - define_name: BATTERY_STATUS_VOLTAGE
+      generate_helpers: true
+      id: 131356
+      max_size: 0
+      name: voltage
+      type:
+        default_value: 0
+        mem: uint16
+    - define_name: BATTERY_STATUS_LEVEL
+      enum:
+        0: BATTERY_STATUS_LEVEL_UNKNOWN
+        1: BATTERY_STATUS_LEVEL_CRITICAL
+        2: BATTERY_STATUS_LEVEL_WARNING
+        3: BATTERY_STATUS_LEVEL_ONE_BAR
+        4: BATTERY_STATUS_LEVEL_TWO_BAR
+        5: BATTERY_STATUS_LEVEL_THREE_BAR
+        6: BATTERY_STATUS_LEVEL_FULL
+      generate_helpers: true
+      id: 131084
+      max_size: 0
+      name: level
+      type:
+        default_value: 0
+        mem: uint8
+    - define_name: BATTERY_STATUS_STATE
+      enum:
+        0: BATTERY_STATUS_STATE_DISABLE_CHARGING
+        1: BATTERY_STATUS_STATE_ENABLE_CHARGING
+      generate_helpers: true
+      id: 131212
+      max_size: 0
+      name: state
+      type:
+        default_value: 1
+        mem: uint8
+    - define_name: BATTERY_STATUS_IS_CHARGING
+      generate_helpers: true
+      id: 131076
+      max_size: 0
+      name: is_charging
+      type:
+        default_value: false
+        mem: bool
+    - define_name: BATTERY_STATUS_SOC_IN_USE_THRESHOLD
+      generate_helpers: true
+      id: 131340
+      max_size: 0
+      name: soc_in_use_threshold
+      type:
+        default_value: 7
+        mem: uint8
+    - define_name: BATTERY_STATUS_SOC_IN_USE_TURBO_THRESHOLD
+      generate_helpers: true
+      id: 131468
+      max_size: 0
+      name: soc_in_use_turbo_threshold
+      type:
+        default_value: 8
+        mem: uint8
+    - define_name: BATTERY_STATUS_SOC_CLEANOUT_ENTRY_THRESHOLD
+      generate_helpers: true
+      id: 131596
+      max_size: 0
+      name: soc_cleanout_entry_threshold
+      type:
+        default_value: 6
+        mem: uint8
+    - define_name: BATTERY_STATUS_SOC_FULL_CHARGE_THRESHOLD
+      generate_helpers: true
+      id: 131724
+      max_size: 0
+      name: soc_full_charge_threshold
+      type:
+        default_value: 100
+        mem: uint8
+    - define_name: BATTERY_STATUS_SOC_WARNING_THRESHOLD
+      generate_helpers: true
+      id: 131852
+      max_size: 0
+      name: soc_warning_threshold
+      type:
+        default_value: 20
+        mem: uint8
+    - define_name: BATTERY_STATUS_SOC_CRITICAL_THRESHOLD
+      generate_helpers: true
+      id: 131980
+      max_size: 0
+      name: soc_critical_threshold
+      type:
+        default_value: 10
+        mem: uint8
+    - define_name: BATTERY_STATUS_SOC_SHUTOFF_THRESHOLD
+      generate_helpers: true
+      id: 132108
+      max_size: 0
+      name: soc_shutoff_threshold
+      type:
+        default_value: 2
+        mem: uint8
+    - define_name: BATTERY_STATUS_SHUTDOWN
+      generate_helpers: true
+      id: 131204
+      max_size: 0
+      name: shutdown
+      type:
+        default_value: false
+        mem: bool
+    - define_name: BATTERY_STATUS_SHUTDOWN_DELAY_SEC
+      generate_helpers: true
+      id: 132236
+      max_size: 0
+      name: shutdown_delay_sec
+      type:
+        default_value: 0
+        mem: uint8
+    - define_name: BATTERY_STATUS_PF_STATUS
+      generate_helpers: true
+      id: 131116
+      max_size: 0
+      name: pf_status
+      type:
+        default_value: 0
+        mem: uint32
+    - define_name: BATTERY_STATUS_SAFETY_STATUS
+      generate_helpers: true
+      id: 131244
+      max_size: 0
+      name: safety_status
+      type:
+        default_value: 0
+        mem: uint32
+    name: status
+  name: battery

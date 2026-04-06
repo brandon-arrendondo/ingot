@@ -1,0 +1,429 @@
+# Ingot Data Model — Full Example
+#
+# Comprehensive example exercising every ingot feature:
+#   - All 9 data types (bool, uint8, int8, uint16, int16, uint32, int32, string, binary)
+#   - All key flags (read_only, thread_safe, persistent, event, helpers)
+#   - Enums with and without per-variant overrides
+#   - Per-variant defaults on keys
+#   - String and binary keys with max_size
+#   - Physical units
+#   - Multiple classes
+#   - Documentation on all elements
+
+[meta]
+id = "appliance"
+version = "2.0.0"
+doc = "Full-featured appliance data model for testing all ingot capabilities"
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+[enums.operating_mode]
+doc = "Primary operating mode of the appliance"
+
+[enums.operating_mode.values]
+off = 0
+standby = 1
+low = 2
+medium = 3
+high = 4
+turbo = 5
+
+[enums.operating_mode.variants.compact]
+off = 0
+standby = 1
+low = 2
+high = 3
+
+[enums.error_code]
+doc = "System error codes"
+
+[enums.error_code.values]
+none = 0
+sensor_fault = 1
+motor_stall = 2
+over_temp = 3
+low_battery = 4
+comm_failure = 5
+
+[enums.network_state]
+doc = "Network connection state"
+
+[enums.network_state.values]
+disconnected = 0
+connecting = 1
+connected = 2
+error = 3
+
+# ---------------------------------------------------------------------------
+# Class: identity — read-only product identification
+# ---------------------------------------------------------------------------
+
+[[classes]]
+id = "identity"
+doc = "Read-only product identification and firmware info"
+
+    [[classes.keys]]
+    id = "product_name"
+    type = "string"
+    max_size = 64
+    default = "Ingot Appliance"
+    read_only = true
+    helpers = true
+    doc = "Product marketing name"
+
+    [[classes.keys]]
+    id = "serial_number"
+    type = "string"
+    max_size = 32
+    default = ""
+    read_only = true
+    helpers = true
+    doc = "Factory-assigned serial number"
+
+    [[classes.keys]]
+    id = "hw_revision"
+    type = "uint8"
+    default = 1
+    read_only = true
+    helpers = true
+    doc = "Hardware revision number"
+
+    [[classes.keys]]
+    id = "fw_version_major"
+    type = "uint8"
+    default = 2
+    read_only = true
+    doc = "Firmware major version"
+
+    [[classes.keys]]
+    id = "fw_version_minor"
+    type = "uint8"
+    default = 0
+    read_only = true
+    doc = "Firmware minor version"
+
+# ---------------------------------------------------------------------------
+# Class: status — runtime state readings
+# ---------------------------------------------------------------------------
+
+[[classes]]
+id = "status"
+doc = "Runtime status readings (sensors, state, diagnostics)"
+
+    [[classes.keys]]
+    id = "mode"
+    type = "uint8"
+    enum = "operating_mode"
+    default = 0
+    helpers = true
+    thread_safe = true
+    event = true
+    doc = "Current operating mode"
+
+    [[classes.keys]]
+    id = "error"
+    type = "uint8"
+    enum = "error_code"
+    default = 0
+    helpers = true
+    thread_safe = true
+    event = true
+    doc = "Active error code"
+
+    [[classes.keys]]
+    id = "temperature"
+    type = "int16"
+    unit = "0.1C"
+    default = 250
+    helpers = true
+    thread_safe = true
+    doc = "Board temperature in tenths of degree Celsius (25.0C)"
+
+    [[classes.keys]]
+    id = "humidity"
+    type = "uint16"
+    unit = "0.1%RH"
+    default = 500
+    helpers = true
+    thread_safe = true
+    doc = "Relative humidity in tenths of percent (50.0%)"
+
+    [[classes.keys]]
+    id = "motor_rpm"
+    type = "uint32"
+    unit = "rpm"
+    default = 0
+    helpers = true
+    thread_safe = true
+    doc = "Motor speed in revolutions per minute"
+
+    [[classes.keys]]
+    id = "runtime_hours"
+    type = "uint32"
+    unit = "hour"
+    default = 0
+    helpers = true
+    persistent = true
+    doc = "Total operating hours (persisted across power cycles)"
+
+    [[classes.keys]]
+    id = "is_running"
+    type = "bool"
+    default = false
+    helpers = true
+    thread_safe = true
+    event = true
+    doc = "Whether the motor is currently running"
+
+    [[classes.keys]]
+    id = "is_docked"
+    type = "bool"
+    default = true
+    helpers = true
+    thread_safe = true
+    event = true
+    doc = "Whether the unit is on the charging dock"
+
+    [[classes.keys]]
+    id = "battery_voltage"
+    type = "uint16"
+    unit = "mV"
+    default = 12600
+    helpers = true
+    thread_safe = true
+    doc = "Battery voltage in millivolts"
+
+    [[classes.keys]]
+    id = "battery_soc"
+    type = "uint8"
+    unit = "%"
+    default = 100
+    helpers = true
+    thread_safe = true
+    doc = "Battery state of charge percentage"
+
+    [[classes.keys]]
+    id = "current_draw"
+    type = "int32"
+    unit = "mA"
+    default = 0
+    helpers = true
+    thread_safe = true
+    doc = "Current draw in milliamps (negative = charging)"
+
+    [[classes.keys]]
+    id = "supply_voltage"
+    type = "int16"
+    unit = "mV"
+    default = 5000
+    thread_safe = true
+    doc = "Supply rail voltage in millivolts"
+
+# ---------------------------------------------------------------------------
+# Class: config — user-adjustable settings (many persistent)
+# ---------------------------------------------------------------------------
+
+[[classes]]
+id = "config"
+doc = "User-adjustable configuration (persistent settings)"
+
+    [[classes.keys]]
+    id = "device_name"
+    type = "string"
+    max_size = 48
+    default = "My Appliance"
+    helpers = true
+    persistent = true
+    doc = "User-assigned device name"
+
+    [[classes.keys]]
+    id = "max_power_mode"
+    type = "uint8"
+    enum = "operating_mode"
+    default = 5
+    helpers = true
+    persistent = true
+    doc = "Maximum allowed operating mode"
+
+    [classes.keys.defaults]
+    compact = 3
+
+    [[classes.keys]]
+    id = "auto_shutoff_min"
+    type = "uint16"
+    unit = "minute"
+    default = 60
+    helpers = true
+    persistent = true
+    doc = "Auto-shutoff timer in minutes (0 = disabled)"
+
+    [classes.keys.defaults]
+    compact = 30
+
+    [[classes.keys]]
+    id = "low_battery_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 10
+    helpers = true
+    persistent = true
+    doc = "Battery SOC threshold for low-battery warning"
+
+    [[classes.keys]]
+    id = "critical_battery_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 5
+    helpers = true
+    persistent = true
+    doc = "Battery SOC threshold for emergency shutdown"
+
+    [[classes.keys]]
+    id = "temp_limit"
+    type = "int16"
+    unit = "0.1C"
+    default = 850
+    helpers = true
+    persistent = true
+    doc = "Over-temperature shutdown threshold (85.0C)"
+
+    [[classes.keys]]
+    id = "led_brightness"
+    type = "uint8"
+    unit = "%"
+    default = 100
+    helpers = true
+    persistent = true
+    doc = "LED indicator brightness (0-100)"
+
+    [[classes.keys]]
+    id = "sound_enabled"
+    type = "bool"
+    default = true
+    helpers = true
+    persistent = true
+    event = true
+    doc = "Enable audible feedback"
+
+    [[classes.keys]]
+    id = "quiet_hours_start"
+    type = "uint8"
+    unit = "hour"
+    default = 22
+    helpers = true
+    persistent = true
+    doc = "Quiet hours start (24h format)"
+
+    [[classes.keys]]
+    id = "quiet_hours_end"
+    type = "uint8"
+    unit = "hour"
+    default = 7
+    helpers = true
+    persistent = true
+    doc = "Quiet hours end (24h format)"
+
+    [[classes.keys]]
+    id = "calibration_offset"
+    type = "int8"
+    unit = "0.1C"
+    default = 0
+    helpers = true
+    persistent = true
+    doc = "Temperature sensor calibration offset"
+
+    [[classes.keys]]
+    id = "boot_count"
+    type = "uint32"
+    default = 0
+    persistent = true
+    doc = "Number of boots (persisted, incremented on startup)"
+
+# ---------------------------------------------------------------------------
+# Class: network — connectivity settings and state
+# ---------------------------------------------------------------------------
+
+[[classes]]
+id = "network"
+doc = "Network connectivity configuration and state"
+
+    [[classes.keys]]
+    id = "state"
+    type = "uint8"
+    enum = "network_state"
+    default = 0
+    helpers = true
+    thread_safe = true
+    event = true
+    doc = "Current network connection state"
+
+    [[classes.keys]]
+    id = "ssid"
+    type = "string"
+    max_size = 33
+    default = ""
+    helpers = true
+    persistent = true
+    doc = "WiFi SSID (max 32 chars + null)"
+
+    [[classes.keys]]
+    id = "ip_address"
+    type = "string"
+    max_size = 16
+    default = "0.0.0.0"
+    helpers = true
+    doc = "Current IP address"
+
+    [[classes.keys]]
+    id = "rssi"
+    type = "int8"
+    unit = "dBm"
+    default = 0
+    helpers = true
+    thread_safe = true
+    doc = "WiFi signal strength"
+
+    [[classes.keys]]
+    id = "mqtt_port"
+    type = "uint16"
+    default = 8883
+    helpers = true
+    persistent = true
+    doc = "MQTT broker port"
+
+    [[classes.keys]]
+    id = "mqtt_server"
+    type = "string"
+    max_size = 64
+    default = ""
+    helpers = true
+    persistent = true
+    doc = "MQTT broker hostname"
+
+    [[classes.keys]]
+    id = "telemetry_interval"
+    type = "uint32"
+    unit = "ms"
+    default = 60000
+    helpers = true
+    persistent = true
+    doc = "Telemetry reporting interval in milliseconds"
+
+    [[classes.keys]]
+    id = "wifi_enabled"
+    type = "bool"
+    default = true
+    helpers = true
+    persistent = true
+    event = true
+    doc = "Enable WiFi radio"
+
+    [[classes.keys]]
+    id = "connection_retries"
+    type = "int32"
+    default = -1
+    helpers = true
+    persistent = true
+    doc = "Connection retry limit (-1 = infinite)"

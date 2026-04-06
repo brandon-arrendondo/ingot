@@ -1,0 +1,54 @@
+metadata:
+  ingot_version: 0.1.0
+namespaces:
+- classes:
+  - data:
+    - define_name: EXAMPLE_STATUS_TEMPERATURE
+      generate_helpers: true
+      id: 28
+      max_size: 0
+      name: temperature
+      type:
+        default_value: 2932
+        mem: uint16
+    - define_name: EXAMPLE_STATUS_MODE
+      enum:
+        0: EXAMPLE_STATUS_MODE_OFF
+        1: EXAMPLE_STATUS_MODE_IDLE
+        2: EXAMPLE_STATUS_MODE_ACTIVE
+        3: EXAMPLE_STATUS_MODE_ERROR
+      generate_helpers: true
+      id: 12
+      max_size: 0
+      name: mode
+      type:
+        default_value: 0
+        mem: uint8
+    - define_name: EXAMPLE_STATUS_IS_CONNECTED
+      generate_helpers: true
+      id: 4
+      max_size: 0
+      name: is_connected
+      type:
+        default_value: false
+        mem: bool
+    name: status
+  - data:
+    - define_name: EXAMPLE_CONFIG_DEVICE_NAME
+      generate_helpers: true
+      id: 131128
+      max_size: 32
+      name: device_name
+      type:
+        default_value: ingot-device
+        mem: string
+    - define_name: EXAMPLE_CONFIG_UPDATE_INTERVAL_MS
+      generate_helpers: true
+      id: 131112
+      max_size: 0
+      name: update_interval_ms
+      type:
+        default_value: 1000
+        mem: uint32
+    name: config
+  name: example

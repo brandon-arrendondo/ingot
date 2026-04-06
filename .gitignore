@@ -1,5 +1,7 @@
 /target/
-generated/
+/generated/
+lcov.info
+coverage/
 *.o
 *.a
 *.so

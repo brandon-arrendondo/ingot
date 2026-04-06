@@ -11,7 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kaitai-inspired TOML data model schema with serde deserialization
 - First-class enum definitions with per-variant overrides
 - Derived key instances with expression strings
-- Data model validation (6 checks: duplicates, overflow, missing max_size, enum refs)
+- Data model validation (7 checks: duplicates, overflow, missing max_size, enum refs,
+  read-only persistent conflict)
+- Full example model (examples/full.toml): 38 keys, 4 classes, 3 enums, all features
+- Pre-generated C output in examples/generated/ for all 3 models
 - Jenkins lookup3.c final() hash — 10 cross-language test vectors from Python ref
 - CHM perfect hash generation algorithm (pure Rust, no external deps)
 - Integer storage C codegen: per-type hash tables, G arrays, get/set functions

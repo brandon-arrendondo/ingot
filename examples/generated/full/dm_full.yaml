@@ -1,0 +1,343 @@
+metadata:
+  ingot_version: 0.1.0
+namespaces:
+- classes:
+  - data:
+    - define_name: APPLIANCE_IDENTITY_PRODUCT_NAME
+      generate_helpers: true
+      id: 57
+      max_size: 64
+      name: product_name
+      type:
+        default_value: Ingot Appliance
+        mem: string
+    - define_name: APPLIANCE_IDENTITY_SERIAL_NUMBER
+      generate_helpers: true
+      id: 185
+      max_size: 32
+      name: serial_number
+      type:
+        default_value: ''
+        mem: string
+    - define_name: APPLIANCE_IDENTITY_HW_REVISION
+      generate_helpers: true
+      id: 9
+      max_size: 0
+      name: hw_revision
+      type:
+        default_value: 1
+        mem: uint8
+    - define_name: APPLIANCE_IDENTITY_FW_VERSION_MAJOR
+      generate_helpers: false
+      id: 137
+      max_size: 0
+      name: fw_version_major
+      type:
+        default_value: 2
+        mem: uint8
+    - define_name: APPLIANCE_IDENTITY_FW_VERSION_MINOR
+      generate_helpers: false
+      id: 265
+      max_size: 0
+      name: fw_version_minor
+      type:
+        default_value: 0
+        mem: uint8
+    name: identity
+  - data:
+    - define_name: APPLIANCE_STATUS_MODE
+      enum:
+        0: APPLIANCE_STATUS_MODE_OFF
+        1: APPLIANCE_STATUS_MODE_STANDBY
+        2: APPLIANCE_STATUS_MODE_LOW
+        3: APPLIANCE_STATUS_MODE_MEDIUM
+        4: APPLIANCE_STATUS_MODE_HIGH
+        5: APPLIANCE_STATUS_MODE_TURBO
+      generate_helpers: true
+      id: 131084
+      max_size: 0
+      name: mode
+      type:
+        default_value: 0
+        mem: uint8
+    - define_name: APPLIANCE_STATUS_ERROR
+      enum:
+        0: APPLIANCE_STATUS_ERROR_NONE
+        1: APPLIANCE_STATUS_ERROR_SENSOR_FAULT
+        2: APPLIANCE_STATUS_ERROR_MOTOR_STALL
+        3: APPLIANCE_STATUS_ERROR_OVER_TEMP
+        4: APPLIANCE_STATUS_ERROR_LOW_BATTERY
+        5: APPLIANCE_STATUS_ERROR_COMM_FAILURE
+      generate_helpers: true
+      id: 131212
+      max_size: 0
+      name: error
+      type:
+        default_value: 0
+        mem: uint8
+    - define_name: APPLIANCE_STATUS_TEMPERATURE
+      generate_helpers: true
+      id: 131108
+      max_size: 0
+      name: temperature
+      type:
+        default_value: 250
+        mem: int16
+    - define_name: APPLIANCE_STATUS_HUMIDITY
+      generate_helpers: true
+      id: 131100
+      max_size: 0
+      name: humidity
+      type:
+        default_value: 500
+        mem: uint16
+    - define_name: APPLIANCE_STATUS_MOTOR_RPM
+      generate_helpers: true
+      id: 131116
+      max_size: 0
+      name: motor_rpm
+      type:
+        default_value: 0
+        mem: uint32
+    - define_name: APPLIANCE_STATUS_RUNTIME_HOURS
+      generate_helpers: true
+      id: 131240
+      max_size: 0
+      name: runtime_hours
+      type:
+        default_value: 0
+        mem: uint32
+    - define_name: APPLIANCE_STATUS_IS_RUNNING
+      generate_helpers: true
+      id: 131076
+      max_size: 0
+      name: is_running
+      type:
+        default_value: false
+        mem: bool
+    - define_name: APPLIANCE_STATUS_IS_DOCKED
+      generate_helpers: true
+      id: 131204
+      max_size: 0
+      name: is_docked
+      type:
+        default_value: true
+        mem: bool
+    - define_name: APPLIANCE_STATUS_BATTERY_VOLTAGE
+      generate_helpers: true
+      id: 131228
+      max_size: 0
+      name: battery_voltage
+      type:
+        default_value: 12600
+        mem: uint16
+    - define_name: APPLIANCE_STATUS_BATTERY_SOC
+      generate_helpers: true
+      id: 131340
+      max_size: 0
+      name: battery_soc
+      type:
+        default_value: 100
+        mem: uint8
+    - define_name: APPLIANCE_STATUS_CURRENT_DRAW
+      generate_helpers: true
+      id: 131124
+      max_size: 0
+      name: current_draw
+      type:
+        default_value: 0
+        mem: int32
+    - define_name: APPLIANCE_STATUS_SUPPLY_VOLTAGE
+      generate_helpers: false
+      id: 131236
+      max_size: 0
+      name: supply_voltage
+      type:
+        default_value: 5000
+        mem: int16
+    name: status
+  - data:
+    - define_name: APPLIANCE_CONFIG_DEVICE_NAME
+      generate_helpers: true
+      id: 262200
+      max_size: 48
+      name: device_name
+      type:
+        default_value: My Appliance
+        mem: string
+    - define_name: APPLIANCE_CONFIG_MAX_POWER_MODE
+      enum:
+        0: APPLIANCE_CONFIG_MAX_POWER_MODE_OFF
+        1: APPLIANCE_CONFIG_MAX_POWER_MODE_STANDBY
+        2: APPLIANCE_CONFIG_MAX_POWER_MODE_LOW
+        3: APPLIANCE_CONFIG_MAX_POWER_MODE_MEDIUM
+        4: APPLIANCE_CONFIG_MAX_POWER_MODE_HIGH
+        5: APPLIANCE_CONFIG_MAX_POWER_MODE_TURBO
+      generate_helpers: true
+      id: 262152
+      max_size: 0
+      name: max_power_mode
+      type:
+        default_value: 5
+        mem: uint8
+    - define_name: APPLIANCE_CONFIG_AUTO_SHUTOFF_MIN
+      generate_helpers: true
+      id: 262168
+      max_size: 0
+      name: auto_shutoff_min
+      type:
+        default_value: 60
+        mem: uint16
+    - define_name: APPLIANCE_CONFIG_LOW_BATTERY_THRESHOLD
+      generate_helpers: true
+      id: 262280
+      max_size: 0
+      name: low_battery_threshold
+      type:
+        default_value: 10
+        mem: uint8
+    - define_name: APPLIANCE_CONFIG_CRITICAL_BATTERY_THRESHOLD
+      generate_helpers: true
+      id: 262408
+      max_size: 0
+      name: critical_battery_threshold
+      type:
+        default_value: 5
+        mem: uint8
+    - define_name: APPLIANCE_CONFIG_TEMP_LIMIT
+      generate_helpers: true
+      id: 262176
+      max_size: 0
+      name: temp_limit
+      type:
+        default_value: 850
+        mem: int16
+    - define_name: APPLIANCE_CONFIG_LED_BRIGHTNESS
+      generate_helpers: true
+      id: 262536
+      max_size: 0
+      name: led_brightness
+      type:
+        default_value: 100
+        mem: uint8
+    - define_name: APPLIANCE_CONFIG_SOUND_ENABLED
+      generate_helpers: true
+      id: 262144
+      max_size: 0
+      name: sound_enabled
+      type:
+        default_value: true
+        mem: bool
+    - define_name: APPLIANCE_CONFIG_QUIET_HOURS_START
+      generate_helpers: true
+      id: 262664
+      max_size: 0
+      name: quiet_hours_start
+      type:
+        default_value: 22
+        mem: uint8
+    - define_name: APPLIANCE_CONFIG_QUIET_HOURS_END
+      generate_helpers: true
+      id: 262792
+      max_size: 0
+      name: quiet_hours_end
+      type:
+        default_value: 7
+        mem: uint8
+    - define_name: APPLIANCE_CONFIG_CALIBRATION_OFFSET
+      generate_helpers: true
+      id: 262160
+      max_size: 0
+      name: calibration_offset
+      type:
+        default_value: 0
+        mem: int8
+    - define_name: APPLIANCE_CONFIG_BOOT_COUNT
+      generate_helpers: false
+      id: 262184
+      max_size: 0
+      name: boot_count
+      type:
+        default_value: 0
+        mem: uint32
+    name: config
+  - data:
+    - define_name: APPLIANCE_NETWORK_STATE
+      enum:
+        0: APPLIANCE_NETWORK_STATE_DISCONNECTED
+        1: APPLIANCE_NETWORK_STATE_CONNECTING
+        2: APPLIANCE_NETWORK_STATE_CONNECTED
+        3: APPLIANCE_NETWORK_STATE_ERROR
+      generate_helpers: true
+      id: 393228
+      max_size: 0
+      name: state
+      type:
+        default_value: 0
+        mem: uint8
+    - define_name: APPLIANCE_NETWORK_SSID
+      generate_helpers: true
+      id: 393272
+      max_size: 33
+      name: ssid
+      type:
+        default_value: ''
+        mem: string
+    - define_name: APPLIANCE_NETWORK_IP_ADDRESS
+      generate_helpers: true
+      id: 393400
+      max_size: 16
+      name: ip_address
+      type:
+        default_value: 0.0.0.0
+        mem: string
+    - define_name: APPLIANCE_NETWORK_RSSI
+      generate_helpers: true
+      id: 393236
+      max_size: 0
+      name: rssi
+      type:
+        default_value: 0
+        mem: int8
+    - define_name: APPLIANCE_NETWORK_MQTT_PORT
+      generate_helpers: true
+      id: 393240
+      max_size: 0
+      name: mqtt_port
+      type:
+        default_value: 8883
+        mem: uint16
+    - define_name: APPLIANCE_NETWORK_MQTT_SERVER
+      generate_helpers: true
+      id: 393528
+      max_size: 64
+      name: mqtt_server
+      type:
+        default_value: ''
+        mem: string
+    - define_name: APPLIANCE_NETWORK_TELEMETRY_INTERVAL
+      generate_helpers: true
+      id: 393256
+      max_size: 0
+      name: telemetry_interval
+      type:
+        default_value: 60000
+        mem: uint32
+    - define_name: APPLIANCE_NETWORK_WIFI_ENABLED
+      generate_helpers: true
+      id: 393216
+      max_size: 0
+      name: wifi_enabled
+      type:
+        default_value: true
+        mem: bool
+    - define_name: APPLIANCE_NETWORK_CONNECTION_RETRIES
+      generate_helpers: true
+      id: 393264
+      max_size: 0
+      name: connection_retries
+      type:
+        default_value: -1
+        mem: int32
+    name: network
+  name: appliance

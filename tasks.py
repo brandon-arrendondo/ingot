@@ -46,7 +46,7 @@ def test(c):
         print("  Run: git submodule update --init deps/unity")
         return
 
-    models = ["examples/battery.toml", "examples/minimal.toml"]
+    models = ["examples/battery.toml", "examples/minimal.toml", "examples/full.toml"]
     modes = [
         ("events", []),
         ("no-events", ["--no-events"]),
@@ -100,7 +100,7 @@ def coverage(c, output="coverage"):
         print("  Run: git submodule update --init deps/unity")
         return
 
-    models = ["examples/battery.toml", "examples/minimal.toml"]
+    models = ["examples/battery.toml", "examples/minimal.toml", "examples/full.toml"]
     modes = [
         ("events", []),
         ("no-events", ["--no-events"]),
