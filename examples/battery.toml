@@ -1,0 +1,233 @@
+# Ingot Data Model — Battery Namespace
+#
+# Ported from the Bissell Unified Data Model battery_001.yaml.
+# Demonstrates: per-variant defaults, per-variant enums, units,
+# persistence, events, and all integer/bool/string types.
+
+[meta]
+id = "battery"
+version = "0.0.1"
+doc = "Battery monitoring and management"
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+[enums.level]
+doc = "Battery level indicator"
+
+[enums.level.values]
+unknown = 0
+critical = 1
+warning = 2
+one_bar = 3
+two_bar = 4
+three_bar = 5
+full = 6
+
+# Enum with per-variant overrides: some products define additional states.
+[enums.state]
+doc = "Battery charging state"
+
+[enums.state.values]
+disable_charging = 0
+enable_charging = 1
+
+[enums.state.variants.ascent]
+disable_charging = 0
+enable_charging = 1
+error = 254
+initial = 255
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+
+[[classes]]
+id = "namespace"
+doc = "Namespace metadata (required first class)"
+
+    [[classes.keys]]
+    id = "version"
+    type = "string"
+    max_size = 12
+    default = "0.0.1"
+    read_only = true
+
+[[classes]]
+id = "status"
+doc = "Battery status readings and thresholds"
+
+    [[classes.keys]]
+    id = "state_of_charge"
+    type = "uint16"
+    unit = "%"
+    default = 99
+    doc = "Current battery charge percentage"
+    helpers = true
+    thread_safe = true
+    event = true
+
+    # Key with per-variant default overrides
+    [classes.keys.defaults]
+    ascent = 255
+
+    [[classes.keys]]
+    id = "runtime_to_empty"
+    type = "uint16"
+    unit = "minute"
+    default = 0
+    helpers = true
+    thread_safe = true
+    event = true
+
+    [[classes.keys]]
+    id = "voltage"
+    type = "uint16"
+    unit = "mV"
+    default = 0
+    helpers = true
+    thread_safe = true
+    event = true
+
+    [[classes.keys]]
+    id = "level"
+    type = "uint8"
+    enum = "level"
+    default = 0
+    helpers = true
+    thread_safe = true
+    event = true
+
+    [[classes.keys]]
+    id = "state"
+    type = "uint8"
+    enum = "state"
+    default = 1
+    helpers = true
+    thread_safe = true
+    event = true
+
+    [classes.keys.defaults]
+    ascent = 255
+
+    [[classes.keys]]
+    id = "is_charging"
+    type = "bool"
+    default = false
+    helpers = true
+    thread_safe = true
+    event = true
+
+    # Threshold keys with per-variant defaults
+    [[classes.keys]]
+    id = "soc_in_use_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 7
+    doc = "Reserve SOC to maintain for cleanout"
+    helpers = true
+    thread_safe = true
+
+    [classes.keys.defaults]
+    peabodyv0 = 0
+    omnidrive_v2 = 0
+
+    [[classes.keys]]
+    id = "soc_in_use_turbo_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 8
+    helpers = true
+    thread_safe = true
+
+    [[classes.keys]]
+    id = "soc_cleanout_entry_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 6
+    doc = "Below this SOC, cleanout will not run"
+    helpers = true
+    thread_safe = true
+
+    [classes.keys.defaults]
+    omnidrive_v2 = 4
+
+    [[classes.keys]]
+    id = "soc_full_charge_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 100
+    helpers = true
+    thread_safe = true
+
+    [classes.keys.defaults]
+    peabody = 100
+    mpc = 75
+
+    [[classes.keys]]
+    id = "soc_warning_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 20
+    helpers = true
+    thread_safe = true
+
+    [classes.keys.defaults]
+    mpc = 45
+    omnidrive_v2 = 20
+
+    [[classes.keys]]
+    id = "soc_critical_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 10
+    helpers = true
+    thread_safe = true
+
+    [classes.keys.defaults]
+    mpc = 15
+    omnidrive_v2 = 10
+
+    [[classes.keys]]
+    id = "soc_shutoff_threshold"
+    type = "uint8"
+    unit = "%"
+    default = 2
+    helpers = true
+    thread_safe = true
+
+    [classes.keys.defaults]
+    mpc = 5
+    omnidrive_v2 = 0
+
+    [[classes.keys]]
+    id = "shutdown"
+    type = "bool"
+    default = false
+    helpers = true
+    thread_safe = true
+    event = true
+
+    [[classes.keys]]
+    id = "shutdown_delay_sec"
+    type = "uint8"
+    default = 0
+    helpers = true
+    thread_safe = true
+
+    [[classes.keys]]
+    id = "pf_status"
+    type = "uint32"
+    default = 0
+    doc = "Battery pack fault status register"
+    helpers = true
+    thread_safe = true
+
+    [[classes.keys]]
+    id = "safety_status"
+    type = "uint32"
+    default = 0
+    doc = "Battery safety status register"
+    helpers = true
+    thread_safe = true

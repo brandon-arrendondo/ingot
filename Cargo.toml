@@ -1,0 +1,28 @@
+[package]
+name = "ingot"
+version = "0.1.0"
+edition = "2021"
+authors = ["Brandon Arrendondo"]
+license = "MIT"
+description = "Embedded database C code generator with compile-time perfect hashing"
+repository = "https://github.com/brandon-arrendondo/ingot"
+keywords = ["embedded", "codegen", "database", "kvp", "microcontroller"]
+categories = ["command-line-utilities", "development-tools", "embedded"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+tera = "1"
+rand = "0.9"
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

@@ -1,0 +1,142 @@
+// TODO: remove once modules have consumers
+#![allow(dead_code)]
+
+use clap::Parser;
+use std::path::PathBuf;
+
+mod codegen;
+mod hash;
+mod model;
+
+/// ingot - Embedded database C code generator
+///
+/// Generates optimized C code for key-value databases targeting embedded
+/// systems. Uses compile-time perfect hashing for O(1) key lookup with
+/// minimal RAM/ROM footprint.
+///
+/// Supported targets: STM32 (32-bit), ESP32 (Xtensa/RISC-V), 8-bit
+/// microcontrollers, and 64-bit Linux systems.
+#[derive(Parser, Debug)]
+#[command(name = "ingot", version, about, long_about)]
+struct Cli {
+    /// Path to the data model TOML specification
+    #[arg(short, long)]
+    model: PathBuf,
+
+    /// Output directory for generated C code
+    #[arg(short, long, default_value = "generated")]
+    output: PathBuf,
+
+    /// Target platform
+    #[arg(short, long, value_enum, default_value_t = Target::Linux64)]
+    target: Target,
+
+    /// Enable verbose output
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum Target {
+    /// 32-bit ARM STM32 microcontrollers (bare-metal)
+    Stm32,
+    /// ESP32 Xtensa-based (FreeRTOS)
+    EspXtensa,
+    /// ESP32 RISC-V based (FreeRTOS)
+    EspRiscv,
+    /// 8-bit microcontrollers (bare-metal)
+    Mcu8bit,
+    /// 64-bit Linux systems
+    Linux64,
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    env_logger::Builder::new()
+        .filter_level(match cli.verbose {
+            0 => log::LevelFilter::Warn,
+            1 => log::LevelFilter::Info,
+            2 => log::LevelFilter::Debug,
+            _ => log::LevelFilter::Trace,
+        })
+        .init();
+
+    log::info!("Model: {}", cli.model.display());
+    log::info!("Output: {}", cli.output.display());
+    log::info!("Target: {:?}", cli.target);
+
+    if let Err(e) = run(&cli) {
+        log::error!("{e}");
+        std::process::exit(1);
+    }
+}
+
+/// Find the templates/ directory relative to the executable or CWD.
+fn resolve_template_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    // Check next to the executable first
+    if let Ok(exe) = std::env::current_exe() {
+        let dir = exe.parent().unwrap_or(std::path::Path::new("."));
+        let candidate = dir.join("templates");
+        if candidate.is_dir() {
+            return Ok(candidate);
+        }
+        // For development: check parent of target/debug/
+        let dev_candidate = dir
+            .parent()
+            .and_then(|p| p.parent())
+            .map(|p| p.join("templates"));
+        if let Some(ref dc) = dev_candidate {
+            if dc.is_dir() {
+                return Ok(dc.clone());
+            }
+        }
+    }
+
+    // Fallback to CWD
+    let cwd = std::env::current_dir()?;
+    let candidate = cwd.join("templates");
+    if candidate.is_dir() {
+        return Ok(candidate);
+    }
+
+    Err("Could not find templates/ directory".into())
+}
+
+fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
+    let model_str = std::fs::read_to_string(&cli.model)?;
+    let data_model: model::DataModel = toml::from_str(&model_str)?;
+
+    log::info!(
+        "Parsed namespace '{}' v{}",
+        data_model.meta.id,
+        data_model.meta.version
+    );
+
+    if let Err(errors) = model::validation::validate(&data_model) {
+        for e in &errors {
+            log::error!("{e}");
+        }
+        return Err(format!("{} validation error(s)", errors.len()).into());
+    }
+    log::info!("Validation passed");
+
+    let key_count: usize = data_model.classes.iter().map(|c| c.keys.len()).sum();
+    log::info!(
+        "{} classes, {} keys, {} enums",
+        data_model.classes.len(),
+        key_count,
+        data_model.enums.len()
+    );
+
+    // Resolve template directory (bundled with binary or local)
+    let template_dir = resolve_template_dir()?;
+
+    // Namespace ID (0 for single-namespace, configurable later for multi-namespace)
+    let ns_id: u16 = 0;
+
+    codegen::generate(&data_model, ns_id, &cli.output, &template_dir)?;
+    log::info!("Code generation complete → {}", cli.output.display());
+
+    Ok(())
+}

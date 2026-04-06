@@ -1,0 +1,6 @@
+/target/
+generated/
+*.o
+*.a
+*.so
+*.exe

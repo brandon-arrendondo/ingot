@@ -1,0 +1,33 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Kaitai-inspired TOML data model schema with serde deserialization
+- First-class enum definitions with per-variant overrides
+- Derived key instances with expression strings
+- Data model validation (6 checks: duplicates, overflow, missing max_size, enum refs)
+- Jenkins lookup3.c final() hash — 10 cross-language test vectors from Python ref
+- CHM perfect hash generation algorithm (pure Rust, no external deps)
+- Integer storage C codegen: per-type hash tables, G arrays, get/set functions
+- Key definitions C codegen: #define per key with encoded 32-bit value
+- Jenkins hash C codegen: matching lookup3.c implementation
+- Tera template infrastructure (5 templates: integer_storage, jenkins_hash, key_definitions)
+- Example data models: minimal.toml (5 keys), battery.toml (18 keys, port of UDM)
+- 32-bit key encoding/decoding with bitfield layout
+- Target abstraction for STM32, ESP32 (Xtensa/RISC-V), 8-bit MCU, Linux64
+- CLI with --model, --output, --target, --verbose options
+- Pre-commit hooks (cargo fmt, clippy, test)
+- Unity test framework submodule (deps/unity)
+- PLAN.md with phased roadmap (19 tasks)
+- CLAUDE.md with project conventions
+
+## [0.1.0] - 2026-04-06
+
+### Added
+- Project initialization

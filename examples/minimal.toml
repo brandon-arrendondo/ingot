@@ -1,0 +1,75 @@
+# Ingot Data Model — Minimal Example
+#
+# This is the simplest valid ingot model: one namespace, one class, a few keys.
+# See battery.toml for a comprehensive real-world example.
+
+[meta]
+id = "example"
+version = "1.0.0"
+doc = "Minimal example data model"
+
+# ---------------------------------------------------------------------------
+# Enums — named integer-to-label mappings, reusable across keys.
+# ---------------------------------------------------------------------------
+
+[enums.device_mode]
+doc = "Operating mode of the device"
+
+[enums.device_mode.values]
+off = 0
+idle = 1
+active = 2
+error = 3
+
+# ---------------------------------------------------------------------------
+# Classes — logical groupings of keys within this namespace.
+# ---------------------------------------------------------------------------
+
+[[classes]]
+id = "status"
+doc = "Device status readings"
+
+    [[classes.keys]]
+    id = "temperature"
+    type = "uint16"
+    unit = "0.1K"
+    default = 2932
+    doc = "Board temperature in tenths of kelvin (293.2K = 20°C)"
+    helpers = true
+    thread_safe = true
+
+    [[classes.keys]]
+    id = "mode"
+    type = "uint8"
+    enum = "device_mode"
+    default = 0
+    doc = "Current operating mode"
+    helpers = true
+    thread_safe = true
+    event = true
+
+    [[classes.keys]]
+    id = "is_connected"
+    type = "bool"
+    default = false
+    helpers = true
+    thread_safe = true
+    event = true
+
+[[classes]]
+id = "config"
+doc = "Device configuration"
+
+    [[classes.keys]]
+    id = "device_name"
+    type = "string"
+    max_size = 32
+    default = "ingot-device"
+    helpers = true
+
+    [[classes.keys]]
+    id = "update_interval_ms"
+    type = "uint32"
+    default = 1000
+    persistent = true
+    helpers = true
