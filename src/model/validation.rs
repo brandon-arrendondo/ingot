@@ -48,8 +48,12 @@ pub enum ValidationError {
         enum_name: String,
     },
 
-    #[error("instance '{id}' in namespace '{namespace}' has empty expression")]
-    EmptyExpression { namespace: String, id: String },
+    #[error("key '{key}' in {namespace}.{class} is read-only and cannot be persistent")]
+    ReadOnlyPersistent {
+        namespace: String,
+        class: String,
+        key: String,
+    },
 }
 
 pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
@@ -110,6 +114,15 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
                 });
             }
 
+            // Read-only keys cannot be persistent
+            if key.read_only && key.persistent {
+                errors.push(ValidationError::ReadOnlyPersistent {
+                    namespace: ns.clone(),
+                    class: class.id.clone(),
+                    key: key.id.clone(),
+                });
+            }
+
             // Enum references must exist
             if let Some(ref enum_name) = key.enum_ref {
                 if !model.enums.contains_key(enum_name) {
@@ -121,16 +134,6 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
                     });
                 }
             }
-        }
-    }
-
-    // Instance validation
-    for inst in &model.instances {
-        if inst.expr.trim().is_empty() {
-            errors.push(ValidationError::EmptyExpression {
-                namespace: ns.clone(),
-                id: inst.id.clone(),
-            });
         }
     }
 
@@ -228,6 +231,30 @@ type = "string"
         assert!(errs
             .iter()
             .any(|e| matches!(e, ValidationError::StringMissingMaxSize { .. })));
+    }
+
+    #[test]
+    fn detect_read_only_persistent() {
+        let model = parse_model(
+            r#"
+[meta]
+id = "test"
+version = "1.0.0"
+
+[[classes]]
+id = "cfg"
+
+[[classes.keys]]
+id = "version"
+type = "uint32"
+read_only = true
+persistent = true
+"#,
+        );
+        let errs = validate(&model).unwrap_err();
+        assert!(errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::ReadOnlyPersistent { .. })));
     }
 
     #[test]

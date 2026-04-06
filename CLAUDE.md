@@ -6,7 +6,8 @@
 invoke check             # Run pre-commit hooks on all files
 invoke build             # Debug build
 invoke build --release   # Release build (LTO + strip)
-invoke test              # Run all unit tests
+invoke test              # Run Rust unit tests + C integration tests (both modes)
+invoke coverage          # Rust lcov + C Cobertura XML coverage reports
 invoke clean             # Remove build artifacts and generated output
 invoke generate          # Generate C code from battery example
 invoke generate --model examples/minimal.toml  # Generate from specific model

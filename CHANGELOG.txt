@@ -17,7 +17,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integer storage C codegen: per-type hash tables, G arrays, get/set functions
 - Key definitions C codegen: #define per key with encoded 32-bit value
 - Jenkins hash C codegen: matching lookup3.c implementation
-- Tera template infrastructure (5 templates: integer_storage, jenkins_hash, key_definitions)
+- Boolean bitfield storage C codegen: packed uint32_t words, SetBit/ClearBit/TestBit
+- String storage C codegen: separate RO (const literals) and RW (fixed-size char arrays)
+- Main data model API codegen: dm_key.h, dm.h, dm.c with type-dispatch get/set
+- Namespace definitions codegen: dm_namespace_definitions.h
+- Helper getter/setter codegen: dm_helpers.h/.c with static inline integral + string helpers
+- Unity integration test generation: test_dm.c + CMakeLists.txt per model
+- Target abstraction: --target flag wired to codegen, per-platform mutex in dm.c
+- Persistence storage codegen: packed struct binary save/load for persistent keys
+  - Filesystem I/O with magic number validation (sizeof XOR num_keys)
+  - SyncToStorage/SyncFromStorage bridge between persistence struct and live hash storage
+  - PersistenceStorage_IsKeyPersistent() key query
+  - DataModel_LoadPersistentKeys/SavePersistentKeys API with 4 new return codes
+  - Validation: read-only keys cannot be marked persistent
+  - Generated Unity tests: file-not-found + save/load roundtrip
+
+### Removed
+- Derived key / instance support (InstanceDef, empty-expression validation) — not used in practice
+- dm_full.yaml manifest generation: YAML dump of resolved data model for downstream tools
+- Tera template infrastructure (14 templates: dm, dm_key, dm_namespace_definitions, dm_helpers, integer_storage, boolean_storage, string_storage, jenkins_hash, key_definitions)
 - Example data models: minimal.toml (5 keys), battery.toml (18 keys, port of UDM)
 - 32-bit key encoding/decoding with bitfield layout
 - Target abstraction for STM32, ESP32 (Xtensa/RISC-V), 8-bit MCU, Linux64

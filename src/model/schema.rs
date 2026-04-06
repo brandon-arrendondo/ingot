@@ -28,8 +28,6 @@ pub struct DataModel {
     pub enums: BTreeMap<String, EnumDef>,
     #[serde(default)]
     pub classes: Vec<Class>,
-    #[serde(default)]
-    pub instances: Vec<InstanceDef>,
 }
 
 /// Model metadata.
@@ -94,19 +92,6 @@ pub struct KeyDef {
     pub event: bool,
     #[serde(default)]
     pub helpers: bool,
-}
-
-/// Derived/computed value (read-only, calculated from other keys).
-#[derive(Debug, Deserialize)]
-pub struct InstanceDef {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub data_type: DataType,
-    pub doc: Option<String>,
-    /// Expression string, e.g. "battery.status.runtime_a + battery.status.runtime_b"
-    pub expr: String,
-    #[serde(default)]
-    pub event: bool,
 }
 
 /// Supported data types for storage.

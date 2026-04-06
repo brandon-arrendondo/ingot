@@ -29,7 +29,6 @@ DONE. Kaitai-inspired TOML schema designed and implemented:
   - [meta] section: id, version, doc
   - [enums.<name>] with values + per-variant overrides
   - [[classes]] with [[classes.keys]] for namespace/class/key hierarchy
-  - [[instances]] for derived/computed values with expression strings
   - Key attributes: type, default, defaults (per-variant), enum, max_size,
     read_only, thread_safe, persistent, event, helpers, unit, doc
   - 9 data types: bool, uint8, int8, uint16, int16, uint32, int32, string, binary
@@ -57,7 +56,6 @@ DONE. Implemented as part of task 1:
     * Duplicate key IDs within class
     * String/binary keys require max_size
     * Enum references must exist in [enums]
-    * Instance expressions must be non-empty
   - CLI wired to parse + validate + report summary
 
 ---
@@ -128,28 +126,40 @@ DONE. Full pipeline: TOML → parse → validate → perfect hash → Tera → C
 
 # Task ID: 7
 # Title: Boolean bitfield storage codegen
-# Status: pending
+# Status: done
 # Dependencies: 4
 # Priority: P2
 # Description: Generate C code for boolean storage using bitfield packing.
 # Details:
-Pack booleans into uint32_t arrays (32 per word).
-Generate SetBit/ClearBit/TestBit macros.
-Perfect hash maps key to (word_index, bit_index).
-Thread-safe variant uses mutex around word read-modify-write.
+DONE. Implemented in src/codegen/storage/boolean.rs:
+  - Pack booleans into uint32_t words (32 per word), ceil(n/32) words
+  - SetBit/ClearBit/TestBit macros for bit manipulation
+  - Perfect hash maps encoded key → bit index
+  - Default values packed into initial uint32_t storage words
+  - Tera templates: boolean_storage.{h,c}
+  - BooleanStorage_SetKey / BooleanStorage_GetKey API
+  - 5 tests (battery, minimal, no-bools, defaults, ceiling division)
+  - Generated C compiles clean: gcc -Wall -Wextra -Wpedantic -std=c99
 
 ---
 
 # Task ID: 8
 # Title: String storage codegen (RO + RW)
-# Status: pending
+# Status: done
 # Dependencies: 4
 # Priority: P2
 # Description: Generate C code for string storage with separate RO/RW paths.
 # Details:
-Read-only: static array of const char* pointers.
-Read-write: struct with embedded fixed-size char arrays (max_size per key).
-Perfect hash lookup for both.  Thread-safe RW uses mutex.
+DONE. Implemented in src/codegen/storage/string.rs:
+  - RO: const char * const array of string literals, GetReadOnlyKey()
+  - RW: individual static char arrays with max_size, pointer array for
+    hash-based access, max_size array for bounds checking
+  - SetKey() rejects strings >= max_size, NULL clears storage
+  - GetKey() returns pointer to storage, GetMaxSize() returns limit
+  - Separate perfect hashes for RO and RW groups
+  - Tera templates: string_storage.{h,c} with conditional RO/RW sections
+  - 5 tests (battery RO, minimal RW, no-strings, mixed, escaping)
+  - Generated C compiles clean for both RO-only and RW-only models
 
 ---
 
@@ -157,43 +167,58 @@ Perfect hash lookup for both.  Thread-safe RW uses mutex.
 
 # Task ID: 9
 # Title: Main data model API codegen
-# Status: pending
+# Status: done
 # Dependencies: 6, 7, 8
 # Priority: P2
 # Description: Generate dm.h/dm.c with type-dispatch get/set functions.
 # Details:
-Generate the top-level API:
-  - DataModel_SetIntegralTypeByKey / DataModel_GetIntegralTypeByKey
-  - DataModel_SetStringByKey / DataModel_GetStringByKey
-  - Key query macros (IS_KEY_IN_NAMESPACE, IS_KEY_DATA_TYPE, etc.)
-  - DM_RETURN_CODE enum
-Type dispatch via key bits → route to per-type storage module.
+DONE. Three new templates: dm_key.h, dm.h, dm.c.
+  - dm_key.h: DataModel_Key union (bitfield + uint32_t), DM_KEY_TYPE enum,
+    query macros (IS_KEY_READONLY, IS_KEY_DERIVED, IS_KEY_THREADSAFE,
+    IS_KEY_DATA_TYPE, IS_KEY_IN_NAMESPACE, KEY_GET_TYPE)
+  - dm.h: DM_RETURN_CODE enum, dm_val_t union, DataModel_Initialize/TearDown,
+    SetIntegralTypeByKey/GetIntegralTypeByKey, typed convenience setters
+    (SetBooleanByKey, SetUInt8ByKey, etc.), Get/SetStringByKey
+  - dm.c: Type-dispatch switch via DM_KEY_GET_TYPE(key), routes to per-type
+    storage modules. Set checks: initialized, read-only, value-unchanged.
+    Event callback fired on value change. Conditional compilation based on
+    which storage types exist (bool, each int type, RO/RW strings).
+  - Typed convenience setters wrap SetIntegralTypeByKey via dm_val_t union
+  - String API: conditional RO/RW dispatch via IS_KEY_READONLY
+  - Generated C compiles clean for both battery and minimal models
+  - 13 output files total per model
 
 ---
 
 # Task ID: 10
 # Title: Key definitions + namespace definitions codegen
-# Status: pending
+# Status: done
 # Dependencies: 2
 # Priority: P2
 # Description: Generate dm_key_definitions.h and dm_namespace_definitions.h.
 # Details:
-One #define per key with 32-bit encoded value and descriptive comment.
-Namespace enum/defines mapping name to ID.
+DONE. key_definitions.h was done in Phase 2.
+  - dm_namespace_definitions.h: single #define DM_NAMESPACE_{NAME} {id}
+  - Tera template: dm_namespace_definitions.h
 
 ---
 
 # Task ID: 11
 # Title: Auto-generated helper getter/setter codegen
-# Status: pending
+# Status: done
 # Dependencies: 9
 # Priority: P2
 # Description: Generate inline helpers for keys with generate_helpers=true.
 # Details:
-For each key with generate_helpers:
-  DataModel_Get{Namespace}_{Class}_{Element}()
-  DataModel_Set{Namespace}_{Class}_{Element}(value)
-Inline functions in dm_helpers.h, implementations in dm_helpers.c.
+DONE. Implemented in codegen::collect_helpers() + templates.
+  - Integral types (bool/int): static inline get/set in dm_helpers.h
+    Get returns the C type directly, Set wraps dm_val_t dispatch
+  - String types: declarations in dm_helpers.h, implementations in dm_helpers.c
+    Get returns const char*, Set returns DM_RETURN_CODE
+  - Read-only keys only get a getter (no setter generated)
+  - dm_helpers.c only emitted when string helpers exist
+  - Naming: DataModel_Get_{NS}_{CLASS}_{KEY}() / DataModel_Set_{NS}_{CLASS}_{KEY}()
+  - Generated C compiles clean for both battery (integral-only) and minimal (mixed)
 
 ---
 
@@ -201,38 +226,57 @@ Inline functions in dm_helpers.h, implementations in dm_helpers.c.
 
 # Task ID: 12
 # Title: Event system codegen
-# Status: pending
+# Status: done
 # Dependencies: 9
 # Priority: P3
 # Description: Generate key change event callbacks and dispatcher.
 # Details:
-For keys with event=true, generate registration and dispatch infrastructure.
-Key-to-event mapping table.  FSM event enum generation from enum_sets.
+DONE. Event callback is built into dm.c/dm.h (implemented as part of Task 9).
+  - DataModel_Event_Callback typedef + DataModel_Initialize(callback)
+  - Callback fires after successful set (integral and string)
+  - --no-events CLI flag disables all event code: Initialize takes void,
+    no callback variable, no dispatch after set
+  - FSM event enums dropped (not used in practice)
+  - Unity tests pass in both events and no-events modes
 
 ---
 
 # Task ID: 13
 # Title: Derived key codegen
-# Status: pending
+# Status: dropped
 # Dependencies: 9
 # Priority: P3
 # Description: Generate computed read-only values from operation expressions.
 # Details:
-Parse operation expressions (+, -, *, /, comparisons, ternary).
-Generate static evaluation functions.
-Derived event mapping: when operand changes, trigger derived key events.
+DROPPED. Not used in practice. InstanceDef struct and empty-expression
+validation removed from codebase. The derived bit (bit 1) remains in the
+32-bit key encoding for forward compatibility.
 
 ---
 
 # Task ID: 14
 # Title: Persistence storage codegen
-# Status: pending
+# Status: done
 # Dependencies: 9
 # Priority: P3
 # Description: Generate serialization/deserialization for persistent keys.
 # Details:
-Contiguous memory block layout.  Load/save to binary with magic number.
-Magic number derived from model content hash.
+DONE. Implemented in src/codegen/storage/persistence.rs:
+  - Packed C struct (PersistenceStorage_T) with #pragma pack(push, 1)
+  - Magic number: sizeof(struct) XOR num_keys (catches layout changes)
+  - Filesystem load/save via fopen/fread/fwrite (DEFAULT_DM_FILENAME "/sdcard/dm.bin")
+  - SyncToStorage: after load, pushes values into live hash-indexed storage
+    via DataModel_Set*ByKey APIs
+  - SyncFromStorage: before save, reads live storage via DataModel_Get*ByKey
+  - PersistenceStorage_IsKeyPersistent() switch-based key query
+  - Supported types: bool, uint8/int8/uint16/int16/uint32/int32, string (char[max_size])
+  - Validation: read-only keys cannot be persistent (ReadOnlyPersistent error)
+  - 4 new persistence return codes in DM_RETURN_CODE enum
+  - Conditional generation: only when persistent keys exist in model
+  - Unity tests: file-not-found + save/load roundtrip per model
+  - Tera templates: persistence_storage.{h,c}
+  - 6 Rust unit tests in persistence.rs
+  - Battery model: 54 tests (2 persistent uint8 keys), Minimal: 16 tests (1 persistent uint32)
 
 ---
 
@@ -240,34 +284,43 @@ Magic number derived from model content hash.
 
 # Task ID: 15
 # Title: Target abstraction implementation
-# Status: pending
+# Status: done
 # Dependencies: 6
 # Priority: P2
 # Description: Implement target-specific code generation variations.
 # Details:
-Target configs: STM32 (bare-metal, no mutex, 4-byte align),
-ESP32-Xtensa/RISC-V (FreeRTOS mutex, 4-byte align),
-8-bit MCU (no mutex, 1-byte align, 16-bit pointers),
-Linux64 (pthread mutex, 8-byte align).
-Affects: mutex includes/calls, alignment pragmas, inline size limits.
+DONE. TargetConfig now Serialize with per-target mutex fields.
+  - STM32: bare-metal, no mutex, 4-byte align
+  - ESP32 (Xtensa/RISC-V): FreeRTOS SemaphoreHandle_t, xSemaphoreTake/Give
+  - 8-bit MCU: bare-metal, no mutex, 1-byte align, 16-bit pointers
+  - Linux64: pthread_mutex_t with PTHREAD_MUTEX_INITIALIZER
+  - dm.c template: conditional mutex include, decl, init/destroy, lock/unlock
+  - Thread-safe key access: DM_IS_KEY_THREADSAFE(key) gates lock/unlock
+  - Mutex wraps Set/GetIntegralTypeByKey and Get/SetStringByKey
+  - Event callback fired after mutex unlock (outside critical section)
+  - --target CLI flag wired through to codegen::generate()
+  - 4 new unit tests for target configs
+  - Unity tests pass on Linux64 with mutex enabled (52 tests, 0 failures)
 
 ---
 
 # Task ID: 16
 # Title: Unity integration test framework
-# Status: pending
+# Status: done
 # Dependencies: 6, 7, 8, 9
 # Priority: P2
 # Description: Generate Unity test files for generated data models.
 # Details:
-Submodule ThrowTheSwitch/Unity into deps/unity.
-Generate test_dm_*.c files that verify:
-  - Set/get roundtrip for every data type
-  - Perfect hash collision-free for all keys
-  - Default value initialization
-  - Thread-safety (where applicable)
-  - Persistence load/save roundtrip
-CMakeLists.txt for building and running Unity tests.
+DONE. Generates test_dm.c + CMakeLists.txt per model.
+  - Default value tests: verify every key returns its declared default
+  - Set/get roundtrip tests: set a test value, get it back, verify equality
+  - Read-only rejection tests: verify SetIntegralTypeByKey returns error
+  - Unchanged value tests: verify setting same value returns SET_VALUE_UNCHANGED
+  - String roundtrip tests: set string, get string, compare
+  - CMakeLists.txt: builds against Unity (UNITY_DIR), links all storage + dm
+  - Battery model: 52 tests, 0 failures
+  - Minimal model: 14 tests, 0 failures (includes string roundtrip)
+  - Templates: test_dm.c, CMakeLists.txt
 
 ---
 

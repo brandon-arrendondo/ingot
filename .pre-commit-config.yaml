@@ -15,9 +15,10 @@ repos:
         types: [rust]
         pass_filenames: false
 
-      - id: cargo-test
-        name: cargo test
-        entry: cargo test
+      - id: cargo-llvm-cov
+        name: cargo llvm-cov (tests + 80% coverage gate)
+        description: Run tests with coverage — fail if line coverage < 80%. Produces lcov.info.
+        entry: bash -c 'scripts/coverage-gate.sh 80 2>&1'
         language: system
-        types: [rust]
         pass_filenames: false
+        verbose: true

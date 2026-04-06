@@ -31,6 +31,10 @@ struct Cli {
     #[arg(short, long, value_enum, default_value_t = Target::Linux64)]
     target: Target,
 
+    /// Disable event callback generation
+    #[arg(long)]
+    no_events: bool,
+
     /// Enable verbose output
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
@@ -135,7 +139,23 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     // Namespace ID (0 for single-namespace, configurable later for multi-namespace)
     let ns_id: u16 = 0;
 
-    codegen::generate(&data_model, ns_id, &cli.output, &template_dir)?;
+    let target = match cli.target {
+        Target::Stm32 => codegen::target::Target::Stm32,
+        Target::EspXtensa => codegen::target::Target::EspXtensa,
+        Target::EspRiscv => codegen::target::Target::EspRiscv,
+        Target::Mcu8bit => codegen::target::Target::Mcu8bit,
+        Target::Linux64 => codegen::target::Target::Linux64,
+    };
+    let target_config = codegen::target::TargetConfig::for_target(target);
+
+    codegen::generate(
+        &data_model,
+        ns_id,
+        &cli.output,
+        &template_dir,
+        &target_config,
+        cli.no_events,
+    )?;
     log::info!("Code generation complete → {}", cli.output.display());
 
     Ok(())
