@@ -47,6 +47,10 @@ struct Cli {
     #[arg(long)]
     persistent_keys: Option<PathBuf>,
 
+    /// Product variant for per-variant default overrides (e.g. peabodyv0, omnidrive_v2)
+    #[arg(long)]
+    variant: Option<String>,
+
     /// Enable verbose output
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
@@ -165,6 +169,17 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         model::filter::apply_persistent_keys(&mut data_model, &list);
     }
 
+    // Resolve per-variant defaults and enum overrides
+    if let Some(ref variant) = cli.variant {
+        let stats = resolve_variant(&mut data_model, variant);
+        log::info!(
+            "Variant '{}': {} key default(s), {} enum(s) overridden",
+            variant,
+            stats.0,
+            stats.1
+        );
+    }
+
     if let Err(errors) = model::validation::validate(&data_model) {
         for e in &errors {
             log::error!("{e}");
@@ -197,6 +212,38 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Code generation complete → {}", cli.output.display());
 
     Ok(())
+}
+
+/// Resolve per-variant default overrides for keys and enum values.
+///
+/// For each key that has a `defaults[variant]` entry, replace `default`
+/// with the variant-specific value. For each enum with a `variants[variant]`
+/// entry, replace `values` with the variant's values.
+///
+/// Returns (key_defaults_overridden, enums_overridden).
+fn resolve_variant(model: &mut model::DataModel, variant: &str) -> (usize, usize) {
+    let mut key_count = 0;
+    for class in &mut model.classes {
+        for key in &mut class.keys {
+            if let Some(val) = key.defaults.get(variant) {
+                key.default = Some(val.clone());
+                key_count += 1;
+            }
+        }
+    }
+
+    let mut enum_count = 0;
+    for enum_def in model.enums.values_mut() {
+        if let Some(variant_values) = enum_def.variants.get(variant) {
+            // Merge variant values into the base values (variant overrides base)
+            for (name, &val) in variant_values {
+                enum_def.values.insert(name.clone(), val);
+            }
+            enum_count += 1;
+        }
+    }
+
+    (key_count, enum_count)
 }
 
 fn print_statistics(model: &model::DataModel) {
