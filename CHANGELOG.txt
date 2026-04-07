@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- User guide (docs/user-guide.md): schema reference, API reference, build integration
+- Manpage (docs/ingot.1): CLI options, exit codes, generated files
 - Kaitai-inspired TOML data model schema with serde deserialization
 - First-class enum definitions with per-variant overrides
 - Derived key instances with expression strings

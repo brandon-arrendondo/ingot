@@ -345,14 +345,20 @@ DONE. Three example models with pre-generated C output:
 
 # Task ID: 18
 # Title: User guide and manpage
-# Status: pending
+# Status: done
 # Dependencies: 17
 # Priority: P3
 # Description: Write docs/user-guide.md and docs/ingot.1 manpage.
 # Details:
-User guide: installation, quickstart, schema reference, target config,
-generated API reference, integration guide for build systems.
-Manpage: standard man format covering CLI options and exit codes.
+DONE. Both documents created in docs/:
+  - docs/user-guide.md: installation, quick start, CLI reference, schema
+    reference (all types, attributes, constraints), generated API reference
+    (init, get/set, strings, helpers, return codes, key macros, persistence),
+    build system integration (CMake, Make, ESP-IDF), testing guide, key
+    encoding explanation, perfect hash algorithm overview
+  - docs/ingot.1: standard man(1) format with NAME, SYNOPSIS, DESCRIPTION,
+    OPTIONS (all flags with target sub-options), EXIT STATUS, DATA MODEL
+    FORMAT, GENERATED FILES table, EXAMPLES, ENVIRONMENT, SEE ALSO, AUTHORS
 
 ---
 

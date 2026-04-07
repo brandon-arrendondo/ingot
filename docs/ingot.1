@@ -1,0 +1,183 @@
+.TH INGOT 1 "2026-04-06" "ingot 0.1.0" "Ingot Manual"
+.SH NAME
+ingot \- embedded database C code generator with compile-time perfect hashing
+.SH SYNOPSIS
+.B ingot
+.B \-\-model
+.I path
+.RB [ \-\-output
+.IR dir ]
+.RB [ \-\-target
+.IR target ]
+.RB [ \-\-no\-events ]
+.RB [ \-v ...]
+.SH DESCRIPTION
+.B ingot
+reads a TOML data model specification and generates optimized C99 code for
+key-value storage on resource-constrained embedded systems.
+All data structures are statically allocated.
+Key lookup is O(1) via minimal perfect hashing using the CHM algorithm with
+Jenkins lookup3 hash.
+.PP
+The generated code includes:
+.IP \(bu 2
+Type-dispatch get/set API (\fBdm.h\fR/\fBdm.c\fR)
+.IP \(bu 2
+Per-type storage modules (boolean bitfields, integer arrays, string buffers)
+.IP \(bu 2
+Perfect hash tables with Jenkins hash function
+.IP \(bu 2
+Key definitions as \fB#define\fR constants with encoded 32-bit values
+.IP \(bu 2
+Optional named helper getters/setters
+.IP \(bu 2
+Optional persistence (binary save/load with magic number validation)
+.IP \(bu 2
+Optional event callbacks on value change
+.IP \(bu 2
+Unity test suite with CMakeLists.txt
+.SH OPTIONS
+.TP
+.BI \-m ", " \-\-model " " path
+Path to the TOML data model specification file.
+Required.
+.TP
+.BI \-o ", " \-\-output " " dir
+Output directory for generated C code.
+Created if it does not exist.
+Default: \fBgenerated/\fR.
+.TP
+.BI \-t ", " \-\-target " " target
+Target platform for code generation.
+Affects mutex type, alignment, and pointer width.
+Default: \fBlinux64\fR.
+.RS
+.TP
+.B stm32
+32-bit ARM STM32 microcontrollers.
+Bare-metal (no mutex), 4-byte alignment.
+.TP
+.B esp\-xtensa
+ESP32 Xtensa-based SoCs.
+FreeRTOS semaphore mutex.
+.TP
+.B esp\-riscv
+ESP32 RISC-V based SoCs.
+FreeRTOS semaphore mutex.
+.TP
+.B mcu8bit
+8-bit microcontrollers.
+Bare-metal (no mutex), 1-byte alignment, 16-bit pointers.
+.TP
+.B linux64
+64-bit Linux systems.
+pthread mutex with PTHREAD_MUTEX_INITIALIZER.
+.RE
+.TP
+.B \-\-no\-events
+Disable event callback generation.
+When set, \fBDataModel_Initialize()\fR takes no arguments and no callback
+is fired after successful set operations.
+.TP
+.B \-v\fR, \fB\-vv\fR, \fB\-vvv
+Increase verbosity.
+One \fB-v\fR enables info-level output, two enables debug, three enables
+trace.
+Default log level is warnings only.
+.TP
+.B \-h\fR, \fB\-\-help
+Print help message and exit.
+.TP
+.B \-V\fR, \fB\-\-version
+Print version and exit.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error: invalid model, validation failure, I/O error, or template rendering
+failure.
+A diagnostic message is printed to stderr.
+.SH DATA MODEL FORMAT
+The input is a TOML file with three sections:
+.PP
+.B [meta]
+\- Namespace metadata (id, version, optional doc).
+.PP
+.B [enums.\fIname\fB]
+\- Named enum definitions with integer values and optional per-variant
+overrides.
+.PP
+.B [[classes]]
+\- Key groups.
+Each class contains
+.B [[classes.keys]]
+entries with attributes: type, default, defaults, enum, max_size,
+read_only, thread_safe, persistent, event, helpers, unit, doc.
+.PP
+Supported data types: bool, uint8, int8, uint16, int16, uint32, int32,
+string, binary.
+String and binary types require the
+.B max_size
+attribute.
+.PP
+See
+.I examples/
+in the source distribution for complete examples.
+.SH GENERATED FILES
+.TS
+l l.
+dm.h / dm.c	Main API with type-dispatch get/set
+dm_key.h	Key bitfield union, type enum, query macros
+key_definitions.h	#define per key with encoded 32-bit value
+dm_namespace_definitions.h	Namespace ID constant
+boolean_storage.h/.c	Bitfield-packed boolean storage
+integer_storage.h/.c	Per-type integer storage arrays
+string_storage.h/.c	Read-only and read-write string storage
+persistence_storage.h/.c	Binary save/load for persistent keys
+jenkins_hash.h/.c	Jenkins lookup3 hash function
+dm_helpers.h/.c	Named getter/setter convenience functions
+dm_full.yaml	Resolved model manifest (YAML)
+test_dm.c	Unity test suite
+CMakeLists.txt	CMake build configuration for tests
+.TE
+.SH EXAMPLES
+Generate C code for a data model targeting STM32:
+.PP
+.RS
+.nf
+ingot --model device.toml --output src/dm/ --target stm32
+.fi
+.RE
+.PP
+Generate without event callbacks (smaller code):
+.PP
+.RS
+.nf
+ingot --model device.toml --output src/dm/ --no-events
+.fi
+.RE
+.PP
+Verbose generation for debugging:
+.PP
+.RS
+.nf
+ingot --model device.toml -vv
+.fi
+.RE
+.SH ENVIRONMENT
+.B ingot
+looks for its Tera template files in a
+.I templates/
+directory relative to the executable, then relative to the current working
+directory.
+.SH SEE ALSO
+The full user guide is available at
+.I docs/user\-guide.md
+in the source distribution.
+.PP
+Project repository:
+.I https://github.com/brandon-arrendondo/ingot
+.SH AUTHORS
+Brandon Arrendondo
