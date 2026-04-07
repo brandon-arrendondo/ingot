@@ -40,8 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Validation: read-only keys cannot be marked persistent
   - Generated Unity tests: file-not-found + save/load roundtrip
 
-### Removed
-- Derived key / instance support (InstanceDef, empty-expression validation) — not used in practice
 - dm_full.yaml manifest generation: YAML dump of resolved data model for downstream tools
 - Tera template infrastructure (14 templates: dm, dm_key, dm_namespace_definitions, dm_helpers, integer_storage, boolean_storage, string_storage, jenkins_hash, key_definitions)
 - Example data models: minimal.toml (5 keys), battery.toml (18 keys, port of UDM)
@@ -50,8 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI with --model, --output, --target, --verbose options
 - Pre-commit hooks (cargo fmt, clippy, test)
 - Unity test framework submodule (deps/unity)
-- PLAN.md with phased roadmap (19 tasks)
 - CLAUDE.md with project conventions
+
+### Removed
+- Derived key / instance support (InstanceDef, empty-expression validation) — not used in practice
 
 ## [0.1.0] - 2026-04-06
 
