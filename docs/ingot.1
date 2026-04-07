@@ -3,13 +3,25 @@
 ingot \- embedded database C code generator with compile-time perfect hashing
 .SH SYNOPSIS
 .B ingot
-.B \-\-model
+.B \-m
 .I path
-.RB [ \-\-output
+.RB [ \-m
+.IR path ...]
+.RB [ \-o
 .IR dir ]
-.RB [ \-\-target
+.RB [ \-t
 .IR target ]
 .RB [ \-\-no\-events ]
+.RB [ \-\-include\-list
+.IR file ]
+.RB [ \-\-exclude\-list
+.IR file ]
+.RB [ \-\-persistent\-keys
+.IR file ]
+.RB [ \-\-property\-override\-list
+.IR file ]
+.RB [ \-\-variant
+.IR name ]
 .RB [ \-v ...]
 .SH DESCRIPTION
 .B ingot
@@ -39,8 +51,11 @@ Unity test suite with CMakeLists.txt
 .SH OPTIONS
 .TP
 .BI \-m ", " \-\-model " " path
-Path to the TOML data model specification file.
+Path to a TOML data model file or directory of TOML files.
 Required.
+May be specified multiple times to merge inputs from different locations.
+When a directory is given, all \fB.toml\fR files in it are loaded and merged
+into a single data model with per-namespace class indices preserved.
 .TP
 .BI \-o ", " \-\-output " " dir
 Output directory for generated C code.
@@ -78,6 +93,43 @@ pthread mutex with PTHREAD_MUTEX_INITIALIZER.
 Disable event callback generation.
 When set, \fBDataModel_Initialize()\fR takes no arguments and no callback
 is fired after successful set operations.
+.TP
+.BI \-\-include\-list " " file
+YAML file listing key define names to include (whitelist).
+All keys not in the list are excluded.
+Mutually exclusive with \fB\-\-exclude\-list\fR.
+Key names are matched with underscore-normalized comparison, so both
+\fBSTATEOFCHARGE\fR and \fBSTATE_OF_CHARGE\fR match the same key.
+.TP
+.BI \-\-exclude\-list " " file
+YAML file listing key define names to exclude (blacklist).
+All keys not in the list are included.
+Mutually exclusive with \fB\-\-include\-list\fR.
+.TP
+.BI \-\-persistent\-keys " " file
+YAML file listing key define names that should be marked persistent.
+Matched keys have their \fBpersistent\fR flag set to true, regardless
+of the TOML model value.
+.TP
+.BI \-\-property\-override\-list " " file
+YAML file with per-key property overrides.
+Format is a map of key define name to properties:
+.RS
+.nf
+KEY_DEFINE_NAME:
+  default_value: 42
+.fi
+.RE
+.IP
+Overrides the default value for matching keys.
+.TP
+.BI \-\-variant " " name
+Product variant name for per-variant default overrides (e.g.
+\fBpeabodyv0\fR, \fBomnidrive_v2\fR).
+For each key with a \fBdefaults[variant]\fR entry, the base default is
+replaced with the variant-specific value.
+For each enum with a \fBvariants[variant]\fR entry, the variant's values
+are merged into the base enum.
 .TP
 .B \-v\fR, \fB\-vv\fR, \fB\-vvv
 Increase verbosity.
@@ -159,11 +211,52 @@ ingot --model device.toml --output src/dm/ --no-events
 .fi
 .RE
 .PP
+Merge a directory of namespace TOML files:
+.PP
+.RS
+.nf
+ingot -m models/ -o gen/udm -t linux64
+.fi
+.RE
+.PP
+Merge files from multiple locations:
+.PP
+.RS
+.nf
+ingot -m common/base.toml -m project/extras.toml -o gen/
+.fi
+.RE
+.PP
+Generate with include list and persistent keys:
+.PP
+.RS
+.nf
+ingot -m models/ --include-list conf/include.yml \e
+    --persistent-keys conf/persist.yml -o gen/
+.fi
+.RE
+.PP
+Apply per-key property overrides:
+.PP
+.RS
+.nf
+ingot -m models/ --property-override-list conf/overrides.yml -o gen/
+.fi
+.RE
+.PP
+Generate for a specific product variant:
+.PP
+.RS
+.nf
+ingot -m models/ --variant peabodyv0 -o gen/
+.fi
+.RE
+.PP
 Verbose generation for debugging:
 .PP
 .RS
 .nf
-ingot --model device.toml -vv
+ingot -m device.toml -vv
 .fi
 .RE
 .SH ENVIRONMENT
