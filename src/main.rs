@@ -181,6 +181,8 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         data_model.enums.len()
     );
 
+    print_statistics(&data_model);
+
     // Namespace ID 0 as fallback (per-class overrides take precedence)
     let ns_id: u16 = data_model.meta.namespace_id.unwrap_or(0);
 
@@ -195,6 +197,53 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Code generation complete → {}", cli.output.display());
 
     Ok(())
+}
+
+fn print_statistics(model: &model::DataModel) {
+    use model::schema::DataType;
+
+    let mut bool_count = 0usize;
+    let mut u8_count = 0usize;
+    let mut i8_count = 0usize;
+    let mut u16_count = 0usize;
+    let mut i16_count = 0usize;
+    let mut u32_count = 0usize;
+    let mut i32_count = 0usize;
+    let mut ro_string_count = 0usize;
+    let mut rw_string_count = 0usize;
+
+    for class in &model.classes {
+        for key in &class.keys {
+            match key.data_type {
+                DataType::Bool => bool_count += 1,
+                DataType::Uint8 => u8_count += 1,
+                DataType::Int8 => i8_count += 1,
+                DataType::Uint16 => u16_count += 1,
+                DataType::Int16 => i16_count += 1,
+                DataType::Uint32 => u32_count += 1,
+                DataType::Int32 => i32_count += 1,
+                DataType::String => {
+                    if key.read_only {
+                        ro_string_count += 1;
+                    } else {
+                        rw_string_count += 1;
+                    }
+                }
+                DataType::Binary => {}
+            }
+        }
+    }
+
+    println!("Data Model Statistics");
+    println!("  bool: {bool_count}");
+    println!("  u8: {u8_count}");
+    println!("  u16: {u16_count}");
+    println!("  u32: {u32_count}");
+    println!("  int8: {i8_count}");
+    println!("  int16: {i16_count}");
+    println!("  int32: {i32_count}");
+    println!("  read-only string: {ro_string_count}");
+    println!("  read-write string: {rw_string_count}");
 }
 
 /// Load a directory of TOML files and merge into a single DataModel.
