@@ -1,6 +1,6 @@
 # Ingot — Plans & Roadmap
 
-Last Updated: 2026-04-06 (v0.1.0)
+Last Updated: 2026-04-06 (v1.0.0)
 
 Ingot is a Rust-based C code generator for embedded key-value databases.
 It produces optimized, statically-allocated C code with compile-time perfect
@@ -364,15 +364,24 @@ DONE. Both documents created in docs/:
 
 # Task ID: 19
 # Title: Binary distribution packages
-# Status: pending
+# Status: done
 # Dependencies: none
 # Priority: P4
 # Description: GitHub Actions for AppImage, deb, rpm, Windows exe, crate publish.
 # Details:
-Packaging targets:
-  - crates.io: cargo publish workflow on tag
-  - AppImage: cargo-appimage or linuxdeploy
-  - .deb: cargo-deb (binary in /usr/bin/, manpage in /usr/share/man/man1/)
-  - .rpm: cargo-generate-rpm
-  - Windows .exe: cross-compile x86_64-pc-windows-gnu
-CI: GitHub Actions matrix build, release artifacts on tag push.
+DONE. Two GitHub Actions workflows:
+  - .github/workflows/ci.yml: runs on push/PR to main
+    * check: pre-commit hooks (fmt, clippy, coverage gate via cargo-llvm-cov)
+    * build: release binary, uploads artifact
+    * test: Rust unit tests + C integration tests (3 models x 2 modes)
+    * coverage: Rust lcov + C Cobertura XML, publishes on PRs
+  - .github/workflows/release.yml: runs on tag push (v*)
+    * Linux x86_64 tarball (binary + templates + manpage)
+    * Windows x86_64 zip (cross-compiled via mingw)
+    * .deb package (cargo-deb, binary + manpage + templates)
+    * .rpm package (cargo-generate-rpm)
+    * AppImage (linuxdeploy)
+    * crates.io publish (CARGO_REGISTRY_TOKEN secret)
+    * GitHub Release with all artifacts
+  - Cargo.toml: [package.metadata.deb] and [package.metadata.generate-rpm]
+    sections with assets (binary, manpage, templates, README)

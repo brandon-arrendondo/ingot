@@ -1,6 +1,6 @@
 [package]
 name = "ingot"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["Brandon Arrendondo"]
 license = "MIT"
@@ -27,3 +27,22 @@ tempfile = "3"
 lto = true
 strip = true
 codegen-units = 1
+
+[package.metadata.deb]
+maintainer = "Brandon Arrendondo"
+section = "devel"
+priority = "optional"
+assets = [
+    ["target/release/ingot", "usr/bin/", "755"],
+    ["docs/ingot.1", "usr/share/man/man1/", "644"],
+    ["templates/*", "usr/share/ingot/templates/", "644"],
+    ["README.md", "usr/share/doc/ingot/", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/ingot", dest = "/usr/bin/ingot", mode = "755" },
+    { source = "docs/ingot.1", dest = "/usr/share/man/man1/ingot.1", mode = "644" },
+    { source = "templates/*", dest = "/usr/share/ingot/templates/", mode = "644" },
+    { source = "README.md", dest = "/usr/share/doc/ingot/README.md", mode = "644" },
+]
