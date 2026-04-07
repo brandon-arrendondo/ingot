@@ -6,6 +6,7 @@
 
 [meta]
 id = "battery"
+namespace_id = 1
 version = "0.0.1"
 doc = "Battery monitoring and management"
 

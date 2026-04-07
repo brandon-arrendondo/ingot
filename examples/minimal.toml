@@ -5,6 +5,7 @@
 
 [meta]
 id = "example"
+namespace_id = 0
 version = "1.0.0"
 doc = "Minimal example data model"
 

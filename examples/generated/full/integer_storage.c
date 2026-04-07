@@ -6,19 +6,19 @@
 
 /* ---- uint8_t storage (13 keys) ---- */
 
-#define U8_HASH_SEED_1 1844811103U
-#define U8_HASH_SEED_2 2074316945U
+#define U8_HASH_SEED_1 2141472899U
+#define U8_HASH_SEED_2 3166966961U
 #define U8_HASH_G_SIZE 28U
 
 #define U8_HASH_INDEX(key, seed) \
     u8_G[jenkins_hash(seed, key) % U8_HASH_G_SIZE]
 
 static const int8_t u8_G[U8_HASH_G_SIZE] = {
-    0, 1, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 6, 0, 0, 5, 0, 12, 0, 7, 8, 1, 10, 0, 9, 0, 4, 0
+    0, 0, 7, 2, 1, 0, 0, 1, 0, 0, 0, 0, 0, 3, 8, 0, 12, 2, 5, 0, 10, 0, 11, 0, 0, 1, 0, 0
 };
 
 static uint8_t u8_storage[U8_STORAGE_NUM_KEYS] = {
-    1, 0, 0, 0, 22, 2, 10, 0, 5, 100, 5, 7, 100
+    10, 22, 0, 5, 0, 100, 1, 5, 7, 2, 0, 100, 0
 };
 
 bool IntegerStorage_SetUINT8Key(uint32_t key, uint8_t value)
@@ -45,15 +45,15 @@ bool IntegerStorage_GetUINT8Key(uint32_t key, uint8_t *result)
 
 /* ---- int8_t storage (2 keys) ---- */
 
-#define S8_HASH_SEED_1 2351240743U
-#define S8_HASH_SEED_2 2585535207U
+#define S8_HASH_SEED_1 2848744024U
+#define S8_HASH_SEED_2 4155833153U
 #define S8_HASH_G_SIZE 5U
 
 #define S8_HASH_INDEX(key, seed) \
     s8_G[jenkins_hash(seed, key) % S8_HASH_G_SIZE]
 
 static const int8_t s8_G[S8_HASH_G_SIZE] = {
-    0, 0, 0, 0, 1
+    0, 0, 0, 1, 0
 };
 
 static int8_t s8_storage[S8_STORAGE_NUM_KEYS] = {
@@ -84,19 +84,19 @@ bool IntegerStorage_GetSINT8Key(uint32_t key, int8_t *result)
 
 /* ---- uint16_t storage (4 keys) ---- */
 
-#define U16_HASH_SEED_1 2064075151U
-#define U16_HASH_SEED_2 985286567U
+#define U16_HASH_SEED_1 2101625497U
+#define U16_HASH_SEED_2 601652526U
 #define U16_HASH_G_SIZE 9U
 
 #define U16_HASH_INDEX(key, seed) \
     u16_G[jenkins_hash(seed, key) % U16_HASH_G_SIZE]
 
 static const int8_t u16_G[U16_HASH_G_SIZE] = {
-    0, 0, 1, 0, 0, 0, 0, 3, 2
+    0, 2, 1, 0, 0, 0, 0, 2, 0
 };
 
 static uint16_t u16_storage[U16_STORAGE_NUM_KEYS] = {
-    60, 500, 8883, 12600
+    8883, 12600, 60, 500
 };
 
 bool IntegerStorage_SetUINT16Key(uint32_t key, uint16_t value)
@@ -123,19 +123,19 @@ bool IntegerStorage_GetUINT16Key(uint32_t key, uint16_t *result)
 
 /* ---- int16_t storage (3 keys) ---- */
 
-#define S16_HASH_SEED_1 3874323028U
-#define S16_HASH_SEED_2 737262412U
+#define S16_HASH_SEED_1 2494442834U
+#define S16_HASH_SEED_2 705236454U
 #define S16_HASH_G_SIZE 7U
 
 #define S16_HASH_INDEX(key, seed) \
     s16_G[jenkins_hash(seed, key) % S16_HASH_G_SIZE]
 
 static const int8_t s16_G[S16_HASH_G_SIZE] = {
-    0, 0, 0, 0, 2, 1, 0
+    0, 0, 0, 2, 0, 0, 1
 };
 
 static int16_t s16_storage[S16_STORAGE_NUM_KEYS] = {
-    250, 850, 5000
+    5000, 850, 250
 };
 
 bool IntegerStorage_SetSINT16Key(uint32_t key, int16_t value)
@@ -162,19 +162,19 @@ bool IntegerStorage_GetSINT16Key(uint32_t key, int16_t *result)
 
 /* ---- uint32_t storage (4 keys) ---- */
 
-#define U32_HASH_SEED_1 1305315979U
-#define U32_HASH_SEED_2 2083227744U
+#define U32_HASH_SEED_1 661626686U
+#define U32_HASH_SEED_2 1679250806U
 #define U32_HASH_G_SIZE 9U
 
 #define U32_HASH_INDEX(key, seed) \
     u32_G[jenkins_hash(seed, key) % U32_HASH_G_SIZE]
 
 static const int8_t u32_G[U32_HASH_G_SIZE] = {
-    0, 0, 1, 0, 3, 0, 0, 0, 1
+    0, 0, 0, 0, 0, 1, 0, 1, 3
 };
 
 static uint32_t u32_storage[U32_STORAGE_NUM_KEYS] = {
-    60000, 0, 0, 0
+    0, 60000, 0, 0
 };
 
 bool IntegerStorage_SetUINT32Key(uint32_t key, uint32_t value)
@@ -201,19 +201,19 @@ bool IntegerStorage_GetUINT32Key(uint32_t key, uint32_t *result)
 
 /* ---- int32_t storage (2 keys) ---- */
 
-#define S32_HASH_SEED_1 320170066U
-#define S32_HASH_SEED_2 3746311061U
+#define S32_HASH_SEED_1 1390737817U
+#define S32_HASH_SEED_2 3649177557U
 #define S32_HASH_G_SIZE 5U
 
 #define S32_HASH_INDEX(key, seed) \
     s32_G[jenkins_hash(seed, key) % S32_HASH_G_SIZE]
 
 static const int8_t s32_G[S32_HASH_G_SIZE] = {
-    0, 0, 1, 0, 0
+    0, 0, 0, 0, 1
 };
 
 static int32_t s32_storage[S32_STORAGE_NUM_KEYS] = {
-    -1, 0
+    0, -1
 };
 
 bool IntegerStorage_SetSINT32Key(uint32_t key, int32_t value)

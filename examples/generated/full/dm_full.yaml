@@ -5,7 +5,7 @@ namespaces:
   - data:
     - define_name: APPLIANCE_IDENTITY_PRODUCT_NAME
       generate_helpers: true
-      id: 57
+      id: 8388665
       max_size: 64
       name: product_name
       type:
@@ -13,7 +13,7 @@ namespaces:
         mem: string
     - define_name: APPLIANCE_IDENTITY_SERIAL_NUMBER
       generate_helpers: true
-      id: 185
+      id: 8388793
       max_size: 32
       name: serial_number
       type:
@@ -21,23 +21,23 @@ namespaces:
         mem: string
     - define_name: APPLIANCE_IDENTITY_HW_REVISION
       generate_helpers: true
-      id: 9
+      id: 8388617
       max_size: 0
       name: hw_revision
       type:
         default_value: 1
         mem: uint8
     - define_name: APPLIANCE_IDENTITY_FW_VERSION_MAJOR
-      generate_helpers: false
-      id: 137
+      generate_helpers: true
+      id: 8388745
       max_size: 0
       name: fw_version_major
       type:
         default_value: 2
         mem: uint8
     - define_name: APPLIANCE_IDENTITY_FW_VERSION_MINOR
-      generate_helpers: false
-      id: 265
+      generate_helpers: true
+      id: 8388873
       max_size: 0
       name: fw_version_minor
       type:
@@ -54,7 +54,7 @@ namespaces:
         4: APPLIANCE_STATUS_MODE_HIGH
         5: APPLIANCE_STATUS_MODE_TURBO
       generate_helpers: true
-      id: 131084
+      id: 8519692
       max_size: 0
       name: mode
       type:
@@ -69,7 +69,7 @@ namespaces:
         4: APPLIANCE_STATUS_ERROR_LOW_BATTERY
         5: APPLIANCE_STATUS_ERROR_COMM_FAILURE
       generate_helpers: true
-      id: 131212
+      id: 8519820
       max_size: 0
       name: error
       type:
@@ -77,7 +77,7 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_STATUS_TEMPERATURE
       generate_helpers: true
-      id: 131108
+      id: 8519716
       max_size: 0
       name: temperature
       type:
@@ -85,7 +85,7 @@ namespaces:
         mem: int16
     - define_name: APPLIANCE_STATUS_HUMIDITY
       generate_helpers: true
-      id: 131100
+      id: 8519708
       max_size: 0
       name: humidity
       type:
@@ -93,7 +93,7 @@ namespaces:
         mem: uint16
     - define_name: APPLIANCE_STATUS_MOTOR_RPM
       generate_helpers: true
-      id: 131116
+      id: 8519724
       max_size: 0
       name: motor_rpm
       type:
@@ -101,7 +101,7 @@ namespaces:
         mem: uint32
     - define_name: APPLIANCE_STATUS_RUNTIME_HOURS
       generate_helpers: true
-      id: 131240
+      id: 8519848
       max_size: 0
       name: runtime_hours
       type:
@@ -109,7 +109,7 @@ namespaces:
         mem: uint32
     - define_name: APPLIANCE_STATUS_IS_RUNNING
       generate_helpers: true
-      id: 131076
+      id: 8519684
       max_size: 0
       name: is_running
       type:
@@ -117,7 +117,7 @@ namespaces:
         mem: bool
     - define_name: APPLIANCE_STATUS_IS_DOCKED
       generate_helpers: true
-      id: 131204
+      id: 8519812
       max_size: 0
       name: is_docked
       type:
@@ -125,7 +125,7 @@ namespaces:
         mem: bool
     - define_name: APPLIANCE_STATUS_BATTERY_VOLTAGE
       generate_helpers: true
-      id: 131228
+      id: 8519836
       max_size: 0
       name: battery_voltage
       type:
@@ -133,7 +133,7 @@ namespaces:
         mem: uint16
     - define_name: APPLIANCE_STATUS_BATTERY_SOC
       generate_helpers: true
-      id: 131340
+      id: 8519948
       max_size: 0
       name: battery_soc
       type:
@@ -141,15 +141,15 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_STATUS_CURRENT_DRAW
       generate_helpers: true
-      id: 131124
+      id: 8519732
       max_size: 0
       name: current_draw
       type:
         default_value: 0
         mem: int32
     - define_name: APPLIANCE_STATUS_SUPPLY_VOLTAGE
-      generate_helpers: false
-      id: 131236
+      generate_helpers: true
+      id: 8519844
       max_size: 0
       name: supply_voltage
       type:
@@ -159,7 +159,7 @@ namespaces:
   - data:
     - define_name: APPLIANCE_CONFIG_DEVICE_NAME
       generate_helpers: true
-      id: 262200
+      id: 8650808
       max_size: 48
       name: device_name
       type:
@@ -174,7 +174,7 @@ namespaces:
         4: APPLIANCE_CONFIG_MAX_POWER_MODE_HIGH
         5: APPLIANCE_CONFIG_MAX_POWER_MODE_TURBO
       generate_helpers: true
-      id: 262152
+      id: 8650760
       max_size: 0
       name: max_power_mode
       type:
@@ -182,7 +182,7 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_CONFIG_AUTO_SHUTOFF_MIN
       generate_helpers: true
-      id: 262168
+      id: 8650776
       max_size: 0
       name: auto_shutoff_min
       type:
@@ -190,7 +190,7 @@ namespaces:
         mem: uint16
     - define_name: APPLIANCE_CONFIG_LOW_BATTERY_THRESHOLD
       generate_helpers: true
-      id: 262280
+      id: 8650888
       max_size: 0
       name: low_battery_threshold
       type:
@@ -198,7 +198,7 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_CONFIG_CRITICAL_BATTERY_THRESHOLD
       generate_helpers: true
-      id: 262408
+      id: 8651016
       max_size: 0
       name: critical_battery_threshold
       type:
@@ -206,7 +206,7 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_CONFIG_TEMP_LIMIT
       generate_helpers: true
-      id: 262176
+      id: 8650784
       max_size: 0
       name: temp_limit
       type:
@@ -214,7 +214,7 @@ namespaces:
         mem: int16
     - define_name: APPLIANCE_CONFIG_LED_BRIGHTNESS
       generate_helpers: true
-      id: 262536
+      id: 8651144
       max_size: 0
       name: led_brightness
       type:
@@ -222,7 +222,7 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_CONFIG_SOUND_ENABLED
       generate_helpers: true
-      id: 262144
+      id: 8650752
       max_size: 0
       name: sound_enabled
       type:
@@ -230,7 +230,7 @@ namespaces:
         mem: bool
     - define_name: APPLIANCE_CONFIG_QUIET_HOURS_START
       generate_helpers: true
-      id: 262664
+      id: 8651272
       max_size: 0
       name: quiet_hours_start
       type:
@@ -238,7 +238,7 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_CONFIG_QUIET_HOURS_END
       generate_helpers: true
-      id: 262792
+      id: 8651400
       max_size: 0
       name: quiet_hours_end
       type:
@@ -246,15 +246,15 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_CONFIG_CALIBRATION_OFFSET
       generate_helpers: true
-      id: 262160
+      id: 8650768
       max_size: 0
       name: calibration_offset
       type:
         default_value: 0
         mem: int8
     - define_name: APPLIANCE_CONFIG_BOOT_COUNT
-      generate_helpers: false
-      id: 262184
+      generate_helpers: true
+      id: 8650792
       max_size: 0
       name: boot_count
       type:
@@ -269,7 +269,7 @@ namespaces:
         2: APPLIANCE_NETWORK_STATE_CONNECTED
         3: APPLIANCE_NETWORK_STATE_ERROR
       generate_helpers: true
-      id: 393228
+      id: 8781836
       max_size: 0
       name: state
       type:
@@ -277,7 +277,7 @@ namespaces:
         mem: uint8
     - define_name: APPLIANCE_NETWORK_SSID
       generate_helpers: true
-      id: 393272
+      id: 8781880
       max_size: 33
       name: ssid
       type:
@@ -285,7 +285,7 @@ namespaces:
         mem: string
     - define_name: APPLIANCE_NETWORK_IP_ADDRESS
       generate_helpers: true
-      id: 393400
+      id: 8782008
       max_size: 16
       name: ip_address
       type:
@@ -293,7 +293,7 @@ namespaces:
         mem: string
     - define_name: APPLIANCE_NETWORK_RSSI
       generate_helpers: true
-      id: 393236
+      id: 8781844
       max_size: 0
       name: rssi
       type:
@@ -301,7 +301,7 @@ namespaces:
         mem: int8
     - define_name: APPLIANCE_NETWORK_MQTT_PORT
       generate_helpers: true
-      id: 393240
+      id: 8781848
       max_size: 0
       name: mqtt_port
       type:
@@ -309,7 +309,7 @@ namespaces:
         mem: uint16
     - define_name: APPLIANCE_NETWORK_MQTT_SERVER
       generate_helpers: true
-      id: 393528
+      id: 8782136
       max_size: 64
       name: mqtt_server
       type:
@@ -317,7 +317,7 @@ namespaces:
         mem: string
     - define_name: APPLIANCE_NETWORK_TELEMETRY_INTERVAL
       generate_helpers: true
-      id: 393256
+      id: 8781864
       max_size: 0
       name: telemetry_interval
       type:
@@ -325,7 +325,7 @@ namespaces:
         mem: uint32
     - define_name: APPLIANCE_NETWORK_WIFI_ENABLED
       generate_helpers: true
-      id: 393216
+      id: 8781824
       max_size: 0
       name: wifi_enabled
       type:
@@ -333,7 +333,7 @@ namespaces:
         mem: bool
     - define_name: APPLIANCE_NETWORK_CONNECTION_RETRIES
       generate_helpers: true
-      id: 393264
+      id: 8781872
       max_size: 0
       name: connection_retries
       type:

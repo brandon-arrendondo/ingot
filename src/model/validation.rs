@@ -1,5 +1,5 @@
 use super::schema::{DataModel, DataType};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -86,37 +86,44 @@ pub enum ValidationError {
 
 pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
-    let ns = &model.meta.id;
 
     // Namespace ID range check (10-bit field = max 1023)
     if let Some(ns_id) = model.meta.namespace_id {
         if ns_id > 1023 {
             errors.push(ValidationError::NamespaceIdOutOfRange {
-                namespace: ns.clone(),
+                namespace: model.meta.id.clone(),
                 id: ns_id,
             });
         }
     }
 
-    // Class count limit (5-bit field = max 31, but index 0 is often reserved)
-    if model.classes.len() > 31 {
-        errors.push(ValidationError::TooManyClasses {
-            namespace: ns.clone(),
-            count: model.classes.len(),
-        });
-    }
+    // Group classes by namespace for per-namespace uniqueness checks.
+    // Classes with namespace_name set (from directory merge) are grouped by that;
+    // otherwise all classes belong to model.meta.id.
+    let mut ns_class_ids: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut ns_class_indices: HashMap<String, HashSet<u8>> = HashMap::new();
+    let mut ns_class_counts: HashMap<String, usize> = HashMap::new();
 
-    // Duplicate class IDs and class_index checks
-    let mut class_ids = HashSet::new();
-    let mut class_indices = HashSet::new();
     for class in &model.classes {
-        if !class_ids.insert(&class.id) {
+        let ns = class
+            .namespace_name
+            .as_deref()
+            .unwrap_or(&model.meta.id)
+            .to_string();
+
+        // Per-namespace class count
+        *ns_class_counts.entry(ns.clone()).or_default() += 1;
+
+        // Per-namespace duplicate class ID check
+        let ids = ns_class_ids.entry(ns.clone()).or_default();
+        if !ids.insert(class.id.clone()) {
             errors.push(ValidationError::DuplicateClassId {
                 namespace: ns.clone(),
                 id: class.id.clone(),
             });
         }
 
+        // Per-namespace class_index uniqueness
         if let Some(ci) = class.class_index {
             if ci > 31 {
                 errors.push(ValidationError::ClassIndexOutOfRange {
@@ -124,10 +131,23 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
                     class: class.id.clone(),
                     index: ci,
                 });
-            } else if !class_indices.insert(ci) {
-                errors.push(ValidationError::DuplicateClassIndex {
+            } else {
+                let indices = ns_class_indices.entry(ns.clone()).or_default();
+                if !indices.insert(ci) {
+                    errors.push(ValidationError::DuplicateClassIndex {
+                        namespace: ns.clone(),
+                        index: ci,
+                    });
+                }
+            }
+        }
+
+        // Also check per-class namespace_id range
+        if let Some(cns_id) = class.namespace_id {
+            if cns_id > 1023 {
+                errors.push(ValidationError::NamespaceIdOutOfRange {
                     namespace: ns.clone(),
-                    index: ci,
+                    id: cns_id,
                 });
             }
         }
@@ -206,6 +226,16 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
                     });
                 }
             }
+        }
+    }
+
+    // Per-namespace class count limit (5-bit field = max 31)
+    for (ns, count) in &ns_class_counts {
+        if *count > 31 {
+            errors.push(ValidationError::TooManyClasses {
+                namespace: ns.clone(),
+                count: *count,
+            });
         }
     }
 

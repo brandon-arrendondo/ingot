@@ -35,6 +35,26 @@ static inline uint8_t DataModel_Get_APPLIANCE_IDENTITY_HW_REVISION(void)
 
 
 
+static inline uint8_t DataModel_Get_APPLIANCE_IDENTITY_FW_VERSION_MAJOR(void)
+{
+    dm_val_t val = DataModel_GetIntegralTypeByKey(DM_KEY_APPLIANCE_IDENTITY_FW_VERSION_MAJOR);
+    return val.u8val;
+}
+
+
+
+
+
+static inline uint8_t DataModel_Get_APPLIANCE_IDENTITY_FW_VERSION_MINOR(void)
+{
+    dm_val_t val = DataModel_GetIntegralTypeByKey(DM_KEY_APPLIANCE_IDENTITY_FW_VERSION_MINOR);
+    return val.u8val;
+}
+
+
+
+
+
 static inline uint8_t DataModel_Get_APPLIANCE_STATUS_MODE(void)
 {
     dm_val_t val = DataModel_GetIntegralTypeByKey(DM_KEY_APPLIANCE_STATUS_MODE);
@@ -222,6 +242,23 @@ static inline DM_RETURN_CODE DataModel_Set_APPLIANCE_STATUS_CURRENT_DRAW(int32_t
 
 
 
+static inline int16_t DataModel_Get_APPLIANCE_STATUS_SUPPLY_VOLTAGE(void)
+{
+    dm_val_t val = DataModel_GetIntegralTypeByKey(DM_KEY_APPLIANCE_STATUS_SUPPLY_VOLTAGE);
+    return val.s16val;
+}
+
+static inline DM_RETURN_CODE DataModel_Set_APPLIANCE_STATUS_SUPPLY_VOLTAGE(int16_t x)
+{
+    dm_val_t val = { 0 };
+    val.s16val = x;
+    return DataModel_SetIntegralTypeByKey(DM_KEY_APPLIANCE_STATUS_SUPPLY_VOLTAGE, val);
+}
+
+
+
+
+
 const char *DataModel_Get_APPLIANCE_CONFIG_DEVICE_NAME(void);
 
 DM_RETURN_CODE DataModel_Set_APPLIANCE_CONFIG_DEVICE_NAME(const char *val);
@@ -394,6 +431,23 @@ static inline DM_RETURN_CODE DataModel_Set_APPLIANCE_CONFIG_CALIBRATION_OFFSET(i
     dm_val_t val = { 0 };
     val.s8val = x;
     return DataModel_SetIntegralTypeByKey(DM_KEY_APPLIANCE_CONFIG_CALIBRATION_OFFSET, val);
+}
+
+
+
+
+
+static inline uint32_t DataModel_Get_APPLIANCE_CONFIG_BOOT_COUNT(void)
+{
+    dm_val_t val = DataModel_GetIntegralTypeByKey(DM_KEY_APPLIANCE_CONFIG_BOOT_COUNT);
+    return val.u32val;
+}
+
+static inline DM_RETURN_CODE DataModel_Set_APPLIANCE_CONFIG_BOOT_COUNT(uint32_t x)
+{
+    dm_val_t val = { 0 };
+    val.u32val = x;
+    return DataModel_SetIntegralTypeByKey(DM_KEY_APPLIANCE_CONFIG_BOOT_COUNT, val);
 }
 
 

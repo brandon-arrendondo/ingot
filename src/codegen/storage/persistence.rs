@@ -34,10 +34,16 @@ pub struct PersistenceStorage {
 ///
 /// Returns `None` if no keys are marked persistent.
 pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<PersistenceStorage> {
-    let ns_name = model.meta.id.to_uppercase();
     let mut entries = Vec::new();
 
-    for (class_idx, class) in model.classes.iter().enumerate() {
+    for (pos, class) in model.classes.iter().enumerate() {
+        let c_ns_id = class.namespace_id.unwrap_or(ns_id);
+        let c_ns_name = class
+            .namespace_name
+            .as_deref()
+            .unwrap_or(&model.meta.id)
+            .to_uppercase();
+        let c_idx = class.class_index.unwrap_or(pos as u8);
         let class_name = class.id.to_uppercase();
         let mut type_counters: [u16; 16] = [0; 16];
 
@@ -51,8 +57,8 @@ pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<Pers
             }
 
             let encoding = KeyEncoding {
-                namespace: ns_id,
-                class: class_idx as u8,
+                namespace: c_ns_id,
+                class: c_idx,
                 id,
                 data_type: type_code,
                 thread_safe: key.thread_safe,
@@ -63,7 +69,7 @@ pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<Pers
             let _ = encoding.encode();
 
             let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{ns_name}_{class_name}_{key_name}");
+            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
             let field_name = format!(
                 "{}_{}",
                 class.id.to_lowercase(),

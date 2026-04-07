@@ -49,6 +49,12 @@ const char *DataModel_Get_APPLIANCE_IDENTITY_SERIAL_NUMBER(void)
 
 
 
+
+
+
+
+
+
 const char *DataModel_Get_APPLIANCE_CONFIG_DEVICE_NAME(void)
 {
     const char *val = NULL;
@@ -61,6 +67,8 @@ DM_RETURN_CODE DataModel_Set_APPLIANCE_CONFIG_DEVICE_NAME(const char *val)
 {
     return DataModel_SetStringByKey(DM_KEY_APPLIANCE_CONFIG_DEVICE_NAME, val);
 }
+
+
 
 
 

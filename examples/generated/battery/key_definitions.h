@@ -11,92 +11,92 @@ extern "C" {
 
 /* battery.namespace.version
  * type=string, read_only */
-#define DM_KEY_BATTERY_NAMESPACE_VERSION 0x00000039U
+#define DM_KEY_BATTERY_NAMESPACE_VERSION 0x00400039U
 
 
 /* battery.status.state_of_charge
  * type=uint16, unit=%, thread_safe, event */
-#define DM_KEY_BATTERY_STATUS_STATE_OF_CHARGE 0x0002001CU
+#define DM_KEY_BATTERY_STATUS_STATE_OF_CHARGE 0x0042001CU
 
 
 /* battery.status.runtime_to_empty
  * type=uint16, unit=minute, thread_safe, event */
-#define DM_KEY_BATTERY_STATUS_RUNTIME_TO_EMPTY 0x0002009CU
+#define DM_KEY_BATTERY_STATUS_RUNTIME_TO_EMPTY 0x0042009CU
 
 
 /* battery.status.voltage
  * type=uint16, unit=mV, thread_safe, event */
-#define DM_KEY_BATTERY_STATUS_VOLTAGE 0x0002011CU
+#define DM_KEY_BATTERY_STATUS_VOLTAGE 0x0042011CU
 
 
 /* battery.status.level
  * type=uint8, thread_safe, event */
-#define DM_KEY_BATTERY_STATUS_LEVEL 0x0002000CU
+#define DM_KEY_BATTERY_STATUS_LEVEL 0x0042000CU
 
 
 /* battery.status.state
  * type=uint8, thread_safe, event */
-#define DM_KEY_BATTERY_STATUS_STATE 0x0002008CU
+#define DM_KEY_BATTERY_STATUS_STATE 0x0042008CU
 
 
 /* battery.status.is_charging
  * type=bool, thread_safe, event */
-#define DM_KEY_BATTERY_STATUS_IS_CHARGING 0x00020004U
+#define DM_KEY_BATTERY_STATUS_IS_CHARGING 0x00420004U
 
 
 /* battery.status.soc_in_use_threshold
  * type=uint8, unit=%, thread_safe, persistent */
-#define DM_KEY_BATTERY_STATUS_SOC_IN_USE_THRESHOLD 0x0002010CU
+#define DM_KEY_BATTERY_STATUS_SOC_IN_USE_THRESHOLD 0x0042010CU
 
 
 /* battery.status.soc_in_use_turbo_threshold
  * type=uint8, unit=%, thread_safe */
-#define DM_KEY_BATTERY_STATUS_SOC_IN_USE_TURBO_THRESHOLD 0x0002018CU
+#define DM_KEY_BATTERY_STATUS_SOC_IN_USE_TURBO_THRESHOLD 0x0042018CU
 
 
 /* battery.status.soc_cleanout_entry_threshold
  * type=uint8, unit=%, thread_safe */
-#define DM_KEY_BATTERY_STATUS_SOC_CLEANOUT_ENTRY_THRESHOLD 0x0002020CU
+#define DM_KEY_BATTERY_STATUS_SOC_CLEANOUT_ENTRY_THRESHOLD 0x0042020CU
 
 
 /* battery.status.soc_full_charge_threshold
  * type=uint8, unit=%, thread_safe */
-#define DM_KEY_BATTERY_STATUS_SOC_FULL_CHARGE_THRESHOLD 0x0002028CU
+#define DM_KEY_BATTERY_STATUS_SOC_FULL_CHARGE_THRESHOLD 0x0042028CU
 
 
 /* battery.status.soc_warning_threshold
  * type=uint8, unit=%, thread_safe */
-#define DM_KEY_BATTERY_STATUS_SOC_WARNING_THRESHOLD 0x0002030CU
+#define DM_KEY_BATTERY_STATUS_SOC_WARNING_THRESHOLD 0x0042030CU
 
 
 /* battery.status.soc_critical_threshold
  * type=uint8, unit=%, thread_safe */
-#define DM_KEY_BATTERY_STATUS_SOC_CRITICAL_THRESHOLD 0x0002038CU
+#define DM_KEY_BATTERY_STATUS_SOC_CRITICAL_THRESHOLD 0x0042038CU
 
 
 /* battery.status.soc_shutoff_threshold
  * type=uint8, unit=%, thread_safe */
-#define DM_KEY_BATTERY_STATUS_SOC_SHUTOFF_THRESHOLD 0x0002040CU
+#define DM_KEY_BATTERY_STATUS_SOC_SHUTOFF_THRESHOLD 0x0042040CU
 
 
 /* battery.status.shutdown
  * type=bool, thread_safe, event */
-#define DM_KEY_BATTERY_STATUS_SHUTDOWN 0x00020084U
+#define DM_KEY_BATTERY_STATUS_SHUTDOWN 0x00420084U
 
 
 /* battery.status.shutdown_delay_sec
  * type=uint8, thread_safe, persistent */
-#define DM_KEY_BATTERY_STATUS_SHUTDOWN_DELAY_SEC 0x0002048CU
+#define DM_KEY_BATTERY_STATUS_SHUTDOWN_DELAY_SEC 0x0042048CU
 
 
 /* battery.status.pf_status
  * type=uint32, thread_safe */
-#define DM_KEY_BATTERY_STATUS_PF_STATUS 0x0002002CU
+#define DM_KEY_BATTERY_STATUS_PF_STATUS 0x0042002CU
 
 
 /* battery.status.safety_status
  * type=uint32, thread_safe */
-#define DM_KEY_BATTERY_STATUS_SAFETY_STATUS 0x000200ACU
+#define DM_KEY_BATTERY_STATUS_SAFETY_STATUS 0x004200ACU
 
 
 #ifdef __cplusplus

@@ -53,10 +53,18 @@ pub fn generate_yaml_manifest(
     ns_id: u16,
     output_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let ns_name = model.meta.id.to_uppercase();
-    let mut classes = Vec::new();
+    // Group classes by namespace
+    let mut ns_classes: BTreeMap<String, Vec<ClassEntry>> = BTreeMap::new();
 
-    for (class_idx, class) in model.classes.iter().enumerate() {
+    for (pos, class) in model.classes.iter().enumerate() {
+        let c_ns_id = class.namespace_id.unwrap_or(ns_id);
+        let c_ns_name = class
+            .namespace_name
+            .as_deref()
+            .unwrap_or(&model.meta.id)
+            .to_string();
+        let c_ns_upper = c_ns_name.to_uppercase();
+        let c_idx = class.class_index.unwrap_or(pos as u8);
         let class_name = class.id.to_uppercase();
         let mut type_counters: [u16; 16] = [0; 16];
         let mut data = Vec::new();
@@ -67,8 +75,8 @@ pub fn generate_yaml_manifest(
             type_counters[type_code as usize] += 1;
 
             let encoding = KeyEncoding {
-                namespace: ns_id,
-                class: class_idx as u8,
+                namespace: c_ns_id,
+                class: c_idx,
                 id: per_type_id,
                 data_type: type_code,
                 thread_safe: key.thread_safe,
@@ -79,7 +87,7 @@ pub fn generate_yaml_manifest(
 
             let define_name = format!(
                 "{}_{}_{}",
-                ns_name,
+                c_ns_upper,
                 class_name,
                 key.id.to_uppercase().replace(' ', "_")
             );
@@ -115,20 +123,22 @@ pub fn generate_yaml_manifest(
             });
         }
 
-        classes.push(ClassEntry {
+        ns_classes.entry(c_ns_name).or_default().push(ClassEntry {
             data,
             name: class.id.clone(),
         });
     }
 
+    let namespaces = ns_classes
+        .into_iter()
+        .map(|(name, classes)| NamespaceEntry { classes, name })
+        .collect();
+
     let manifest = DmFullManifest {
         metadata: Metadata {
             ingot_version: env!("CARGO_PKG_VERSION").to_string(),
         },
-        namespaces: vec![NamespaceEntry {
-            classes,
-            name: model.meta.id.clone(),
-        }],
+        namespaces,
     };
 
     let yaml = serde_yaml::to_string(&manifest)?;

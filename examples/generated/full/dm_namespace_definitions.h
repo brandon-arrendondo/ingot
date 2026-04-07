@@ -6,7 +6,9 @@
 extern "C" {
 #endif
 
-#define DM_NAMESPACE_APPLIANCE 0U
+
+#define DM_NAMESPACE_APPLIANCE 2U
+
 
 #ifdef __cplusplus
 }

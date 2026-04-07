@@ -6,7 +6,9 @@
 extern "C" {
 #endif
 
-#define DM_NAMESPACE_{{ namespace_upper }} {{ ns_id }}U
+{% for ns in namespaces %}
+#define DM_NAMESPACE_{{ ns.namespace_upper }} {{ ns.ns_id }}U
+{% endfor %}
 
 #ifdef __cplusplus
 }

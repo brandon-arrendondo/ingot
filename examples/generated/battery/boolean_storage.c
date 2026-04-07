@@ -11,15 +11,15 @@ static uint32_t bool_storage[1] = {
     0x00000000U
 };
 
-#define BOOL_HASH_SEED_1 96254335U
-#define BOOL_HASH_SEED_2 1281985512U
+#define BOOL_HASH_SEED_1 3694262072U
+#define BOOL_HASH_SEED_2 3619579622U
 #define BOOL_HASH_G_SIZE 5U
 
 #define BOOL_HASH_INDEX(key, seed) \
     bool_G[jenkins_hash(seed, key) % BOOL_HASH_G_SIZE]
 
 static const int8_t bool_G[BOOL_HASH_G_SIZE] = {
-    0, 0, 0, 0, 1
+    0, 0, 0, 1, 0
 };
 
 bool BooleanStorage_SetKey(uint32_t key, bool value)

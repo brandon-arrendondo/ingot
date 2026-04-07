@@ -106,13 +106,15 @@ pub fn collect_integer_storage(
         // Collect keys of this type along with their encoded 32-bit key value and default
         let mut keys_with_meta: Vec<(u32, &KeyDef)> = Vec::new();
 
-        for (class_idx, class) in model.classes.iter().enumerate() {
+        for (pos, class) in model.classes.iter().enumerate() {
+            let c_ns_id = class.namespace_id.unwrap_or(ns_id);
+            let c_idx = class.class_index.unwrap_or(pos as u8);
             let mut type_id_counter: u16 = 0;
             for key in &class.keys {
                 if key.data_type == desc.data_type {
                     let encoding = KeyEncoding {
-                        namespace: ns_id,
-                        class: class_idx as u8,
+                        namespace: c_ns_id,
+                        class: c_idx,
                         id: type_id_counter,
                         data_type: key.data_type.type_code(),
                         thread_safe: key.thread_safe,

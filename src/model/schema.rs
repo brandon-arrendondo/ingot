@@ -67,6 +67,13 @@ pub struct Class {
     pub class_index: Option<u8>,
     #[serde(default)]
     pub keys: Vec<KeyDef>,
+
+    /// Namespace name for this class (set during multi-file merge).
+    #[serde(skip)]
+    pub namespace_name: Option<String>,
+    /// Namespace ID for this class (set during multi-file merge).
+    #[serde(skip)]
+    pub namespace_id: Option<u16>,
 }
 
 /// Definition of a single key-value pair.

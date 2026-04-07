@@ -19,7 +19,7 @@ mod model;
 #[derive(Parser, Debug)]
 #[command(name = "ingot", version, about, long_about)]
 struct Cli {
-    /// Path to the data model TOML specification
+    /// Path to a data model TOML file or directory of TOML files
     #[arg(short, long)]
     model: PathBuf,
 
@@ -124,14 +124,25 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         return Err("--include-list and --exclude-list are mutually exclusive".into());
     }
 
-    let model_str = std::fs::read_to_string(&cli.model)?;
-    let mut data_model: model::DataModel = toml::from_str(&model_str)?;
+    let template_dir = resolve_template_dir()?;
 
-    log::info!(
-        "Parsed namespace '{}' v{}",
-        data_model.meta.id,
-        data_model.meta.version
-    );
+    let target = match cli.target {
+        Target::Stm32 => codegen::target::Target::Stm32,
+        Target::EspXtensa => codegen::target::Target::EspXtensa,
+        Target::EspRiscv => codegen::target::Target::EspRiscv,
+        Target::Mcu8bit => codegen::target::Target::Mcu8bit,
+        Target::Linux64 => codegen::target::Target::Linux64,
+    };
+    let target_config = codegen::target::TargetConfig::for_target(target);
+
+    let mut data_model = if cli.model.is_dir() {
+        load_directory(&cli.model)?
+    } else {
+        let model_str = std::fs::read_to_string(&cli.model)?;
+        let m: model::DataModel = toml::from_str(&model_str)?;
+        log::info!("Parsed namespace '{}' v{}", m.meta.id, m.meta.version);
+        m
+    };
 
     // Apply key filtering lists
     if let Some(ref path) = cli.include_list {
@@ -170,20 +181,8 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         data_model.enums.len()
     );
 
-    // Resolve template directory (bundled with binary or local)
-    let template_dir = resolve_template_dir()?;
-
-    // Namespace ID (0 for single-namespace, configurable later for multi-namespace)
-    let ns_id: u16 = 0;
-
-    let target = match cli.target {
-        Target::Stm32 => codegen::target::Target::Stm32,
-        Target::EspXtensa => codegen::target::Target::EspXtensa,
-        Target::EspRiscv => codegen::target::Target::EspRiscv,
-        Target::Mcu8bit => codegen::target::Target::Mcu8bit,
-        Target::Linux64 => codegen::target::Target::Linux64,
-    };
-    let target_config = codegen::target::TargetConfig::for_target(target);
+    // Namespace ID 0 as fallback (per-class overrides take precedence)
+    let ns_id: u16 = data_model.meta.namespace_id.unwrap_or(0);
 
     codegen::generate(
         &data_model,
@@ -196,4 +195,78 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Code generation complete → {}", cli.output.display());
 
     Ok(())
+}
+
+/// Load a directory of TOML files and merge into a single DataModel.
+///
+/// Each file is parsed and validated individually. Classes are stamped with
+/// their source namespace name/ID so the codegen encodes keys correctly.
+fn load_directory(dir: &std::path::Path) -> Result<model::DataModel, Box<dyn std::error::Error>> {
+    let mut toml_files: Vec<PathBuf> = std::fs::read_dir(dir)?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|ext| ext == "toml"))
+        .collect();
+    toml_files.sort();
+
+    if toml_files.is_empty() {
+        return Err(format!("No .toml files found in {}", dir.display()).into());
+    }
+
+    log::info!(
+        "Loading {} model file(s) from {}",
+        toml_files.len(),
+        dir.display()
+    );
+
+    let mut merged_classes = Vec::new();
+    let mut merged_enums = std::collections::BTreeMap::new();
+
+    for path in &toml_files {
+        let model_str = std::fs::read_to_string(path)?;
+        let file_model: model::DataModel =
+            toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
+
+        log::info!(
+            "  {} — namespace '{}' (id={:?}), {} class(es), {} enum(s)",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            file_model.meta.id,
+            file_model.meta.namespace_id,
+            file_model.classes.len(),
+            file_model.enums.len(),
+        );
+
+        // Validate each file independently
+        if let Err(errors) = model::validation::validate(&file_model) {
+            for e in &errors {
+                log::error!("{}: {e}", path.display());
+            }
+            return Err(format!("{}: {} validation error(s)", path.display(), errors.len()).into());
+        }
+
+        let ns_name = file_model.meta.id.clone();
+        let ns_id = file_model.meta.namespace_id;
+
+        for (i, mut class) in file_model.classes.into_iter().enumerate() {
+            class.namespace_name = Some(ns_name.clone());
+            class.namespace_id = ns_id;
+            if class.class_index.is_none() {
+                class.class_index = Some(i as u8);
+            }
+            merged_classes.push(class);
+        }
+
+        merged_enums.extend(file_model.enums);
+    }
+
+    Ok(model::DataModel {
+        meta: model::schema::Meta {
+            id: "unified".to_string(),
+            version: "0.0.0".to_string(),
+            doc: None,
+            namespace_id: None,
+        },
+        enums: merged_enums,
+        classes: merged_classes,
+    })
 }

@@ -6,7 +6,9 @@
 extern "C" {
 #endif
 
-#define DM_NAMESPACE_BATTERY 0U
+
+#define DM_NAMESPACE_BATTERY 1U
+
 
 #ifdef __cplusplus
 }

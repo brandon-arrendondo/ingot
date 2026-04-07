@@ -111,10 +111,10 @@ pub fn generate(
 
     // Generate dm_namespace_definitions.h
     {
+        let namespaces = collect_namespaces(model, ns_id);
         let mut ctx = Context::new();
         ctx.insert("version", version);
-        ctx.insert("namespace_upper", &model.meta.id.to_uppercase());
-        ctx.insert("ns_id", &ns_id);
+        ctx.insert("namespaces", &namespaces);
         let h = tera.render("dm_namespace_definitions.h", &ctx)?;
         std::fs::write(output_dir.join("dm_namespace_definitions.h"), h)?;
         log::info!("Generated dm_namespace_definitions.h");
@@ -277,12 +277,64 @@ pub fn generate(
     Ok(())
 }
 
+/// A namespace entry for template rendering.
+#[derive(Debug, Serialize)]
+struct NamespaceDefRenderable {
+    namespace_upper: String,
+    ns_id: u16,
+}
+
+/// Collect unique namespaces from the model (deduplicated, ordered).
+fn collect_namespaces(model: &DataModel, fallback_ns_id: u16) -> Vec<NamespaceDefRenderable> {
+    let mut seen = std::collections::BTreeMap::new();
+    for class in &model.classes {
+        let name = class
+            .namespace_name
+            .as_deref()
+            .unwrap_or(&model.meta.id)
+            .to_uppercase();
+        let id = class.namespace_id.unwrap_or(fallback_ns_id);
+        seen.entry(name).or_insert(id);
+    }
+    if seen.is_empty() {
+        // No classes — still emit the model-level namespace
+        seen.insert(model.meta.id.to_uppercase(), fallback_ns_id);
+    }
+    seen.into_iter()
+        .map(|(namespace_upper, ns_id)| NamespaceDefRenderable {
+            namespace_upper,
+            ns_id,
+        })
+        .collect()
+}
+
+/// Resolve the namespace ID for a class, using per-class override or model-level fallback.
+fn resolve_ns_id(class: &crate::model::schema::Class, fallback: u16) -> u16 {
+    class.namespace_id.unwrap_or(fallback)
+}
+
+/// Resolve the namespace name for a class, using per-class override or model-level fallback.
+fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataModel) -> String {
+    class
+        .namespace_name
+        .as_deref()
+        .unwrap_or(&model.meta.id)
+        .to_string()
+}
+
+/// Resolve the class index, using explicit class_index or positional fallback.
+fn resolve_class_idx(class: &crate::model::schema::Class, position: usize) -> u8 {
+    class.class_index.unwrap_or(position as u8)
+}
+
 /// Build renderable key definitions from the model.
 fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderable> {
     let mut defs = Vec::new();
-    let ns_name = model.meta.id.to_uppercase();
 
-    for (class_idx, class) in model.classes.iter().enumerate() {
+    for (pos, class) in model.classes.iter().enumerate() {
+        let c_ns_id = resolve_ns_id(class, ns_id);
+        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
+        let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
         // Track per-type ID counters (matching key encoding)
         let mut type_counters: [u16; 16] = [0; 16];
@@ -293,8 +345,8 @@ fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderabl
             type_counters[type_code as usize] += 1;
 
             let encoding = KeyEncoding {
-                namespace: ns_id,
-                class: class_idx as u8,
+                namespace: c_ns_id,
+                class: c_idx,
                 id,
                 data_type: type_code,
                 thread_safe: key.thread_safe,
@@ -306,10 +358,10 @@ fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderabl
             let key_name = key.id.to_uppercase().replace(' ', "_");
 
             defs.push(KeyDefRenderable {
-                namespace: model.meta.id.clone(),
+                namespace: resolve_ns_name(class, model),
                 class: class.id.clone(),
                 name: key.id.clone(),
-                define_name: format!("DM_KEY_{ns_name}_{class_name}_{key_name}"),
+                define_name: format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}"),
                 hex_value: format!("{encoded:#010X}"),
                 type_name: format!("{:?}", key.data_type).to_lowercase(),
                 unit: key.unit.clone(),
@@ -344,9 +396,11 @@ struct HelperEntry {
 /// Collect helper entries for keys with helpers=true.
 fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
     let mut helpers = Vec::new();
-    let ns_name = model.meta.id.to_uppercase();
 
-    for (class_idx, class) in model.classes.iter().enumerate() {
+    for (pos, class) in model.classes.iter().enumerate() {
+        let c_ns_id = resolve_ns_id(class, ns_id);
+        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
+        let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
         let mut type_counters: [u16; 16] = [0; 16];
 
@@ -360,8 +414,8 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
             }
 
             let encoding = KeyEncoding {
-                namespace: ns_id,
-                class: class_idx as u8,
+                namespace: c_ns_id,
+                class: c_idx,
                 id,
                 data_type: type_code,
                 thread_safe: key.thread_safe,
@@ -372,8 +426,8 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
             let _ = encoding.encode();
 
             let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{ns_name}_{class_name}_{key_name}");
-            let helper_name = format!("{ns_name}_{class_name}_{key_name}");
+            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
+            let helper_name = format!("{c_ns_name}_{class_name}_{key_name}");
 
             let (c_type, val_field, is_string) = match key.data_type {
                 DataType::Bool => ("bool".to_string(), "bval".to_string(), false),
@@ -431,9 +485,11 @@ struct TestKeyEntry {
 /// Collect test entries for every key in the model.
 fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
     let mut entries = Vec::new();
-    let ns_name = model.meta.id.to_uppercase();
 
-    for (class_idx, class) in model.classes.iter().enumerate() {
+    for (pos, class) in model.classes.iter().enumerate() {
+        let c_ns_id = resolve_ns_id(class, ns_id);
+        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
+        let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
         let mut type_counters: [u16; 16] = [0; 16];
 
@@ -442,7 +498,7 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
             type_counters[type_code as usize] += 1;
 
             let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{ns_name}_{class_name}_{key_name}");
+            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
 
             let (c_type, val_field, is_string, is_bool) = match key.data_type {
                 DataType::Bool => ("bool", "bval", false, true),
@@ -461,8 +517,8 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
 
             // Suppress test generation for encoding validation
             let _encoding = KeyEncoding {
-                namespace: ns_id,
-                class: class_idx as u8,
+                namespace: c_ns_id,
+                class: c_idx,
                 id: type_counters[type_code as usize] - 1,
                 data_type: type_code,
                 thread_safe: key.thread_safe,
@@ -489,9 +545,11 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
 /// Collect persistence test entries for persistent keys in the model.
 fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<PersistenceTestEntry> {
     let mut entries = Vec::new();
-    let ns_name = model.meta.id.to_uppercase();
 
-    for (class_idx, class) in model.classes.iter().enumerate() {
+    for (pos, class) in model.classes.iter().enumerate() {
+        let c_ns_id = resolve_ns_id(class, ns_id);
+        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
+        let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
         let mut type_counters: [u16; 16] = [0; 16];
 
@@ -504,7 +562,7 @@ fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<Persis
             }
 
             let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{ns_name}_{class_name}_{key_name}");
+            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
 
             let (c_type, val_field, is_string, is_bool) = match key.data_type {
                 DataType::Bool => ("bool", "bval", false, true),
@@ -519,8 +577,8 @@ fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<Persis
             };
 
             let _encoding = KeyEncoding {
-                namespace: ns_id,
-                class: class_idx as u8,
+                namespace: c_ns_id,
+                class: c_idx,
                 id: type_counters[type_code as usize] - 1,
                 data_type: type_code,
                 thread_safe: key.thread_safe,

@@ -8,18 +8,18 @@
 #define TestBit(A, k)  ( A[(k) / 32] &   (1U << ((k) % 32)) )
 
 static uint32_t bool_storage[1] = {
-    0x0000000DU
+    0x00000007U
 };
 
-#define BOOL_HASH_SEED_1 1369715989U
-#define BOOL_HASH_SEED_2 2978910543U
+#define BOOL_HASH_SEED_1 902091625U
+#define BOOL_HASH_SEED_2 748790298U
 #define BOOL_HASH_G_SIZE 9U
 
 #define BOOL_HASH_INDEX(key, seed) \
     bool_G[jenkins_hash(seed, key) % BOOL_HASH_G_SIZE]
 
 static const int8_t bool_G[BOOL_HASH_G_SIZE] = {
-    0, 2, 0, 1, 0, 0, 0, 1, 0
+    0, 0, 0, 3, 2, 0, 0, 0, 1
 };
 
 bool BooleanStorage_SetKey(uint32_t key, bool value)

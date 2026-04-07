@@ -12,6 +12,7 @@
 
 [meta]
 id = "appliance"
+namespace_id = 2
 version = "2.0.0"
 doc = "Full-featured appliance data model for testing all ingot capabilities"
 

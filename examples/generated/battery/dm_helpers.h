@@ -13,6 +13,12 @@ extern "C" {
 
 
 
+const char *DataModel_Get_BATTERY_NAMESPACE_VERSION(void);
+
+
+
+
+
 static inline uint16_t DataModel_Get_BATTERY_STATUS_STATE_OF_CHARGE(void)
 {
     dm_val_t val = DataModel_GetIntegralTypeByKey(DM_KEY_BATTERY_STATUS_STATE_OF_CHARGE);
