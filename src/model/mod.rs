@@ -1,3 +1,4 @@
+pub mod filter;
 pub mod key;
 pub mod schema;
 pub mod validation;

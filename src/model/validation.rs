@@ -54,11 +54,49 @@ pub enum ValidationError {
         class: String,
         key: String,
     },
+
+    #[error("namespace_id {id} in '{namespace}' exceeds maximum (1023)")]
+    NamespaceIdOutOfRange { namespace: String, id: u16 },
+
+    #[error("class_index {index} for class '{class}' in '{namespace}' exceeds maximum (31)")]
+    ClassIndexOutOfRange {
+        namespace: String,
+        class: String,
+        index: u8,
+    },
+
+    #[error("duplicate class_index {index} in namespace '{namespace}'")]
+    DuplicateClassIndex { namespace: String, index: u8 },
+
+    #[error("key_index {index} for key '{key}' in {namespace}.{class} exceeds maximum (1023)")]
+    KeyIndexOutOfRange {
+        namespace: String,
+        class: String,
+        key: String,
+        index: u16,
+    },
+
+    #[error("duplicate key_index {index} in {namespace}.{class}")]
+    DuplicateKeyIndex {
+        namespace: String,
+        class: String,
+        index: u16,
+    },
 }
 
 pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
     let ns = &model.meta.id;
+
+    // Namespace ID range check (10-bit field = max 1023)
+    if let Some(ns_id) = model.meta.namespace_id {
+        if ns_id > 1023 {
+            errors.push(ValidationError::NamespaceIdOutOfRange {
+                namespace: ns.clone(),
+                id: ns_id,
+            });
+        }
+    }
 
     // Class count limit (5-bit field = max 31, but index 0 is often reserved)
     if model.classes.len() > 31 {
@@ -68,14 +106,30 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
         });
     }
 
-    // Duplicate class IDs
+    // Duplicate class IDs and class_index checks
     let mut class_ids = HashSet::new();
+    let mut class_indices = HashSet::new();
     for class in &model.classes {
         if !class_ids.insert(&class.id) {
             errors.push(ValidationError::DuplicateClassId {
                 namespace: ns.clone(),
                 id: class.id.clone(),
             });
+        }
+
+        if let Some(ci) = class.class_index {
+            if ci > 31 {
+                errors.push(ValidationError::ClassIndexOutOfRange {
+                    namespace: ns.clone(),
+                    class: class.id.clone(),
+                    index: ci,
+                });
+            } else if !class_indices.insert(ci) {
+                errors.push(ValidationError::DuplicateClassIndex {
+                    namespace: ns.clone(),
+                    index: ci,
+                });
+            }
         }
 
         // Key count limit (10-bit field = max 1023)
@@ -87,8 +141,9 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
             });
         }
 
-        // Duplicate key IDs within class
+        // Duplicate key IDs and key_index checks within class
         let mut key_ids = HashSet::new();
+        let mut key_indices = HashSet::new();
         for key in &class.keys {
             if !key_ids.insert(&key.id) {
                 errors.push(ValidationError::DuplicateKeyId {
@@ -96,6 +151,23 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
                     class: class.id.clone(),
                     key: key.id.clone(),
                 });
+            }
+
+            if let Some(ki) = key.key_index {
+                if ki > 1023 {
+                    errors.push(ValidationError::KeyIndexOutOfRange {
+                        namespace: ns.clone(),
+                        class: class.id.clone(),
+                        key: key.id.clone(),
+                        index: ki,
+                    });
+                } else if !key_indices.insert(ki) {
+                    errors.push(ValidationError::DuplicateKeyIndex {
+                        namespace: ns.clone(),
+                        class: class.id.clone(),
+                        index: ki,
+                    });
+                }
             }
 
             // String/binary require max_size

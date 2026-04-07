@@ -35,6 +35,18 @@ struct Cli {
     #[arg(long)]
     no_events: bool,
 
+    /// YAML file listing keys to include (whitelist); all others are excluded
+    #[arg(long)]
+    include_list: Option<PathBuf>,
+
+    /// YAML file listing keys to exclude (blacklist); all others are included
+    #[arg(long)]
+    exclude_list: Option<PathBuf>,
+
+    /// YAML file listing keys that should be marked persistent
+    #[arg(long)]
+    persistent_keys: Option<PathBuf>,
+
     /// Enable verbose output
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
@@ -108,14 +120,39 @@ fn resolve_template_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
+    if cli.include_list.is_some() && cli.exclude_list.is_some() {
+        return Err("--include-list and --exclude-list are mutually exclusive".into());
+    }
+
     let model_str = std::fs::read_to_string(&cli.model)?;
-    let data_model: model::DataModel = toml::from_str(&model_str)?;
+    let mut data_model: model::DataModel = toml::from_str(&model_str)?;
 
     log::info!(
         "Parsed namespace '{}' v{}",
         data_model.meta.id,
         data_model.meta.version
     );
+
+    // Apply key filtering lists
+    if let Some(ref path) = cli.include_list {
+        let list = model::filter::load_key_list(path)?;
+        log::info!("Include list: {} keys from {}", list.len(), path.display());
+        model::filter::apply_include_list(&mut data_model, &list);
+    }
+    if let Some(ref path) = cli.exclude_list {
+        let list = model::filter::load_key_list(path)?;
+        log::info!("Exclude list: {} keys from {}", list.len(), path.display());
+        model::filter::apply_exclude_list(&mut data_model, &list);
+    }
+    if let Some(ref path) = cli.persistent_keys {
+        let list = model::filter::load_key_list(path)?;
+        log::info!(
+            "Persistent keys: {} entries from {}",
+            list.len(),
+            path.display()
+        );
+        model::filter::apply_persistent_keys(&mut data_model, &list);
+    }
 
     if let Err(errors) = model::validation::validate(&data_model) {
         for e in &errors {

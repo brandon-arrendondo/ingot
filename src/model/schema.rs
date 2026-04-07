@@ -1,6 +1,10 @@
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
+fn default_true() -> bool {
+    true
+}
+
 /// Top-level data model specification (one file per namespace).
 ///
 /// ```toml
@@ -36,6 +40,10 @@ pub struct Meta {
     pub id: String,
     pub version: String,
     pub doc: Option<String>,
+    /// Optional 10-bit namespace identifier (0–1023) for key encoding.
+    /// When set, this value occupies bits 31–22 of every generated key.
+    /// Namespaces without an explicit ID get one assigned at build time.
+    pub namespace_id: Option<u16>,
 }
 
 /// A named enum definition with integer values.
@@ -54,6 +62,9 @@ pub struct EnumDef {
 pub struct Class {
     pub id: String,
     pub doc: Option<String>,
+    /// Optional 5-bit class index (0–31) for key encoding.
+    /// When set, occupies bits 21–17 of every key in this class.
+    pub class_index: Option<u8>,
     #[serde(default)]
     pub keys: Vec<KeyDef>,
 }
@@ -66,6 +77,10 @@ pub struct KeyDef {
     pub data_type: DataType,
     pub doc: Option<String>,
     pub unit: Option<String>,
+
+    /// Optional 10-bit key index (0–1023) for key encoding.
+    /// When set, occupies bits 16–7 of this key's encoded value.
+    pub key_index: Option<u16>,
 
     /// Simple default value (used when all variants share the same default).
     pub default: Option<toml::Value>,
@@ -90,7 +105,7 @@ pub struct KeyDef {
     pub persistent: bool,
     #[serde(default)]
     pub event: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub helpers: bool,
 }
 
