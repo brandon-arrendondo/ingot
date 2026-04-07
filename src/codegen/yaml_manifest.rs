@@ -66,18 +66,15 @@ pub fn generate_yaml_manifest(
         let c_ns_upper = c_ns_name.to_uppercase();
         let c_idx = class.class_index.unwrap_or(pos as u8);
         let class_name = class.id.to_uppercase();
-        let mut type_counters: [u16; 16] = [0; 16];
         let mut data = Vec::new();
 
-        for key in &class.keys {
+        for (key_pos, key) in class.keys.iter().enumerate() {
             let type_code = key.data_type.type_code();
-            let per_type_id = type_counters[type_code as usize];
-            type_counters[type_code as usize] += 1;
 
             let encoding = KeyEncoding {
                 namespace: c_ns_id,
                 class: c_idx,
-                id: per_type_id,
+                id: key.key_index.unwrap_or(key_pos as u16),
                 data_type: type_code,
                 thread_safe: key.thread_safe,
                 derived: false,

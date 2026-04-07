@@ -336,18 +336,13 @@ fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderabl
         let c_ns_name = resolve_ns_name(class, model).to_uppercase();
         let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
-        // Track per-type ID counters (matching key encoding)
-        let mut type_counters: [u16; 16] = [0; 16];
-
-        for key in &class.keys {
+        for (key_pos, key) in class.keys.iter().enumerate() {
             let type_code = key.data_type.type_code();
-            let id = type_counters[type_code as usize];
-            type_counters[type_code as usize] += 1;
 
             let encoding = KeyEncoding {
                 namespace: c_ns_id,
                 class: c_idx,
-                id,
+                id: key.key_index.unwrap_or(key_pos as u16),
                 data_type: type_code,
                 thread_safe: key.thread_safe,
                 derived: false,
@@ -402,21 +397,17 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
         let c_ns_name = resolve_ns_name(class, model).to_uppercase();
         let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
-        let mut type_counters: [u16; 16] = [0; 16];
 
-        for key in &class.keys {
-            let type_code = key.data_type.type_code();
-            let id = type_counters[type_code as usize];
-            type_counters[type_code as usize] += 1;
-
+        for (key_pos, key) in class.keys.iter().enumerate() {
             if !key.helpers {
                 continue;
             }
 
+            let type_code = key.data_type.type_code();
             let encoding = KeyEncoding {
                 namespace: c_ns_id,
                 class: c_idx,
-                id,
+                id: key.key_index.unwrap_or(key_pos as u16),
                 data_type: type_code,
                 thread_safe: key.thread_safe,
                 derived: false,
@@ -491,12 +482,8 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
         let c_ns_name = resolve_ns_name(class, model).to_uppercase();
         let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
-        let mut type_counters: [u16; 16] = [0; 16];
 
-        for key in &class.keys {
-            let type_code = key.data_type.type_code();
-            type_counters[type_code as usize] += 1;
-
+        for (key_pos, key) in class.keys.iter().enumerate() {
             let key_name = key.id.to_uppercase().replace(' ', "_");
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
 
@@ -515,11 +502,11 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
             let default_c = format_test_default(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
 
-            // Suppress test generation for encoding validation
+            let type_code = key.data_type.type_code();
             let _encoding = KeyEncoding {
                 namespace: c_ns_id,
                 class: c_idx,
-                id: type_counters[type_code as usize] - 1,
+                id: key.key_index.unwrap_or(key_pos as u16),
                 data_type: type_code,
                 thread_safe: key.thread_safe,
                 derived: false,
@@ -551,12 +538,8 @@ fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<Persis
         let c_ns_name = resolve_ns_name(class, model).to_uppercase();
         let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
-        let mut type_counters: [u16; 16] = [0; 16];
 
-        for key in &class.keys {
-            let type_code = key.data_type.type_code();
-            type_counters[type_code as usize] += 1;
-
+        for (key_pos, key) in class.keys.iter().enumerate() {
             if !key.persistent {
                 continue;
             }
@@ -576,10 +559,11 @@ fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<Persis
                 DataType::Binary => ("const uint8_t *", "", true, false),
             };
 
+            let type_code = key.data_type.type_code();
             let _encoding = KeyEncoding {
                 namespace: c_ns_id,
                 class: c_idx,
-                id: type_counters[type_code as usize] - 1,
+                id: key.key_index.unwrap_or(key_pos as u16),
                 data_type: type_code,
                 thread_safe: key.thread_safe,
                 derived: false,

@@ -47,13 +47,12 @@ pub fn collect_string_storage(
     for (pos, class) in model.classes.iter().enumerate() {
         let c_ns_id = class.namespace_id.unwrap_or(ns_id);
         let c_idx = class.class_index.unwrap_or(pos as u8);
-        let mut string_id_counter: u16 = 0;
-        for key in &class.keys {
+        for (key_pos, key) in class.keys.iter().enumerate() {
             if key.data_type == DataType::String {
                 let encoding = KeyEncoding {
                     namespace: c_ns_id,
                     class: c_idx,
-                    id: string_id_counter,
+                    id: key.key_index.unwrap_or(key_pos as u16),
                     data_type: key.data_type.type_code(),
                     thread_safe: key.thread_safe,
                     derived: false,
@@ -65,7 +64,6 @@ pub fn collect_string_storage(
                 } else {
                     rw_keys.push((encoded, key));
                 }
-                string_id_counter += 1;
             }
         }
     }

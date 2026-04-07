@@ -47,6 +47,10 @@ struct Cli {
     #[arg(long)]
     persistent_keys: Option<PathBuf>,
 
+    /// YAML file with per-key property overrides (default_value)
+    #[arg(long)]
+    property_override_list: Option<PathBuf>,
+
     /// Product variant for per-variant default overrides (e.g. peabodyv0, omnidrive_v2)
     #[arg(long)]
     variant: Option<String>,
@@ -143,6 +147,16 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut data_model = load_models(&cli.model)?;
 
+    // Stamp original key positions before filtering so encoded IDs survive
+    // include/exclude list pruning (matching gen_udm_code behaviour).
+    for class in &mut data_model.classes {
+        for (i, key) in class.keys.iter_mut().enumerate() {
+            if key.key_index.is_none() {
+                key.key_index = Some(i as u16);
+            }
+        }
+    }
+
     // Apply key filtering lists
     if let Some(ref path) = cli.include_list {
         let list = model::filter::load_key_list(path)?;
@@ -162,6 +176,16 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
             path.display()
         );
         model::filter::apply_persistent_keys(&mut data_model, &list);
+    }
+    if let Some(ref path) = cli.property_override_list {
+        let overrides = model::filter::load_property_overrides(path)?;
+        log::info!(
+            "Property overrides: {} entries from {}",
+            overrides.len(),
+            path.display()
+        );
+        let applied = model::filter::apply_property_overrides(&mut data_model, &overrides);
+        log::info!("Applied {} property override(s)", applied);
     }
 
     // Resolve per-variant defaults and enum overrides
@@ -362,10 +386,19 @@ fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error
             if class.class_index.is_none() {
                 class.class_index = Some(i as u8);
             }
+            // Rewrite enum_ref to namespaced form to avoid cross-namespace collisions
+            for key in &mut class.keys {
+                if let Some(ref enum_name) = key.enum_ref {
+                    key.enum_ref = Some(format!("{}::{}", ns_name, enum_name));
+                }
+            }
             merged_classes.push(class);
         }
 
-        merged_enums.extend(file_model.enums);
+        // Namespace-prefix all enum keys to avoid collisions across files
+        for (enum_name, enum_def) in file_model.enums {
+            merged_enums.insert(format!("{}::{}", ns_name, enum_name), enum_def);
+        }
     }
 
     Ok(model::DataModel {

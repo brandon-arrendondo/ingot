@@ -12,7 +12,7 @@ extern "C" {
  * 32-bit key encoding:
  *   [31:22] namespace (10 bits)
  *   [21:17] class     (5 bits)
- *   [16:7]  id        (10 bits, per-type within class)
+ *   [16:7]  id        (10 bits, sequential within class)
  *   [6:3]   data_type (4 bits)
  *   [2]     thread_safe
  *   [1]     derived
@@ -22,13 +22,14 @@ extern "C" {
 typedef enum {
     DM_KEY_TYPE_BOOL   = 0,
     DM_KEY_TYPE_UINT8  = 1,
-    DM_KEY_TYPE_INT8   = 2,
-    DM_KEY_TYPE_UINT16 = 3,
-    DM_KEY_TYPE_INT16  = 4,
-    DM_KEY_TYPE_UINT32 = 5,
+    DM_KEY_TYPE_UINT16 = 2,
+    DM_KEY_TYPE_UINT32 = 3,
+    DM_KEY_TYPE_INT8   = 4,
+    DM_KEY_TYPE_INT16  = 5,
     DM_KEY_TYPE_INT32  = 6,
-    DM_KEY_TYPE_STRING = 7,
-    DM_KEY_TYPE_BINARY = 8,
+    /* 7 = float (reserved) */
+    DM_KEY_TYPE_STRING = 8,
+    DM_KEY_TYPE_BINARY = 9,
     DM_KEY_TYPE_MAX
 } DM_KEY_TYPE;
 

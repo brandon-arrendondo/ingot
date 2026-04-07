@@ -45,21 +45,16 @@ pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<Pers
             .to_uppercase();
         let c_idx = class.class_index.unwrap_or(pos as u8);
         let class_name = class.id.to_uppercase();
-        let mut type_counters: [u16; 16] = [0; 16];
-
-        for key in &class.keys {
-            let type_code = key.data_type.type_code();
-            let id = type_counters[type_code as usize];
-            type_counters[type_code as usize] += 1;
-
+        for (key_pos, key) in class.keys.iter().enumerate() {
             if !key.persistent {
                 continue;
             }
 
+            let type_code = key.data_type.type_code();
             let encoding = KeyEncoding {
                 namespace: c_ns_id,
                 class: c_idx,
-                id,
+                id: key.key_index.unwrap_or(key_pos as u16),
                 data_type: type_code,
                 thread_safe: key.thread_safe,
                 derived: false,

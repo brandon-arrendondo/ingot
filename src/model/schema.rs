@@ -133,17 +133,20 @@ pub enum DataType {
 
 impl DataType {
     /// Type code used in the 4-bit key encoding field.
+    ///
+    /// Ordering matches gen_udm_code: unsigned widths first, then signed.
     pub fn type_code(self) -> u8 {
         match self {
             DataType::Bool => 0,
             DataType::Uint8 => 1,
-            DataType::Int8 => 2,
-            DataType::Uint16 => 3,
-            DataType::Int16 => 4,
-            DataType::Uint32 => 5,
+            DataType::Uint16 => 2,
+            DataType::Uint32 => 3,
+            DataType::Int8 => 4,
+            DataType::Int16 => 5,
             DataType::Int32 => 6,
-            DataType::String => 7,
-            DataType::Binary => 8,
+            // 7 = float (reserved, not used)
+            DataType::String => 8,
+            DataType::Binary => 9,
         }
     }
 
