@@ -19,9 +19,9 @@ mod model;
 #[derive(Parser, Debug)]
 #[command(name = "ingot", version, about, long_about)]
 struct Cli {
-    /// Path to a data model TOML file or directory of TOML files
-    #[arg(short, long)]
-    model: PathBuf,
+    /// Path to data model TOML file(s) or directory of TOML files (repeatable)
+    #[arg(short, long, required = true)]
+    model: Vec<PathBuf>,
 
     /// Output directory for generated C code
     #[arg(short, long, default_value = "generated")]
@@ -82,7 +82,9 @@ fn main() {
         })
         .init();
 
-    log::info!("Model: {}", cli.model.display());
+    for path in &cli.model {
+        log::info!("Model: {}", path.display());
+    }
     log::info!("Output: {}", cli.output.display());
     log::info!("Target: {:?}", cli.target);
 
@@ -139,14 +141,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     };
     let target_config = codegen::target::TargetConfig::for_target(target);
 
-    let mut data_model = if cli.model.is_dir() {
-        load_directory(&cli.model)?
-    } else {
-        let model_str = std::fs::read_to_string(&cli.model)?;
-        let m: model::DataModel = toml::from_str(&model_str)?;
-        log::info!("Parsed namespace '{}' v{}", m.meta.id, m.meta.version);
-        m
-    };
+    let mut data_model = load_models(&cli.model)?;
 
     // Apply key filtering lists
     if let Some(ref path) = cli.include_list {
@@ -293,28 +288,46 @@ fn print_statistics(model: &model::DataModel) {
     println!("  read-write string: {rw_string_count}");
 }
 
-/// Load a directory of TOML files and merge into a single DataModel.
+/// Load model(s) from one or more paths (files and/or directories).
 ///
-/// Each file is parsed and validated individually. Classes are stamped with
-/// their source namespace name/ID so the codegen encodes keys correctly.
-fn load_directory(dir: &std::path::Path) -> Result<model::DataModel, Box<dyn std::error::Error>> {
-    let mut toml_files: Vec<PathBuf> = std::fs::read_dir(dir)?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|ext| ext == "toml"))
-        .collect();
-    toml_files.sort();
-
-    if toml_files.is_empty() {
-        return Err(format!("No .toml files found in {}", dir.display()).into());
+/// A single file is loaded directly. Multiple paths or directories are
+/// merged into one DataModel with per-class namespace info preserved.
+fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
+    // Expand directories into individual .toml files
+    let mut toml_files: Vec<PathBuf> = Vec::new();
+    for path in paths {
+        if path.is_dir() {
+            let mut dir_files: Vec<PathBuf> = std::fs::read_dir(path)?
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|ext| ext == "toml"))
+                .collect();
+            if dir_files.is_empty() {
+                return Err(format!("No .toml files found in {}", path.display()).into());
+            }
+            dir_files.sort();
+            log::info!(
+                "Loading {} model file(s) from {}",
+                dir_files.len(),
+                path.display()
+            );
+            toml_files.extend(dir_files);
+        } else {
+            toml_files.push(path.clone());
+        }
     }
 
-    log::info!(
-        "Loading {} model file(s) from {}",
-        toml_files.len(),
-        dir.display()
-    );
+    // Single file — load directly (no merge overhead, preserves model meta)
+    if toml_files.len() == 1 {
+        let path = &toml_files[0];
+        let model_str = std::fs::read_to_string(path)?;
+        let m: model::DataModel =
+            toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
+        log::info!("Parsed namespace '{}' v{}", m.meta.id, m.meta.version);
+        return Ok(m);
+    }
 
+    // Multiple files — merge into a single DataModel
     let mut merged_classes = Vec::new();
     let mut merged_enums = std::collections::BTreeMap::new();
 
