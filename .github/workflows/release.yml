@@ -31,6 +31,12 @@ jobs:
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate SBOM (CycloneDX)
+        run: cargo cyclonedx --format json --spec-version 1.5
+
       - name: Package tarball
         run: |
           mkdir -p dist
@@ -39,6 +45,7 @@ jobs:
           cp docs/ingot.1 dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt dist/
+          cp ingot.cdx.json dist/
           tar -czf ingot-linux-x86_64.tar.gz -C dist .
 
       - name: Upload artifact
@@ -72,6 +79,12 @@ jobs:
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate SBOM (CycloneDX)
+        run: cargo cyclonedx --format json --spec-version 1.5
+
       - name: Package zip
         run: |
           mkdir -p dist
@@ -79,6 +92,7 @@ jobs:
           cp -r templates dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt dist/
+          cp ingot.cdx.json dist/
           cd dist && zip -r ../ingot-windows-x86_64.zip .
 
       - name: Upload artifact
@@ -106,6 +120,12 @@ jobs:
 
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate SBOM (CycloneDX)
+        run: cargo cyclonedx --format json --spec-version 1.5
 
       - name: Build .deb
         run: cargo deb
@@ -138,6 +158,12 @@ jobs:
 
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate SBOM (CycloneDX)
+        run: cargo cyclonedx --format json --spec-version 1.5
 
       - name: Build .rpm
         run: cargo generate-rpm
@@ -173,6 +199,12 @@ jobs:
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate SBOM (CycloneDX)
+        run: cargo cyclonedx --format json --spec-version 1.5
+
       - name: Create AppDir
         run: |
           mkdir -p AppDir/usr/bin AppDir/usr/share/ingot AppDir/usr/share/man/man1 AppDir/usr/share/doc/ingot
@@ -181,6 +213,7 @@ jobs:
           cp docs/ingot.1 AppDir/usr/share/man/man1/
           cp LICENSE AppDir/usr/share/doc/ingot/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt AppDir/usr/share/doc/ingot/
+          cp ingot.cdx.json AppDir/usr/share/doc/ingot/
 
       - name: Create desktop entry and icon
         run: |
