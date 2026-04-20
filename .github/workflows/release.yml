@@ -25,6 +25,12 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
+      - name: Install cargo-about
+        run: cargo install cargo-about --locked
+
+      - name: Generate Third-Party Licenses
+        run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
+
       - name: Package tarball
         run: |
           mkdir -p dist
@@ -32,6 +38,7 @@ jobs:
           cp -r templates dist/
           cp docs/ingot.1 dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
+          cp THIRD_PARTY_LICENSES.txt dist/
           tar -czf ingot-linux-x86_64.tar.gz -C dist .
 
       - name: Upload artifact
@@ -59,12 +66,19 @@ jobs:
       - name: Build Windows binary
         run: cargo build --release --target x86_64-pc-windows-gnu
 
+      - name: Install cargo-about
+        run: cargo install cargo-about --locked
+
+      - name: Generate Third-Party Licenses
+        run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
+
       - name: Package zip
         run: |
           mkdir -p dist
           cp target/x86_64-pc-windows-gnu/release/ingot.exe dist/
           cp -r templates dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
+          cp THIRD_PARTY_LICENSES.txt dist/
           cd dist && zip -r ../ingot-windows-x86_64.zip .
 
       - name: Upload artifact
@@ -86,6 +100,12 @@ jobs:
 
       - name: Install cargo-deb
         run: cargo install cargo-deb
+
+      - name: Install cargo-about
+        run: cargo install cargo-about --locked
+
+      - name: Generate Third-Party Licenses
+        run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
       - name: Build .deb
         run: cargo deb
@@ -112,6 +132,12 @@ jobs:
 
       - name: Install cargo-generate-rpm
         run: cargo install cargo-generate-rpm
+
+      - name: Install cargo-about
+        run: cargo install cargo-about --locked
+
+      - name: Generate Third-Party Licenses
+        run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
       - name: Build .rpm
         run: cargo generate-rpm
@@ -141,12 +167,20 @@ jobs:
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
 
+      - name: Install cargo-about
+        run: cargo install cargo-about --locked
+
+      - name: Generate Third-Party Licenses
+        run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
+
       - name: Create AppDir
         run: |
-          mkdir -p AppDir/usr/bin AppDir/usr/share/ingot AppDir/usr/share/man/man1
+          mkdir -p AppDir/usr/bin AppDir/usr/share/ingot AppDir/usr/share/man/man1 AppDir/usr/share/doc/ingot
           cp target/release/ingot AppDir/usr/bin/
           cp -r templates AppDir/usr/share/ingot/
           cp docs/ingot.1 AppDir/usr/share/man/man1/
+          cp LICENSE AppDir/usr/share/doc/ingot/ 2>/dev/null || true
+          cp THIRD_PARTY_LICENSES.txt AppDir/usr/share/doc/ingot/
 
       - name: Create desktop entry and icon
         run: |
