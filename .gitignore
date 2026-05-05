@@ -6,3 +6,5 @@ coverage/
 *.a
 *.so
 *.exe
+THIRD_PARTY_LICENSES.txt
+*.cdx.json

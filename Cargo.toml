@@ -37,6 +37,8 @@ assets = [
     ["docs/ingot.1", "usr/share/man/man1/", "644"],
     ["templates/*", "usr/share/ingot/templates/", "644"],
     ["README.md", "usr/share/doc/ingot/", "644"],
+    ["THIRD_PARTY_LICENSES.txt", "usr/share/doc/ingot/", "644"],
+    ["ingot.cdx.json", "usr/share/doc/ingot/", "644"],
 ]
 
 [package.metadata.generate-rpm]
@@ -45,4 +47,6 @@ assets = [
     { source = "docs/ingot.1", dest = "/usr/share/man/man1/ingot.1", mode = "644" },
     { source = "templates/*", dest = "/usr/share/ingot/templates/", mode = "644" },
     { source = "README.md", dest = "/usr/share/doc/ingot/README.md", mode = "644" },
+    { source = "THIRD_PARTY_LICENSES.txt", dest = "/usr/share/doc/ingot/THIRD_PARTY_LICENSES.txt", mode = "644" },
+    { source = "ingot.cdx.json", dest = "/usr/share/doc/ingot/ingot.cdx.json", mode = "644" },
 ]
