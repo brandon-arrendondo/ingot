@@ -26,13 +26,13 @@ jobs:
         run: cargo build --release
 
       - name: Install cargo-about
-        run: cargo install cargo-about --features cli
+        run: cargo install cargo-about --locked
 
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
 
       - name: Generate SBOM (CycloneDX)
         run: cargo cyclonedx --format json --spec-version 1.5
@@ -74,13 +74,13 @@ jobs:
         run: cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Install cargo-about
-        run: cargo install cargo-about --features cli
+        run: cargo install cargo-about --locked
 
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
 
       - name: Generate SBOM (CycloneDX)
         run: cargo cyclonedx --format json --spec-version 1.5
@@ -116,13 +116,13 @@ jobs:
         run: cargo install cargo-deb
 
       - name: Install cargo-about
-        run: cargo install cargo-about --features cli
+        run: cargo install cargo-about --locked
 
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
 
       - name: Generate SBOM (CycloneDX)
         run: cargo cyclonedx --format json --spec-version 1.5
@@ -154,13 +154,13 @@ jobs:
         run: cargo install cargo-generate-rpm
 
       - name: Install cargo-about
-        run: cargo install cargo-about --features cli
+        run: cargo install cargo-about --locked
 
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
 
       - name: Generate SBOM (CycloneDX)
         run: cargo cyclonedx --format json --spec-version 1.5
@@ -194,13 +194,13 @@ jobs:
           chmod +x linuxdeploy-x86_64.AppImage
 
       - name: Install cargo-about
-        run: cargo install cargo-about --features cli
+        run: cargo install cargo-about --locked
 
       - name: Generate Third-Party Licenses
         run: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.txt
 
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
 
       - name: Generate SBOM (CycloneDX)
         run: cargo cyclonedx --format json --spec-version 1.5
