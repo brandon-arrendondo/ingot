@@ -35,39 +35,62 @@ def build(c, release=False):
 
 @task
 def test(c):
-    """Run all Rust unit tests and generated C integration tests."""
+    """Run all Rust unit tests and generated C/C++ integration tests."""
     import tempfile, os
 
     c.run("cargo test", pty=True)
 
-    unity_dir = os.path.join(os.path.dirname(__file__), "deps", "unity", "src")
-    if not os.path.isfile(os.path.join(unity_dir, "unity.c")):
+    here = os.path.dirname(__file__)
+
+    # --- C integration tests (Unity) ---
+    unity_dir = os.path.join(here, "deps", "unity", "src")
+    if os.path.isfile(os.path.join(unity_dir, "unity.c")):
+        models = ["examples/battery.toml", "examples/minimal.toml", "examples/full.toml"]
+        modes = [
+            ("events", []),
+            ("no-events", ["--no-events"]),
+        ]
+        for model in models:
+            for mode_name, extra_flags in modes:
+                with tempfile.TemporaryDirectory(prefix="ingot_ctest_") as tmp:
+                    label = f"{os.path.basename(model)}[{mode_name}]"
+                    build_dir = os.path.join(tmp, "build")
+                    flags = " ".join(extra_flags)
+                    c.run(
+                        f"cargo run -q -- --model {model} --output {tmp} {flags}",
+                        pty=True,
+                    )
+                    c.run(
+                        f"cmake -S {tmp} -B {build_dir} -DUNITY_DIR={unity_dir} > /dev/null 2>&1",
+                    )
+                    c.run(f"cmake --build {build_dir} > /dev/null 2>&1")
+                    print(f"\n=== C tests: {label} ===")
+                    c.run(f"{build_dir}/test_dm", pty=True)
+    else:
         print("Unity submodule not initialized — skipping C tests")
         print("  Run: git submodule update --init deps/unity")
-        return
 
-    models = ["examples/battery.toml", "examples/minimal.toml", "examples/full.toml"]
-    modes = [
-        ("events", []),
-        ("no-events", ["--no-events"]),
-    ]
-
-    for model in models:
-        for mode_name, extra_flags in modes:
-            with tempfile.TemporaryDirectory(prefix="ingot_ctest_") as tmp:
-                label = f"{os.path.basename(model)}[{mode_name}]"
-                build_dir = os.path.join(tmp, "build")
-                flags = " ".join(extra_flags)
-                c.run(
-                    f"cargo run -q -- --model {model} --output {tmp} {flags}",
-                    pty=True,
-                )
-                c.run(
-                    f"cmake -S {tmp} -B {build_dir} -DUNITY_DIR={unity_dir} > /dev/null 2>&1",
-                )
-                c.run(f"cmake --build {build_dir} > /dev/null 2>&1")
-                print(f"\n=== C tests: {label} ===")
-                c.run(f"{build_dir}/test_dm", pty=True)
+    # --- C++/tinyfsm event dispatch: compile + link + run the generated wrapper ---
+    tinyfsm_dir = os.path.join(here, "deps", "tinyfsm", "include")
+    if os.path.isfile(os.path.join(tinyfsm_dir, "tinyfsm.hpp")):
+        fixture = os.path.join(here, "tests", "fixtures", "cxx")
+        with tempfile.TemporaryDirectory(prefix="ingot_cxxtest_") as tmp:
+            gen = os.path.join(tmp, "gen")
+            build_dir = os.path.join(tmp, "build")
+            c.run(
+                f"cargo run -q -- --model examples/full.toml --output {gen} --emit-tinyfsm",
+                pty=True,
+            )
+            c.run(
+                f"cmake -S {fixture} -B {build_dir}"
+                f" -DGEN_DIR={gen} -DTINYFSM_DIR={tinyfsm_dir} > /dev/null 2>&1",
+            )
+            c.run(f"cmake --build {build_dir} > /dev/null 2>&1")
+            print("\n=== C++ tinyfsm dispatch test ===")
+            c.run(f"{build_dir}/tinyfsm_dispatch && echo PASS", pty=True)
+    else:
+        print("tinyfsm submodule not initialized — skipping C++ event test")
+        print("  Run: git submodule update --init deps/tinyfsm")
 
 
 @task

@@ -18,6 +18,8 @@ hashing -- no dynamic memory, no collisions, no linear search.
 - **Inline accessors**: zero function-call overhead for simple get/set helpers
 - **Thread safety**: per-key mutex support (pthread, FreeRTOS, or bare-metal)
 - **Event callbacks**: optional value-change notifications
+- **tinyfsm dispatch (opt-in)**: `--emit-tinyfsm` generates C++ `tinyfsm::Event`
+  structs + a `key_id`→event dispatch wrapper for `event = true` keys
 - **Persistence**: packed-struct binary save/load with magic number validation
 - **Unity test generation**: auto-generated C tests for every key (defaults, roundtrip, read-only)
 
@@ -50,6 +52,8 @@ Options:
 --output <dir>     Output directory for generated C code (default: generated/)
 --target <target>  Target platform: stm32, esp-xtensa, esp-riscv, mcu8bit, linux64
 --no-events        Disable event callback generation
+--emit-tinyfsm     Also emit C++/tinyfsm event structs + dispatch-by-key wrapper
+                   (opt-in, additive; independent of --no-events)
 -v                 Verbose output (-vv for debug, -vvv for trace)
 ```
 
@@ -72,6 +76,13 @@ For a model with all feature types enabled, ingot generates:
 | `dm_full.yaml` | Resolved model manifest for downstream tools |
 | `test_dm.c` | Unity test suite |
 | `CMakeLists.txt` | Build config for tests |
+
+With `--emit-tinyfsm`, ingot additionally emits (for `event = true` keys):
+
+| File | Purpose |
+|------|---------|
+| `dm_key_events.hpp` | One empty `tinyfsm::Event` struct per event key |
+| `dm_key_events_wrapper.hpp/.cpp` | `send_tinyfsm_event_by_key(key_id)` dispatch switch (calls a consumer-provided `send_tinyfsm_event` seam) |
 
 ## Data Model Format
 
@@ -117,7 +128,7 @@ C output is in `examples/generated/`.
 ```sh
 pip install invoke pre-commit
 pre-commit install
-git submodule update --init deps/unity
+git submodule update --init deps/unity deps/tinyfsm
 
 invoke check      # Run pre-commit hooks (fmt, clippy, coverage gate)
 invoke test       # Rust unit tests + C integration tests (3 models x 2 modes)
