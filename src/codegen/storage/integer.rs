@@ -130,7 +130,7 @@ pub fn collect_integer_storage(
         }
 
         let encoded_keys: Vec<u32> = keys_with_meta.iter().map(|(k, _)| *k).collect();
-        let ph = hash::generate(&encoded_keys, 100)
+        let ph = hash::generate_deterministic(&encoded_keys, 100)
             .ok_or_else(|| format!("Failed to generate perfect hash for {} keys", desc.label))?;
 
         let storage = build_int_type_storage(desc, &keys_with_meta, &ph);

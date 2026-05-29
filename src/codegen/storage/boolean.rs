@@ -55,7 +55,7 @@ pub fn collect_boolean_storage(
     }
 
     let encoded_keys: Vec<u32> = keys_with_meta.iter().map(|(k, _)| *k).collect();
-    let ph = hash::generate(&encoded_keys, 100)
+    let ph = hash::generate_deterministic(&encoded_keys, 100)
         .ok_or("Failed to generate perfect hash for boolean keys")?;
 
     Ok(Some(build_bool_storage(&keys_with_meta, &ph)))

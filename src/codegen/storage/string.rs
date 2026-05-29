@@ -90,7 +90,7 @@ pub fn collect_string_storage(
 
 fn build_string_group(keys: &[(u32, &KeyDef)]) -> Result<StringGroup, String> {
     let encoded_keys: Vec<u32> = keys.iter().map(|(k, _)| *k).collect();
-    let ph = hash::generate(&encoded_keys, 100)
+    let ph = hash::generate_deterministic(&encoded_keys, 100)
         .ok_or("Failed to generate perfect hash for string keys")?;
 
     let num_keys = keys.len();

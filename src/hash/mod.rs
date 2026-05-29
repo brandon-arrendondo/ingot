@@ -138,6 +138,84 @@ pub fn generate_with_seeds(keys: &[u32], seed1: u32, seed2: u32) -> Option<Perfe
     }
 }
 
+/// FNV-1a 64-bit offset basis — the algorithm's canonical starting value.
+/// See <http://www.isthe.com/chongo/tech/comp/fnv/>.
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+
+/// FNV-1a 64-bit prime (2^40 + 2^8 + 0xb3). Paired with the offset basis above.
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+/// Generate a perfect hash whose seeds are derived from the key set, so the
+/// same keys always produce byte-identical output — no system entropy.
+///
+/// This is the entry point for code generation, where the emitted tables are
+/// committed to source control and must be reproducible (an entropy-seeded
+/// table would re-diff on every regen). The CHM algorithm, `try_build`, and
+/// `verify` are identical to [`generate`]; only the seed *source* differs.
+///
+/// The base seed pair is the FNV-1a hash of the keys (see [`fnv1a_keys`]),
+/// split into two `u32`s. CHM almost always succeeds on this first pair; if a
+/// pair produces a cyclic graph or fails `verify`, the attempt counter is mixed
+/// in (via the FNV prime) to derive the next deterministic pair, mirroring
+/// `generate`'s retry loop without `rand::rng()`. Empty- and single-key
+/// shortcuts match `generate` exactly.
+///
+/// Returns `None` if no valid hash is found within `max_iters` attempts.
+pub fn generate_deterministic(keys: &[u32], max_iters: u32) -> Option<PerfectHash> {
+    if keys.is_empty() {
+        return Some(PerfectHash {
+            seed1: 0,
+            seed2: 0,
+            g_table: vec![],
+            num_keys: 0,
+        });
+    }
+
+    let unique: Vec<u32> = {
+        let mut set = HashSet::new();
+        keys.iter().filter(|&&k| set.insert(k)).copied().collect()
+    };
+
+    if unique.len() == 1 {
+        return Some(PerfectHash {
+            seed1: 0,
+            seed2: 0,
+            g_table: vec![0],
+            num_keys: 1,
+        });
+    }
+
+    let base = fnv1a_keys(&unique);
+    for attempt in 0..max_iters {
+        // attempt 0 uses the pure FNV hash; later attempts perturb it
+        // deterministically so the rare retry tries a fresh seed pair.
+        let mixed = base ^ (attempt as u64).wrapping_mul(FNV_PRIME);
+        let seed1 = mixed as u32;
+        let seed2 = (mixed >> 32) as u32;
+        if let Some(ph) = generate_with_seeds(&unique, seed1, seed2) {
+            return Some(ph);
+        }
+    }
+
+    None
+}
+
+/// FNV-1a 64-bit hash over the keys' little-endian bytes.
+///
+/// Stable and entropy-free, so the derived seed depends only on the key set.
+/// The model's key ordering is itself deterministic, so identical input always
+/// hashes to the same value.
+fn fnv1a_keys(keys: &[u32]) -> u64 {
+    let mut h = FNV_OFFSET_BASIS;
+    for key in keys {
+        for byte in key.to_le_bytes() {
+            h ^= byte as u64;
+            h = h.wrapping_mul(FNV_PRIME);
+        }
+    }
+    h
+}
+
 /// Attempt to build the G table for given seeds.
 ///
 /// Constructs an undirected graph and checks acyclicity. If acyclic,
@@ -243,6 +321,44 @@ mod tests {
         for &k in &keys {
             assert!(ph.lookup(k) < 10);
         }
+    }
+
+    #[test]
+    fn deterministic_is_reproducible() {
+        // Two independent calls on the same keys must agree on seeds AND the
+        // full G table — this is the property that makes committed codegen
+        // byte-stable.
+        let keys: Vec<u32> = (0..50).map(|i| i * 0x1234 + 0xabcd_0000).collect();
+        let a = generate_deterministic(&keys, 100).unwrap();
+        let b = generate_deterministic(&keys, 100).unwrap();
+
+        assert_eq!(a.seed1, b.seed1);
+        assert_eq!(a.seed2, b.seed2);
+        assert_eq!(a.g_table, b.g_table);
+        assert_eq!(a.num_keys, 50);
+
+        // Determinism must not cost validity: still a minimal perfect hash.
+        assert!(a.verify(&keys));
+        for &k in &keys {
+            assert!(a.lookup(k) < 50);
+        }
+    }
+
+    #[test]
+    fn deterministic_handles_degenerate_sets() {
+        let empty = generate_deterministic(&[], 100).unwrap();
+        assert_eq!(empty.num_keys, 0);
+
+        let single = generate_deterministic(&[42], 100).unwrap();
+        assert_eq!(single.num_keys, 1);
+        assert_eq!(single.lookup(42), 0);
+    }
+
+    #[test]
+    fn deterministic_deduplicates_input() {
+        let ph = generate_deterministic(&[1, 2, 3, 1, 2, 3], 100).unwrap();
+        assert_eq!(ph.num_keys, 3);
+        assert!(ph.verify(&[1, 2, 3]));
     }
 
     #[test]
