@@ -24,6 +24,24 @@ pub struct KeyDefRenderable {
     pub event: bool,
 }
 
+/// A single event key ready for the dispatch-by-key switch.
+#[derive(Debug, Serialize)]
+struct EventKeyRenderable {
+    /// The key #define (e.g. "DM_KEY_APPLIANCE_STATUS_MODE") — the switch case.
+    define_name: String,
+    /// The tinyfsm event struct (e.g. "FSM_EVENT_APPLIANCE_STATUS_MODE").
+    fsm_event_name: String,
+}
+
+/// Event keys grouped by (namespace, class) for the event-struct header.
+#[derive(Debug, Serialize)]
+struct EventGroupRenderable {
+    namespace: String,
+    class: String,
+    /// FSM event struct names in this namespace/class, in declaration order.
+    events: Vec<String>,
+}
+
 /// Integer type descriptor for the API dispatch templates.
 #[derive(Debug, Serialize)]
 struct DmIntTypeInfo {
@@ -64,6 +82,7 @@ pub fn generate(
     template_dir: &Path,
     target: &target::TargetConfig,
     no_events: bool,
+    emit_tinyfsm: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
 
@@ -87,6 +106,12 @@ pub fn generate(
         let rendered = tera.render("key_definitions.h", &ctx)?;
         std::fs::write(output_dir.join("key_definitions.h"), rendered)?;
         log::info!("Generated key_definitions.h ({} keys)", key_defs.len());
+    }
+
+    // Generate C++/tinyfsm event artifacts (opt-in, additive — see --emit-tinyfsm).
+    // Off by default so C99-only consumers and their output are untouched.
+    if emit_tinyfsm {
+        generate_tinyfsm_events(&tera, version, &key_defs, output_dir)?;
     }
 
     // Generate jenkins_hash.h and jenkins_hash.c
@@ -275,6 +300,79 @@ pub fn generate(
     }
 
     Ok(())
+}
+
+/// Render the C++/tinyfsm event header + dispatch-by-key wrapper.
+///
+/// Emits nothing when no key carries `event = true` — a consumer with no
+/// event keys gets no C++ artifacts even with the flag on.
+fn generate_tinyfsm_events(
+    tera: &Tera,
+    version: &str,
+    key_defs: &[KeyDefRenderable],
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (events, groups) = collect_event_keys(key_defs);
+    if events.is_empty() {
+        log::info!("No event keys — skipping tinyfsm event generation");
+        return Ok(());
+    }
+
+    let mut hpp_ctx = Context::new();
+    hpp_ctx.insert("version", version);
+    hpp_ctx.insert("groups", &groups);
+    let hpp = tera.render("dm_key_events.hpp", &hpp_ctx)?;
+    std::fs::write(output_dir.join("dm_key_events.hpp"), hpp)?;
+
+    let mut wrap_ctx = Context::new();
+    wrap_ctx.insert("version", version);
+    wrap_ctx.insert("events", &events);
+    let wrapper_h = tera.render("dm_key_events_wrapper.hpp", &wrap_ctx)?;
+    let wrapper_c = tera.render("dm_key_events_wrapper.cpp", &wrap_ctx)?;
+    std::fs::write(output_dir.join("dm_key_events_wrapper.hpp"), wrapper_h)?;
+    std::fs::write(output_dir.join("dm_key_events_wrapper.cpp"), wrapper_c)?;
+
+    log::info!(
+        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp ({} event keys)",
+        events.len()
+    );
+    Ok(())
+}
+
+/// Build the flat dispatch list + (namespace, class)-grouped struct list for
+/// the `event = true` keys.
+///
+/// The FSM event struct name mirrors the key #define with the `DM_KEY_`
+/// prefix swapped for `FSM_EVENT_`, matching the UDM generator's naming so
+/// ingot is a drop-in replacement.
+fn collect_event_keys(
+    key_defs: &[KeyDefRenderable],
+) -> (Vec<EventKeyRenderable>, Vec<EventGroupRenderable>) {
+    let mut events = Vec::new();
+    let mut groups: Vec<EventGroupRenderable> = Vec::new();
+
+    for key in key_defs.iter().filter(|k| k.event) {
+        let fsm_event_name = key.define_name.replacen("DM_KEY_", "FSM_EVENT_", 1);
+        events.push(EventKeyRenderable {
+            define_name: key.define_name.clone(),
+            fsm_event_name: fsm_event_name.clone(),
+        });
+
+        let namespace = key.namespace.to_uppercase();
+        let class = key.class.to_uppercase();
+        match groups.last_mut() {
+            Some(g) if g.namespace == namespace && g.class == class => {
+                g.events.push(fsm_event_name)
+            }
+            _ => groups.push(EventGroupRenderable {
+                namespace,
+                class,
+                events: vec![fsm_event_name],
+            }),
+        }
+    }
+
+    (events, groups)
 }
 
 /// A namespace entry for template rendering.

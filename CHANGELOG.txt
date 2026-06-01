@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `--emit-tinyfsm` flag: emit C++/tinyfsm event artifacts for `event = true`
+  keys -- `dm_key_events.hpp` (one empty `tinyfsm::Event` struct per event key)
+  and `dm_key_events_wrapper.hpp/.cpp` (a `send_tinyfsm_event_by_key` switch
+  fanning a runtime `key_id` to its typed event). Opt-in and additive:
+  default-off, independent of `--no-events`, C99 output byte-for-byte unchanged
+  when off. The dispatch target is a consumer-provided `send_tinyfsm_event` seam
+  (via the consumer's `fsmlist.hpp`); ingot never defines a `FsmList`.
+- tinyfsm test submodule (`deps/tinyfsm`) and C++ fixture (`tests/fixtures/cxx`)
+  that compiles, links, and runs the generated wrapper against real tinyfsm,
+  wired into `invoke test`.
+- Rust integration tests (`tests/codegen_tinyfsm.rs`) asserting the generated
+  event-struct, wrapper-switch, and flag-off behavior.
+- Rust integration tests (`tests/codegen_determinism.rs`) asserting byte-identical
+  output across two runs of every example model (the regression test for the
+  deterministic-codegen fix below).
+
+### Fixed
+- Codegen is now deterministic. The perfect-hash seeds for boolean, integer, and
+  string storage were drawn from system entropy (`rand::rng()`), so two runs on
+  the same model produced different `*_HASH_SEED_*` defines and table layouts in
+  `boolean_storage.c` / `integer_storage.c` / `string_storage.c`. Seeds are now
+  derived deterministically from the key set (FNV-1a, with a deterministic retry
+  until the CHM hash verifies), so identical input yields byte-identical output
+  every run -- committed generated code no longer re-diffs on regeneration. The
+  hash *algorithm* (CHM / 2-seed Jenkins) is unchanged; only seed *selection* is.
+
 ## [1.0.1] - 2026-05-07
 
 ### Added

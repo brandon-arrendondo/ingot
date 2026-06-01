@@ -35,6 +35,11 @@ struct Cli {
     #[arg(long)]
     no_events: bool,
 
+    /// Emit C++/tinyfsm event structs + dispatch-by-key wrapper for event keys
+    /// (additive, opt-in; independent of --no-events; C99 output unchanged)
+    #[arg(long)]
+    emit_tinyfsm: bool,
+
     /// YAML file listing keys to include (whitelist); all others are excluded
     #[arg(long)]
     include_list: Option<PathBuf>,
@@ -227,6 +232,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         &template_dir,
         &target_config,
         cli.no_events,
+        cli.emit_tinyfsm,
     )?;
     log::info!("Code generation complete → {}", cli.output.display());
 
