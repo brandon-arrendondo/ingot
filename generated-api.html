@@ -1,0 +1,250 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generated API &mdash; Ingot  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Build System Integration" href="build-integration.html" />
+    <link rel="prev" title="Schema Reference" href="schema-reference.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Ingot
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quick-start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli-reference.html">CLI Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="schema-reference.html">Schema Reference</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Generated API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#initialization">Initialization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reading-and-writing-values">Reading and Writing Values</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#string-api">String API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#helper-functions">Helper Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#return-codes">Return Codes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#key-query-macros">Key Query Macros</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#persistence">Persistence</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="build-integration.html">Build System Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="testing.html">Testing Generated Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="key-encoding.html">32-Bit Key Encoding</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perfect-hash.html">Perfect Hash Algorithm</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Ingot</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Generated API</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/generated-api.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="generated-api">
+<h1>Generated API<a class="headerlink" href="#generated-api" title="Link to this heading"></a></h1>
+<section id="initialization">
+<h2>Initialization<a class="headerlink" href="#initialization" title="Link to this heading"></a></h2>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;dm.h&quot;</span>
+
+<span class="c1">// With event callbacks:</span>
+<span class="kt">void</span><span class="w"> </span><span class="nf">my_callback</span><span class="p">(</span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* handle change */</span><span class="w"> </span><span class="p">}</span>
+<span class="n">DataModel_Initialize</span><span class="p">(</span><span class="n">my_callback</span><span class="p">);</span>
+
+<span class="c1">// Without events (--no-events):</span>
+<span class="n">DataModel_Initialize</span><span class="p">();</span>
+
+<span class="c1">// Cleanup:</span>
+<span class="n">DataModel_TearDown</span><span class="p">();</span>
+</pre></div>
+</div>
+</section>
+<section id="reading-and-writing-values">
+<h2>Reading and Writing Values<a class="headerlink" href="#reading-and-writing-values" title="Link to this heading"></a></h2>
+<p>All integral types (bool, integers) use a type-dispatch API:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;dm.h&quot;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;key_definitions.h&quot;</span>
+
+<span class="c1">// Set a value</span>
+<span class="n">dm_val_t</span><span class="w"> </span><span class="n">val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">};</span>
+<span class="n">val</span><span class="p">.</span><span class="n">u16val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span>
+<span class="n">DM_RETURN_CODE</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_SetIntegralTypeByKey</span><span class="p">(</span><span class="n">DM_KEY_</span><span class="p">...,</span><span class="w"> </span><span class="n">val</span><span class="p">);</span>
+
+<span class="c1">// Get a value</span>
+<span class="n">dm_val_t</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_GetIntegralTypeByKey</span><span class="p">(</span><span class="n">DM_KEY_</span><span class="p">...);</span>
+<span class="kt">uint16_t</span><span class="w"> </span><span class="n">temp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">out</span><span class="p">.</span><span class="n">u16val</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>Typed convenience setters are also generated:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="n">DataModel_SetBooleanByKey</span><span class="p">(</span><span class="n">DM_KEY_</span><span class="p">...,</span><span class="w"> </span><span class="nb">true</span><span class="p">);</span>
+<span class="n">DataModel_SetUInt16ByKey</span><span class="p">(</span><span class="n">DM_KEY_</span><span class="p">...,</span><span class="w"> </span><span class="mi">42</span><span class="p">);</span>
+<span class="n">DataModel_SetInt32ByKey</span><span class="p">(</span><span class="n">DM_KEY_</span><span class="p">...,</span><span class="w"> </span><span class="mi">-7</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+<section id="string-api">
+<h2>String API<a class="headerlink" href="#string-api" title="Link to this heading"></a></h2>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="c1">// Get</span>
+<span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">str</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+<span class="n">DM_RETURN_CODE</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_GetStringByKey</span><span class="p">(</span><span class="n">DM_KEY_</span><span class="p">...,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">str</span><span class="p">);</span>
+
+<span class="c1">// Set (read-write strings only)</span>
+<span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_SetStringByKey</span><span class="p">(</span><span class="n">DM_KEY_</span><span class="p">...,</span><span class="w"> </span><span class="s">&quot;new value&quot;</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>String sets are bounds-checked against <code class="docutils literal notranslate"><span class="pre">max_size</span></code>. Strings exceeding the limit
+are rejected.</p>
+</section>
+<section id="helper-functions">
+<h2>Helper Functions<a class="headerlink" href="#helper-functions" title="Link to this heading"></a></h2>
+<p>Keys with <code class="docutils literal notranslate"><span class="pre">helpers</span> <span class="pre">=</span> <span class="pre">true</span></code> get named getter/setter functions:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;dm_helpers.h&quot;</span>
+
+<span class="c1">// Integral types: static inline in the header</span>
+<span class="kt">uint16_t</span><span class="w"> </span><span class="n">temp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_Get_MY_DEVICE_STATUS_TEMPERATURE</span><span class="p">();</span>
+<span class="n">DataModel_Set_MY_DEVICE_STATUS_TEMPERATURE</span><span class="p">(</span><span class="mi">2950</span><span class="p">);</span>
+
+<span class="c1">// String types: declarations in header, implementations in dm_helpers.c</span>
+<span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_Get_MY_DEVICE_CONFIG_DEVICE_NAME</span><span class="p">();</span>
+<span class="n">DataModel_Set_MY_DEVICE_CONFIG_DEVICE_NAME</span><span class="p">(</span><span class="s">&quot;new-name&quot;</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+<section id="return-codes">
+<h2>Return Codes<a class="headerlink" href="#return-codes" title="Link to this heading"></a></h2>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_SUCCESS</span><span class="w">              </span><span class="o">=</span><span class="w">  </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_NOT_INITIALIZED</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="mi">-1</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_KEY_TYPE_INCORRECT</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="mi">-2</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_SET_ON_READONLY_KEY</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="mi">-3</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_STORAGE_LOOKUP_FAILURE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">-4</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_SET_VALUE_UNCHANGED</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="mi">-5</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_NO_KEYS_OF_TYPE</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="mi">-6</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_OUTPUT_VARIABLE_NULL</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">-7</span><span class="p">,</span>
+<span class="w">    </span><span class="c1">// When persistence is enabled:</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_PERSISTENCE_FILE_NOT_FOUND</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="mi">-8</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_PERSISTENCE_READ_FAILURE</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="mi">-9</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_PERSISTENCE_WRITE_FAILURE</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="mi">-10</span><span class="p">,</span>
+<span class="w">    </span><span class="n">DM_RETURN_CODE_PERSISTENCE_MAGIC_MISMATCH</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="mi">-11</span><span class="p">,</span>
+<span class="p">}</span><span class="w"> </span><span class="n">DM_RETURN_CODE</span><span class="p">;</span>
+</pre></div>
+</div>
+</section>
+<section id="key-query-macros">
+<h2>Key Query Macros<a class="headerlink" href="#key-query-macros" title="Link to this heading"></a></h2>
+<p>The generated <code class="docutils literal notranslate"><span class="pre">dm_key.h</span></code> provides macros to inspect key properties at runtime:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;dm_key.h&quot;</span>
+
+<span class="n">DM_IS_KEY_READONLY</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="w">       </span><span class="c1">// Is this key read-only?</span>
+<span class="n">DM_IS_KEY_THREADSAFE</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="w">     </span><span class="c1">// Does this key require mutex protection?</span>
+<span class="n">DM_IS_KEY_DATA_TYPE</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">t</span><span class="p">)</span><span class="w">   </span><span class="c1">// Does this key have data type t?</span>
+<span class="n">DM_IS_KEY_IN_NAMESPACE</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="c1">// Is this key in namespace n?</span>
+<span class="n">DM_KEY_GET_TYPE</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="w">          </span><span class="c1">// Extract the 4-bit type code</span>
+</pre></div>
+</div>
+</section>
+<section id="persistence">
+<h2>Persistence<a class="headerlink" href="#persistence" title="Link to this heading"></a></h2>
+<p>Keys marked <code class="docutils literal notranslate"><span class="pre">persistent</span> <span class="pre">=</span> <span class="pre">true</span></code> can be saved to and loaded from a binary file:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;persistence_storage.h&quot;</span>
+
+<span class="c1">// Save all persistent key values to a file</span>
+<span class="n">DM_RETURN_CODE</span><span class="w"> </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_SavePersistentKeys</span><span class="p">(</span><span class="s">&quot;/data/dm.bin&quot;</span><span class="p">);</span>
+
+<span class="c1">// Load and restore persistent key values from a file</span>
+<span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_LoadPersistentKeys</span><span class="p">(</span><span class="s">&quot;/data/dm.bin&quot;</span><span class="p">);</span>
+
+<span class="c1">// Pass NULL to use the default path (&quot;/sdcard/dm.bin&quot;)</span>
+<span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataModel_LoadPersistentKeys</span><span class="p">(</span><span class="nb">NULL</span><span class="p">);</span>
+
+<span class="c1">// Check if a specific key is persistent</span>
+<span class="kt">bool</span><span class="w"> </span><span class="n">is_persistent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PersistenceStorage_IsKeyPersistent</span><span class="p">(</span><span class="n">DM_KEY_</span><span class="p">...);</span>
+</pre></div>
+</div>
+<p>The binary format uses a packed struct with a magic number
+(<code class="docutils literal notranslate"><span class="pre">sizeof(struct)</span> <span class="pre">XOR</span> <span class="pre">num_keys</span></code>) to detect layout changes. If the magic number
+does not match on load, <code class="docutils literal notranslate"><span class="pre">DM_RETURN_CODE_PERSISTENCE_MAGIC_MISMATCH</span></code> is
+returned and the live storage is not modified.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="schema-reference.html" class="btn btn-neutral float-left" title="Schema Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="build-integration.html" class="btn btn-neutral float-right" title="Build System Integration" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Brandon Arrendondo.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
