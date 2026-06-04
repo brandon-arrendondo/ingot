@@ -1,5 +1,5 @@
 [package]
-name = "ingot"
+name = "ingot-db"
 version = "1.0.1"
 edition = "2021"
 authors = ["Brandon Arrendondo"]
@@ -10,6 +10,10 @@ homepage = "https://brandon-arrendondo.github.io/ingot"
 documentation = "https://brandon-arrendondo.github.io/ingot"
 keywords = ["embedded", "codegen", "database", "kvp", "microcontroller"]
 categories = ["command-line-utilities", "development-tools", "embedded"]
+
+[[bin]]
+name = "ingot"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
