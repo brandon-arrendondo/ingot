@@ -6,6 +6,8 @@ authors = ["Brandon Arrendondo"]
 license = "MIT"
 description = "Embedded database C code generator with compile-time perfect hashing"
 repository = "https://github.com/brandon-arrendondo/ingot"
+homepage = "https://brandon-arrendondo.github.io/ingot"
+documentation = "https://brandon-arrendondo.github.io/ingot"
 keywords = ["embedded", "codegen", "database", "kvp", "microcontroller"]
 categories = ["command-line-utilities", "development-tools", "embedded"]
 
