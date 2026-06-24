@@ -1,6 +1,6 @@
 [package]
 name = "ingot-db"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 authors = ["Brandon Arrendondo"]
 license = "MIT"

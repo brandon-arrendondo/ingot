@@ -8,6 +8,11 @@ use serde::Serialize;
 use std::path::Path;
 use tera::{Context, Tera};
 
+fn write_generated(path: impl AsRef<Path>, content: String) -> std::io::Result<()> {
+    let normalized = format!("{}\n", content.trim_end_matches('\n'));
+    std::fs::write(path, normalized)
+}
+
 /// A key definition ready for template rendering.
 #[derive(Debug, Serialize)]
 pub struct KeyDefRenderable {
@@ -104,7 +109,7 @@ pub fn generate(
         ctx.insert("version", version);
         ctx.insert("keys", &key_defs);
         let rendered = tera.render("key_definitions.h", &ctx)?;
-        std::fs::write(output_dir.join("key_definitions.h"), rendered)?;
+        write_generated(output_dir.join("key_definitions.h"), rendered)?;
         log::info!("Generated key_definitions.h ({} keys)", key_defs.len());
     }
 
@@ -120,8 +125,8 @@ pub fn generate(
         ctx.insert("version", version);
         let h = tera.render("jenkins_hash.h", &ctx)?;
         let c = tera.render("jenkins_hash.c", &ctx)?;
-        std::fs::write(output_dir.join("jenkins_hash.h"), h)?;
-        std::fs::write(output_dir.join("jenkins_hash.c"), c)?;
+        write_generated(output_dir.join("jenkins_hash.h"), h)?;
+        write_generated(output_dir.join("jenkins_hash.c"), c)?;
         log::info!("Generated jenkins_hash.h/.c");
     }
 
@@ -130,7 +135,7 @@ pub fn generate(
         let mut ctx = Context::new();
         ctx.insert("version", version);
         let h = tera.render("dm_key.h", &ctx)?;
-        std::fs::write(output_dir.join("dm_key.h"), h)?;
+        write_generated(output_dir.join("dm_key.h"), h)?;
         log::info!("Generated dm_key.h");
     }
 
@@ -141,7 +146,7 @@ pub fn generate(
         ctx.insert("version", version);
         ctx.insert("namespaces", &namespaces);
         let h = tera.render("dm_namespace_definitions.h", &ctx)?;
-        std::fs::write(output_dir.join("dm_namespace_definitions.h"), h)?;
+        write_generated(output_dir.join("dm_namespace_definitions.h"), h)?;
         log::info!("Generated dm_namespace_definitions.h");
     }
 
@@ -161,8 +166,8 @@ pub fn generate(
         ctx.insert("bool", bs);
         let h = tera.render("boolean_storage.h", &ctx)?;
         let c = tera.render("boolean_storage.c", &ctx)?;
-        std::fs::write(output_dir.join("boolean_storage.h"), h)?;
-        std::fs::write(output_dir.join("boolean_storage.c"), c)?;
+        write_generated(output_dir.join("boolean_storage.h"), h)?;
+        write_generated(output_dir.join("boolean_storage.c"), c)?;
         log::info!(
             "Generated boolean_storage.h/.c ({} keys, {} word(s))",
             bs.num_keys,
@@ -177,8 +182,8 @@ pub fn generate(
         ctx.insert("types", &int_storages);
         let h = tera.render("integer_storage.h", &ctx)?;
         let c = tera.render("integer_storage.c", &ctx)?;
-        std::fs::write(output_dir.join("integer_storage.h"), h)?;
-        std::fs::write(output_dir.join("integer_storage.c"), c)?;
+        write_generated(output_dir.join("integer_storage.h"), h)?;
+        write_generated(output_dir.join("integer_storage.c"), c)?;
         log::info!(
             "Generated integer_storage.h/.c ({} type groups)",
             int_storages.len()
@@ -194,8 +199,8 @@ pub fn generate(
         ctx.insert("rw", &ss.rw);
         let h = tera.render("string_storage.h", &ctx)?;
         let c = tera.render("string_storage.c", &ctx)?;
-        std::fs::write(output_dir.join("string_storage.h"), h)?;
-        std::fs::write(output_dir.join("string_storage.c"), c)?;
+        write_generated(output_dir.join("string_storage.h"), h)?;
+        write_generated(output_dir.join("string_storage.c"), c)?;
         log::info!(
             "Generated string_storage.h/.c ({} total, {} RO, {} RW)",
             ss.total_keys,
@@ -211,8 +216,8 @@ pub fn generate(
         ctx.insert("persistence", ps);
         let h = tera.render("persistence_storage.h", &ctx)?;
         let c = tera.render("persistence_storage.c", &ctx)?;
-        std::fs::write(output_dir.join("persistence_storage.h"), h)?;
-        std::fs::write(output_dir.join("persistence_storage.c"), c)?;
+        write_generated(output_dir.join("persistence_storage.h"), h)?;
+        write_generated(output_dir.join("persistence_storage.c"), c)?;
         log::info!("Generated persistence_storage.h/.c ({} keys)", ps.num_keys);
     }
 
@@ -243,8 +248,8 @@ pub fn generate(
 
         let h = tera.render("dm.h", &ctx)?;
         let c = tera.render("dm.c", &ctx)?;
-        std::fs::write(output_dir.join("dm.h"), h)?;
-        std::fs::write(output_dir.join("dm.c"), c)?;
+        write_generated(output_dir.join("dm.h"), h)?;
+        write_generated(output_dir.join("dm.c"), c)?;
         log::info!(
             "Generated dm.h/.c (bool={}, int_types={}, ro_str={}, rw_str={})",
             has_bool,
@@ -264,10 +269,10 @@ pub fn generate(
             ctx.insert("helpers", &helpers);
             ctx.insert("has_string_helpers", &has_string_helpers);
             let h = tera.render("dm_helpers.h", &ctx)?;
-            std::fs::write(output_dir.join("dm_helpers.h"), h)?;
+            write_generated(output_dir.join("dm_helpers.h"), h)?;
             if has_string_helpers {
                 let c = tera.render("dm_helpers.c", &ctx)?;
-                std::fs::write(output_dir.join("dm_helpers.c"), c)?;
+                write_generated(output_dir.join("dm_helpers.c"), c)?;
             }
             log::info!(
                 "Generated dm_helpers.h{} ({} helpers)",
@@ -290,9 +295,9 @@ pub fn generate(
         ctx.insert("has_persistence", &has_persistence);
         ctx.insert("persistence_entries", &persist_test_entries);
         let test_c = tera.render("test_dm.c", &ctx)?;
-        std::fs::write(output_dir.join("test_dm.c"), test_c)?;
+        write_generated(output_dir.join("test_dm.c"), test_c)?;
         let cmake = tera.render("CMakeLists.txt", &ctx)?;
-        std::fs::write(output_dir.join("CMakeLists.txt"), cmake)?;
+        write_generated(output_dir.join("CMakeLists.txt"), cmake)?;
         log::info!(
             "Generated test_dm.c + CMakeLists.txt ({} test keys)",
             test_keys.len()
@@ -322,15 +327,15 @@ fn generate_tinyfsm_events(
     hpp_ctx.insert("version", version);
     hpp_ctx.insert("groups", &groups);
     let hpp = tera.render("dm_key_events.hpp", &hpp_ctx)?;
-    std::fs::write(output_dir.join("dm_key_events.hpp"), hpp)?;
+    write_generated(output_dir.join("dm_key_events.hpp"), hpp)?;
 
     let mut wrap_ctx = Context::new();
     wrap_ctx.insert("version", version);
     wrap_ctx.insert("events", &events);
     let wrapper_h = tera.render("dm_key_events_wrapper.hpp", &wrap_ctx)?;
     let wrapper_c = tera.render("dm_key_events_wrapper.cpp", &wrap_ctx)?;
-    std::fs::write(output_dir.join("dm_key_events_wrapper.hpp"), wrapper_h)?;
-    std::fs::write(output_dir.join("dm_key_events_wrapper.cpp"), wrapper_c)?;
+    write_generated(output_dir.join("dm_key_events_wrapper.hpp"), wrapper_h)?;
+    write_generated(output_dir.join("dm_key_events_wrapper.cpp"), wrapper_c)?;
 
     log::info!(
         "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp ({} event keys)",

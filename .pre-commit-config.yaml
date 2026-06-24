@@ -1,4 +1,15 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
   - repo: local
     hooks:
       - id: cargo-fmt
@@ -22,3 +33,14 @@ repos:
         language: system
         pass_filenames: false
         verbose: true
+
+  # knots complexity gate. The default `knots` hook ships args
+  # [--aird-threshold=85], so no override is needed here. To tighten or add
+  # metrics, set `args:` (pre-commit replaces them wholesale), e.g.
+  #   args: [--aird-threshold=85, --cognitive-threshold=20]
+  - repo: https://github.com/brandon-arrendondo/knots
+    rev: v1.8.2
+    hooks:
+      - id: knots
+        types_or: [rust, python, c, c++, header]
+        exclude: ^examples/generated/

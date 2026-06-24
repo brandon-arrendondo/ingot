@@ -1,11 +1,11 @@
 metadata:
-  ingot_version: 1.0.0
+  ingot_version: 1.0.2
 namespaces:
 - classes:
   - data:
     - define_name: EXAMPLE_STATUS_TEMPERATURE
       generate_helpers: true
-      id: 28
+      id: 20
       max_size: 0
       name: temperature
       type:
@@ -18,7 +18,7 @@ namespaces:
         2: EXAMPLE_STATUS_MODE_ACTIVE
         3: EXAMPLE_STATUS_MODE_ERROR
       generate_helpers: true
-      id: 12
+      id: 140
       max_size: 0
       name: mode
       type:
@@ -26,7 +26,7 @@ namespaces:
         mem: uint8
     - define_name: EXAMPLE_STATUS_IS_CONNECTED
       generate_helpers: true
-      id: 4
+      id: 260
       max_size: 0
       name: is_connected
       type:
@@ -36,7 +36,7 @@ namespaces:
   - data:
     - define_name: EXAMPLE_CONFIG_DEVICE_NAME
       generate_helpers: true
-      id: 131128
+      id: 131136
       max_size: 32
       name: device_name
       type:
@@ -44,7 +44,7 @@ namespaces:
         mem: string
     - define_name: EXAMPLE_CONFIG_UPDATE_INTERVAL_MS
       generate_helpers: true
-      id: 131112
+      id: 131224
       max_size: 0
       name: update_interval_ms
       type:

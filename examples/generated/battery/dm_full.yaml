@@ -1,11 +1,11 @@
 metadata:
-  ingot_version: 1.0.0
+  ingot_version: 1.0.2
 namespaces:
 - classes:
   - data:
     - define_name: BATTERY_NAMESPACE_VERSION
       generate_helpers: true
-      id: 4194361
+      id: 4194369
       max_size: 12
       name: version
       type:
@@ -15,7 +15,7 @@ namespaces:
   - data:
     - define_name: BATTERY_STATUS_STATE_OF_CHARGE
       generate_helpers: true
-      id: 4325404
+      id: 4325396
       max_size: 0
       name: state_of_charge
       type:
@@ -23,7 +23,7 @@ namespaces:
         mem: uint16
     - define_name: BATTERY_STATUS_RUNTIME_TO_EMPTY
       generate_helpers: true
-      id: 4325532
+      id: 4325524
       max_size: 0
       name: runtime_to_empty
       type:
@@ -31,7 +31,7 @@ namespaces:
         mem: uint16
     - define_name: BATTERY_STATUS_VOLTAGE
       generate_helpers: true
-      id: 4325660
+      id: 4325652
       max_size: 0
       name: voltage
       type:
@@ -47,7 +47,7 @@ namespaces:
         5: BATTERY_STATUS_LEVEL_THREE_BAR
         6: BATTERY_STATUS_LEVEL_FULL
       generate_helpers: true
-      id: 4325388
+      id: 4325772
       max_size: 0
       name: level
       type:
@@ -58,7 +58,7 @@ namespaces:
         0: BATTERY_STATUS_STATE_DISABLE_CHARGING
         1: BATTERY_STATUS_STATE_ENABLE_CHARGING
       generate_helpers: true
-      id: 4325516
+      id: 4325900
       max_size: 0
       name: state
       type:
@@ -66,7 +66,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_IS_CHARGING
       generate_helpers: true
-      id: 4325380
+      id: 4326020
       max_size: 0
       name: is_charging
       type:
@@ -74,7 +74,7 @@ namespaces:
         mem: bool
     - define_name: BATTERY_STATUS_SOC_IN_USE_THRESHOLD
       generate_helpers: true
-      id: 4325644
+      id: 4326156
       max_size: 0
       name: soc_in_use_threshold
       type:
@@ -82,7 +82,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_SOC_IN_USE_TURBO_THRESHOLD
       generate_helpers: true
-      id: 4325772
+      id: 4326284
       max_size: 0
       name: soc_in_use_turbo_threshold
       type:
@@ -90,7 +90,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_SOC_CLEANOUT_ENTRY_THRESHOLD
       generate_helpers: true
-      id: 4325900
+      id: 4326412
       max_size: 0
       name: soc_cleanout_entry_threshold
       type:
@@ -98,7 +98,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_SOC_FULL_CHARGE_THRESHOLD
       generate_helpers: true
-      id: 4326028
+      id: 4326540
       max_size: 0
       name: soc_full_charge_threshold
       type:
@@ -106,7 +106,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_SOC_WARNING_THRESHOLD
       generate_helpers: true
-      id: 4326156
+      id: 4326668
       max_size: 0
       name: soc_warning_threshold
       type:
@@ -114,7 +114,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_SOC_CRITICAL_THRESHOLD
       generate_helpers: true
-      id: 4326284
+      id: 4326796
       max_size: 0
       name: soc_critical_threshold
       type:
@@ -122,7 +122,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_SOC_SHUTOFF_THRESHOLD
       generate_helpers: true
-      id: 4326412
+      id: 4326924
       max_size: 0
       name: soc_shutoff_threshold
       type:
@@ -130,7 +130,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_SHUTDOWN
       generate_helpers: true
-      id: 4325508
+      id: 4327044
       max_size: 0
       name: shutdown
       type:
@@ -138,7 +138,7 @@ namespaces:
         mem: bool
     - define_name: BATTERY_STATUS_SHUTDOWN_DELAY_SEC
       generate_helpers: true
-      id: 4326540
+      id: 4327180
       max_size: 0
       name: shutdown_delay_sec
       type:
@@ -146,7 +146,7 @@ namespaces:
         mem: uint8
     - define_name: BATTERY_STATUS_PF_STATUS
       generate_helpers: true
-      id: 4325420
+      id: 4327324
       max_size: 0
       name: pf_status
       type:
@@ -154,7 +154,7 @@ namespaces:
         mem: uint32
     - define_name: BATTERY_STATUS_SAFETY_STATUS
       generate_helpers: true
-      id: 4325548
+      id: 4327452
       max_size: 0
       name: safety_status
       type:

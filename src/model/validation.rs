@@ -1,5 +1,5 @@
-use super::schema::{DataModel, DataType};
-use std::collections::{HashMap, HashSet};
+use super::schema::{Class, DataModel, DataType, EnumDef, KeyDef};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -84,10 +84,140 @@ pub enum ValidationError {
     },
 }
 
+fn validate_key(
+    errors: &mut Vec<ValidationError>,
+    ns: &str,
+    class_id: &str,
+    key: &KeyDef,
+    seen_ids: &mut HashSet<String>,
+    seen_indices: &mut HashSet<u16>,
+    enums: &BTreeMap<String, EnumDef>,
+) {
+    if !seen_ids.insert(key.id.clone()) {
+        errors.push(ValidationError::DuplicateKeyId {
+            namespace: ns.to_string(),
+            class: class_id.to_string(),
+            key: key.id.clone(),
+        });
+    }
+
+    if let Some(ki) = key.key_index {
+        if ki > 1023 {
+            errors.push(ValidationError::KeyIndexOutOfRange {
+                namespace: ns.to_string(),
+                class: class_id.to_string(),
+                key: key.id.clone(),
+                index: ki,
+            });
+        } else if !seen_indices.insert(ki) {
+            errors.push(ValidationError::DuplicateKeyIndex {
+                namespace: ns.to_string(),
+                class: class_id.to_string(),
+                index: ki,
+            });
+        }
+    }
+
+    if key.data_type == DataType::String && key.max_size.is_none() {
+        errors.push(ValidationError::StringMissingMaxSize {
+            namespace: ns.to_string(),
+            class: class_id.to_string(),
+            key: key.id.clone(),
+        });
+    }
+    if key.data_type == DataType::Binary && key.max_size.is_none() {
+        errors.push(ValidationError::BinaryMissingMaxSize {
+            namespace: ns.to_string(),
+            class: class_id.to_string(),
+            key: key.id.clone(),
+        });
+    }
+
+    if key.read_only && key.persistent {
+        errors.push(ValidationError::ReadOnlyPersistent {
+            namespace: ns.to_string(),
+            class: class_id.to_string(),
+            key: key.id.clone(),
+        });
+    }
+
+    if let Some(ref enum_name) = key.enum_ref {
+        if !enums.contains_key(enum_name) {
+            errors.push(ValidationError::UndefinedEnum {
+                namespace: ns.to_string(),
+                class: class_id.to_string(),
+                key: key.id.clone(),
+                enum_name: enum_name.clone(),
+            });
+        }
+    }
+}
+
+fn validate_class(
+    errors: &mut Vec<ValidationError>,
+    ns: &str,
+    class: &Class,
+    class_ids: &mut HashSet<String>,
+    class_indices: &mut HashSet<u8>,
+    enums: &BTreeMap<String, EnumDef>,
+) {
+    if !class_ids.insert(class.id.clone()) {
+        errors.push(ValidationError::DuplicateClassId {
+            namespace: ns.to_string(),
+            id: class.id.clone(),
+        });
+    }
+
+    if let Some(ci) = class.class_index {
+        if ci > 31 {
+            errors.push(ValidationError::ClassIndexOutOfRange {
+                namespace: ns.to_string(),
+                class: class.id.clone(),
+                index: ci,
+            });
+        } else if !class_indices.insert(ci) {
+            errors.push(ValidationError::DuplicateClassIndex {
+                namespace: ns.to_string(),
+                index: ci,
+            });
+        }
+    }
+
+    if let Some(cns_id) = class.namespace_id {
+        if cns_id > 1023 {
+            errors.push(ValidationError::NamespaceIdOutOfRange {
+                namespace: ns.to_string(),
+                id: cns_id,
+            });
+        }
+    }
+
+    if class.keys.len() > 1023 {
+        errors.push(ValidationError::TooManyKeys {
+            namespace: ns.to_string(),
+            class: class.id.clone(),
+            count: class.keys.len(),
+        });
+    }
+
+    let mut key_ids: HashSet<String> = HashSet::new();
+    let mut key_indices: HashSet<u16> = HashSet::new();
+    for key in &class.keys {
+        validate_key(
+            errors,
+            ns,
+            &class.id,
+            key,
+            &mut key_ids,
+            &mut key_indices,
+            enums,
+        );
+    }
+}
+
 pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
 
-    // Namespace ID range check (10-bit field = max 1023)
     if let Some(ns_id) = model.meta.namespace_id {
         if ns_id > 1023 {
             errors.push(ValidationError::NamespaceIdOutOfRange {
@@ -97,9 +227,8 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
         }
     }
 
-    // Group classes by namespace for per-namespace uniqueness checks.
-    // Classes with namespace_name set (from directory merge) are grouped by that;
-    // otherwise all classes belong to model.meta.id.
+    // Group classes by namespace. Classes with namespace_name set (from
+    // directory merge) are grouped by that; otherwise all belong to meta.id.
     let mut ns_class_ids: HashMap<String, HashSet<String>> = HashMap::new();
     let mut ns_class_indices: HashMap<String, HashSet<u8>> = HashMap::new();
     let mut ns_class_counts: HashMap<String, usize> = HashMap::new();
@@ -110,126 +239,17 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
             .as_deref()
             .unwrap_or(&model.meta.id)
             .to_string();
-
-        // Per-namespace class count
         *ns_class_counts.entry(ns.clone()).or_default() += 1;
-
-        // Per-namespace duplicate class ID check
-        let ids = ns_class_ids.entry(ns.clone()).or_default();
-        if !ids.insert(class.id.clone()) {
-            errors.push(ValidationError::DuplicateClassId {
-                namespace: ns.clone(),
-                id: class.id.clone(),
-            });
-        }
-
-        // Per-namespace class_index uniqueness
-        if let Some(ci) = class.class_index {
-            if ci > 31 {
-                errors.push(ValidationError::ClassIndexOutOfRange {
-                    namespace: ns.clone(),
-                    class: class.id.clone(),
-                    index: ci,
-                });
-            } else {
-                let indices = ns_class_indices.entry(ns.clone()).or_default();
-                if !indices.insert(ci) {
-                    errors.push(ValidationError::DuplicateClassIndex {
-                        namespace: ns.clone(),
-                        index: ci,
-                    });
-                }
-            }
-        }
-
-        // Also check per-class namespace_id range
-        if let Some(cns_id) = class.namespace_id {
-            if cns_id > 1023 {
-                errors.push(ValidationError::NamespaceIdOutOfRange {
-                    namespace: ns.clone(),
-                    id: cns_id,
-                });
-            }
-        }
-
-        // Key count limit (10-bit field = max 1023)
-        if class.keys.len() > 1023 {
-            errors.push(ValidationError::TooManyKeys {
-                namespace: ns.clone(),
-                class: class.id.clone(),
-                count: class.keys.len(),
-            });
-        }
-
-        // Duplicate key IDs and key_index checks within class
-        let mut key_ids = HashSet::new();
-        let mut key_indices = HashSet::new();
-        for key in &class.keys {
-            if !key_ids.insert(&key.id) {
-                errors.push(ValidationError::DuplicateKeyId {
-                    namespace: ns.clone(),
-                    class: class.id.clone(),
-                    key: key.id.clone(),
-                });
-            }
-
-            if let Some(ki) = key.key_index {
-                if ki > 1023 {
-                    errors.push(ValidationError::KeyIndexOutOfRange {
-                        namespace: ns.clone(),
-                        class: class.id.clone(),
-                        key: key.id.clone(),
-                        index: ki,
-                    });
-                } else if !key_indices.insert(ki) {
-                    errors.push(ValidationError::DuplicateKeyIndex {
-                        namespace: ns.clone(),
-                        class: class.id.clone(),
-                        index: ki,
-                    });
-                }
-            }
-
-            // String/binary require max_size
-            if key.data_type == DataType::String && key.max_size.is_none() {
-                errors.push(ValidationError::StringMissingMaxSize {
-                    namespace: ns.clone(),
-                    class: class.id.clone(),
-                    key: key.id.clone(),
-                });
-            }
-            if key.data_type == DataType::Binary && key.max_size.is_none() {
-                errors.push(ValidationError::BinaryMissingMaxSize {
-                    namespace: ns.clone(),
-                    class: class.id.clone(),
-                    key: key.id.clone(),
-                });
-            }
-
-            // Read-only keys cannot be persistent
-            if key.read_only && key.persistent {
-                errors.push(ValidationError::ReadOnlyPersistent {
-                    namespace: ns.clone(),
-                    class: class.id.clone(),
-                    key: key.id.clone(),
-                });
-            }
-
-            // Enum references must exist
-            if let Some(ref enum_name) = key.enum_ref {
-                if !model.enums.contains_key(enum_name) {
-                    errors.push(ValidationError::UndefinedEnum {
-                        namespace: ns.clone(),
-                        class: class.id.clone(),
-                        key: key.id.clone(),
-                        enum_name: enum_name.clone(),
-                    });
-                }
-            }
-        }
+        validate_class(
+            &mut errors,
+            &ns,
+            class,
+            ns_class_ids.entry(ns.clone()).or_default(),
+            ns_class_indices.entry(ns.clone()).or_default(),
+            &model.enums,
+        );
     }
 
-    // Per-namespace class count limit (5-bit field = max 31)
     for (ns, count) in &ns_class_counts {
         if *count > 31 {
             errors.push(ValidationError::TooManyClasses {

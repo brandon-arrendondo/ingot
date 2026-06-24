@@ -318,12 +318,7 @@ fn print_statistics(model: &model::DataModel) {
     println!("  read-write string: {rw_string_count}");
 }
 
-/// Load model(s) from one or more paths (files and/or directories).
-///
-/// A single file is loaded directly. Multiple paths or directories are
-/// merged into one DataModel with per-class namespace info preserved.
-fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
-    // Expand directories into individual .toml files
+fn expand_to_toml_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     let mut toml_files: Vec<PathBuf> = Vec::new();
     for path in paths {
         if path.is_dir() {
@@ -346,22 +341,14 @@ fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error
             toml_files.push(path.clone());
         }
     }
+    Ok(toml_files)
+}
 
-    // Single file — load directly (no merge overhead, preserves model meta)
-    if toml_files.len() == 1 {
-        let path = &toml_files[0];
-        let model_str = std::fs::read_to_string(path)?;
-        let m: model::DataModel =
-            toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
-        log::info!("Parsed namespace '{}' v{}", m.meta.id, m.meta.version);
-        return Ok(m);
-    }
-
-    // Multiple files — merge into a single DataModel
+fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
     let mut merged_classes = Vec::new();
     let mut merged_enums = std::collections::BTreeMap::new();
 
-    for path in &toml_files {
+    for path in paths {
         let model_str = std::fs::read_to_string(path)?;
         let file_model: model::DataModel =
             toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -375,7 +362,6 @@ fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error
             file_model.enums.len(),
         );
 
-        // Validate each file independently
         if let Err(errors) = model::validation::validate(&file_model) {
             for e in &errors {
                 log::error!("{}: {e}", path.display());
@@ -392,7 +378,6 @@ fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error
             if class.class_index.is_none() {
                 class.class_index = Some(i as u8);
             }
-            // Rewrite enum_ref to namespaced form to avoid cross-namespace collisions
             for key in &mut class.keys {
                 if let Some(ref enum_name) = key.enum_ref {
                     key.enum_ref = Some(format!("{}::{}", ns_name, enum_name));
@@ -401,7 +386,6 @@ fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error
             merged_classes.push(class);
         }
 
-        // Namespace-prefix all enum keys to avoid collisions across files
         for (enum_name, enum_def) in file_model.enums {
             merged_enums.insert(format!("{}::{}", ns_name, enum_name), enum_def);
         }
@@ -417,4 +401,23 @@ fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error
         enums: merged_enums,
         classes: merged_classes,
     })
+}
+
+/// Load model(s) from one or more paths (files and/or directories).
+///
+/// A single file is loaded directly. Multiple paths or directories are
+/// merged into one DataModel with per-class namespace info preserved.
+fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
+    let toml_files = expand_to_toml_files(paths)?;
+
+    if toml_files.len() == 1 {
+        let path = &toml_files[0];
+        let model_str = std::fs::read_to_string(path)?;
+        let m: model::DataModel =
+            toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
+        log::info!("Parsed namespace '{}' v{}", m.meta.id, m.meta.version);
+        return Ok(m);
+    }
+
+    merge_models(&toml_files)
 }
