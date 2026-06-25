@@ -45,7 +45,7 @@ jobs:
           cp docs/ingot.1 dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt dist/
-          cp ingot.cdx.json dist/
+          cp ingot-db.cdx.json dist/
           tar -czf ingot-linux-x86_64.tar.gz -C dist .
 
       - name: Upload artifact
@@ -92,7 +92,7 @@ jobs:
           cp -r templates dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt dist/
-          cp ingot.cdx.json dist/
+          cp ingot-db.cdx.json dist/
           cd dist && zip -r ../ingot-windows-x86_64.zip .
 
       - name: Upload artifact
@@ -213,7 +213,7 @@ jobs:
           cp docs/ingot.1 AppDir/usr/share/man/man1/
           cp LICENSE AppDir/usr/share/doc/ingot/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt AppDir/usr/share/doc/ingot/
-          cp ingot.cdx.json AppDir/usr/share/doc/ingot/
+          cp ingot-db.cdx.json AppDir/usr/share/doc/ingot/
 
       - name: Create desktop entry and icon
         run: |
