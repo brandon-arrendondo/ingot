@@ -242,21 +242,6 @@ jobs:
           name: ingot-appimage
           path: ingot-x86_64.AppImage
 
-  # ── Publish to crates.io ────────────────────────────────────────────
-  crate:
-    name: Publish crate
-    runs-on: ubuntu-latest
-    needs: [linux, windows, deb, rpm, appimage]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Publish to crates.io
-        run: cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
   # ── Create GitHub Release ───────────────────────────────────────────
   release:
     name: GitHub Release
