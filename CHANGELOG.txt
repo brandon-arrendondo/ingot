@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-06-24
+
+### Added
+- `--templates <DIR>` CLI flag and `INGOT_TEMPLATES_DIR` environment variable to
+  explicitly set the templates directory, enabling installed-package use without a
+  local `templates/` copy.
+
+### Fixed
+- RPM, deb, and AppImage packages no longer fail with "Could not find templates/
+  directory" when run outside the source tree. The template-search chain now
+  includes `<exe>/../share/ingot/templates/` (FHS-relative, covers standard
+  `/usr/bin` installs) and `/usr/share/ingot/templates/` (absolute fallback).
+- Improved error message when an explicit `--templates` path does not exist.
+
 ### Added
 - `--emit-tinyfsm` flag: emit C++/tinyfsm event artifacts for `event = true`
   keys -- `dm_key_events.hpp` (one empty `tinyfsm::Event` struct per event key)

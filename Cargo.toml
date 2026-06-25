@@ -1,6 +1,6 @@
 [package]
 name = "ingot-db"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 authors = ["Brandon Arrendondo"]
 license = "MIT"
@@ -16,7 +16,7 @@ name = "ingot"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 tera = "1"

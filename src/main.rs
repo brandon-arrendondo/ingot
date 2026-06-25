@@ -60,6 +60,10 @@ struct Cli {
     #[arg(long)]
     variant: Option<String>,
 
+    /// Templates directory (overrides INGOT_TEMPLATES_DIR and all auto-search paths)
+    #[arg(long, env = "INGOT_TEMPLATES_DIR")]
+    templates: Option<PathBuf>,
+
     /// Enable verbose output
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
@@ -103,35 +107,73 @@ fn main() {
     }
 }
 
-/// Find the templates/ directory relative to the executable or CWD.
-fn resolve_template_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    // Check next to the executable first
-    if let Ok(exe) = std::env::current_exe() {
-        let dir = exe.parent().unwrap_or(std::path::Path::new("."));
-        let candidate = dir.join("templates");
-        if candidate.is_dir() {
-            return Ok(candidate);
+/// Find the templates/ directory.
+///
+/// Search order:
+///   1. Explicit path from `--templates` / `INGOT_TEMPLATES_DIR` (if provided)
+///   2. `<exe_dir>/templates/`
+///   3. `<exe_dir>/../share/ingot/templates/`  (FHS install: /usr/bin → /usr/share/ingot)
+///   4. `<exe_dir>/../../templates/`           (dev: target/debug/ingot → crate root)
+///   5. `<cwd>/templates/`
+///   6. `/usr/share/ingot/templates/`          (absolute fallback for non-FHS installs)
+fn resolve_template_dir(
+    explicit: Option<&std::path::Path>,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    if let Some(p) = explicit {
+        if p.is_dir() {
+            return Ok(p.to_path_buf());
         }
-        // For development: check parent of target/debug/
-        let dev_candidate = dir
+        return Err(format!(
+            "Specified templates directory does not exist: {}",
+            p.display()
+        )
+        .into());
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
+
+        // 2. next to the executable
+        let c = exe_dir.join("templates");
+        if c.is_dir() {
+            return Ok(c);
+        }
+
+        // 3. FHS: <prefix>/bin/../share/ingot/templates → <prefix>/share/ingot/templates
+        let c = exe_dir.join("../share/ingot/templates");
+        if c.is_dir() {
+            return Ok(c.canonicalize().unwrap_or(c));
+        }
+
+        // 4. development layout: target/debug/ingot → ../../templates
+        if let Some(c) = exe_dir
             .parent()
             .and_then(|p| p.parent())
-            .map(|p| p.join("templates"));
-        if let Some(ref dc) = dev_candidate {
-            if dc.is_dir() {
-                return Ok(dc.clone());
+            .map(|p| p.join("templates"))
+        {
+            if c.is_dir() {
+                return Ok(c);
             }
         }
     }
 
-    // Fallback to CWD
+    // 5. CWD
     let cwd = std::env::current_dir()?;
-    let candidate = cwd.join("templates");
-    if candidate.is_dir() {
-        return Ok(candidate);
+    let c = cwd.join("templates");
+    if c.is_dir() {
+        return Ok(c);
     }
 
-    Err("Could not find templates/ directory".into())
+    // 6. absolute system fallback
+    let c = std::path::Path::new("/usr/share/ingot/templates");
+    if c.is_dir() {
+        return Ok(c.to_path_buf());
+    }
+
+    Err(
+        "Could not find templates/ directory. Use --templates <DIR> or set INGOT_TEMPLATES_DIR."
+            .into(),
+    )
 }
 
 fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
@@ -139,7 +181,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         return Err("--include-list and --exclude-list are mutually exclusive".into());
     }
 
-    let template_dir = resolve_template_dir()?;
+    let template_dir = resolve_template_dir(cli.templates.as_deref())?;
 
     let target = match cli.target {
         Target::Stm32 => codegen::target::Target::Stm32,
