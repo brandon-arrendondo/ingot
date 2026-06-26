@@ -39,7 +39,7 @@ repos:
   # metrics, set `args:` (pre-commit replaces them wholesale), e.g.
   #   args: [--aird-threshold=85, --cognitive-threshold=20]
   - repo: https://github.com/brandon-arrendondo/knots
-    rev: v1.8.2
+    rev: v1.10.0
     hooks:
       - id: knots
         types_or: [rust, python, c, c++, header]
