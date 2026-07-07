@@ -62,6 +62,15 @@ pub struct EnumDef {
 pub struct Class {
     pub id: String,
     pub doc: Option<String>,
+    /// Optional original-case display name (e.g. "awsJob", "Update").
+    ///
+    /// The UDM catalog authors a lowercase/concatenated `id` (drives key
+    /// encoding + the uppercase C surface) alongside a mixed-case `name`
+    /// mirroring `dm_full.yaml`. This preserves that source spelling for the
+    /// `--udm-compat` lowercase accessor path segment so it matches the UDM
+    /// symbol libBissellIoT links against (e.g. DataModel_Getlocal_config_awsJob_id).
+    /// Falls back to `id` when absent, so schemas without names are unaffected.
+    pub name: Option<String>,
     /// Optional 5-bit class index (0–31) for key encoding.
     /// When set, occupies bits 21–17 of every key in this class.
     pub class_index: Option<u8>,
@@ -80,6 +89,13 @@ pub struct Class {
 #[derive(Debug, Deserialize)]
 pub struct KeyDef {
     pub id: String,
+    /// Optional original-case display name (e.g. "versionNumber", "prodSerial").
+    ///
+    /// Parallels `Class::name`: the lowercase/concatenated `id` drives encoding
+    /// and the uppercase C surface, while this preserves the source mixed-case
+    /// spelling for the `--udm-compat` lowercase accessor key segment (e.g.
+    /// DataModel_Getproduct_config_mfg_prodSerial). Falls back to `id`.
+    pub name: Option<String>,
     #[serde(rename = "type")]
     pub data_type: DataType,
     pub doc: Option<String>,

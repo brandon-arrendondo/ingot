@@ -40,6 +40,14 @@ struct Cli {
     #[arg(long)]
     emit_tinyfsm: bool,
 
+    /// Emit the UDM-shaped C compatibility surface (additive, opt-in): uppercase
+    /// DATAMODEL_GET/SET_<PATH> macro aliases + lowercase DataModel_{Get,Set}<path>
+    /// symbol aliases over the by-key API, bare-key `#define <PATH> DM_KEY_<PATH>`
+    /// constants, and a dm_enums.h of <PATH>_ENUM_T typedefs. Off by default →
+    /// the C99 shim output is byte-identical.
+    #[arg(long)]
+    udm_compat: bool,
+
     /// YAML file listing keys to include (whitelist); all others are excluded
     #[arg(long)]
     include_list: Option<PathBuf>,
@@ -231,8 +239,11 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         &cli.output,
         &template_dir,
         &target_config,
-        cli.no_events,
-        cli.emit_tinyfsm,
+        codegen::CodegenOptions {
+            no_events: cli.no_events,
+            emit_tinyfsm: cli.emit_tinyfsm,
+            udm_compat: cli.udm_compat,
+        },
     )?;
     log::info!("Code generation complete → {}", cli.output.display());
 

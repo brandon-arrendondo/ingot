@@ -8,6 +8,20 @@ use serde::Serialize;
 use std::path::Path;
 use tera::{Context, Tera};
 
+/// Opt-in codegen toggles. Every field defaults OFF and is purely additive to
+/// the C99 core output, so the default (`CodegenOptions::default()`) reproduces
+/// the byte-identical baseline consumers rely on.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CodegenOptions {
+    /// Disable event callback generation.
+    pub no_events: bool,
+    /// Emit C++/tinyfsm event structs + dispatch-by-key wrapper.
+    pub emit_tinyfsm: bool,
+    /// Emit the UDM-shaped compatibility surface (macros, accessors, bare-key
+    /// constants, `dm_enums.h`).
+    pub udm_compat: bool,
+}
+
 /// A key definition ready for template rendering.
 #[derive(Debug, Serialize)]
 pub struct KeyDefRenderable {
@@ -15,6 +29,9 @@ pub struct KeyDefRenderable {
     pub class: String,
     pub name: String,
     pub define_name: String,
+    /// The `DM_KEY_`-less uppercase path (e.g. "APPLIANCE_STATUS_MODE"), used
+    /// for the `--udm-compat` bare-key `#define <PATH> DM_KEY_<PATH>` alias.
+    pub bare_name: String,
     pub hex_value: String,
     pub type_name: String,
     pub unit: Option<String>,
@@ -81,8 +98,7 @@ pub fn generate(
     output_dir: &Path,
     template_dir: &Path,
     target: &target::TargetConfig,
-    no_events: bool,
-    emit_tinyfsm: bool,
+    opts: CodegenOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
 
@@ -103,6 +119,7 @@ pub fn generate(
         let mut ctx = Context::new();
         ctx.insert("version", version);
         ctx.insert("keys", &key_defs);
+        ctx.insert("udm_compat", &opts.udm_compat);
         let rendered = tera.render("key_definitions.h", &ctx)?;
         std::fs::write(output_dir.join("key_definitions.h"), rendered)?;
         log::info!("Generated key_definitions.h ({} keys)", key_defs.len());
@@ -110,7 +127,7 @@ pub fn generate(
 
     // Generate C++/tinyfsm event artifacts (opt-in, additive — see --emit-tinyfsm).
     // Off by default so C99-only consumers and their output are untouched.
-    if emit_tinyfsm {
+    if opts.emit_tinyfsm {
         generate_tinyfsm_events(&tera, version, &key_defs, output_dir)?;
     }
 
@@ -239,7 +256,7 @@ pub fn generate(
         ctx.insert("has_persistence", &has_persistence);
         ctx.insert("int_types", &api_int_types);
         ctx.insert("target", target);
-        ctx.insert("no_events", &no_events);
+        ctx.insert("no_events", &opts.no_events);
 
         let h = tera.render("dm.h", &ctx)?;
         let c = tera.render("dm.c", &ctx)?;
@@ -263,6 +280,7 @@ pub fn generate(
             ctx.insert("version", version);
             ctx.insert("helpers", &helpers);
             ctx.insert("has_string_helpers", &has_string_helpers);
+            ctx.insert("udm_compat", &opts.udm_compat);
             let h = tera.render("dm_helpers.h", &ctx)?;
             std::fs::write(output_dir.join("dm_helpers.h"), h)?;
             if has_string_helpers {
@@ -277,6 +295,24 @@ pub fn generate(
         }
     }
 
+    // --- Generate dm_enums.h (UDM-compat only) ---
+    // Emits <PATH>_ENUM_T typedefs + named constants for every key that
+    // references an [enums.*] domain. Off by default so the shim output is
+    // untouched; nothing is written when no key carries an enum.
+    if opts.udm_compat {
+        let enum_types = collect_enum_types(model, ns_id);
+        if !enum_types.is_empty() {
+            let mut ctx = Context::new();
+            ctx.insert("version", version);
+            ctx.insert("enums", &enum_types);
+            let h = tera.render("dm_enums.h", &ctx)?;
+            std::fs::write(output_dir.join("dm_enums.h"), h)?;
+            log::info!("Generated dm_enums.h ({} enum types)", enum_types.len());
+        } else {
+            log::info!("No enum-typed keys — skipping dm_enums.h");
+        }
+    }
+
     // --- Generate Unity test files ---
     {
         let test_keys = collect_test_keys(model, ns_id);
@@ -286,7 +322,7 @@ pub fn generate(
         ctx.insert("version", version);
         ctx.insert("keys", &test_keys);
         ctx.insert("namespace", &model.meta.id);
-        ctx.insert("no_events", &no_events);
+        ctx.insert("no_events", &opts.no_events);
         ctx.insert("has_persistence", &has_persistence);
         ctx.insert("persistence_entries", &persist_test_entries);
         let test_c = tera.render("test_dm.c", &ctx)?;
@@ -449,12 +485,14 @@ fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderabl
 
             let encoded = encoding.encode();
             let key_name = key.id.to_uppercase().replace(' ', "_");
+            let bare_name = format!("{c_ns_name}_{class_name}_{key_name}");
 
             defs.push(KeyDefRenderable {
                 namespace: resolve_ns_name(class, model),
                 class: class.id.clone(),
                 name: key.id.clone(),
-                define_name: format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}"),
+                define_name: format!("DM_KEY_{bare_name}"),
+                bare_name,
                 hex_value: format!("{encoded:#010X}"),
                 type_name: format!("{:?}", key.data_type).to_lowercase(),
                 unit: key.unit.clone(),
@@ -474,8 +512,11 @@ fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderabl
 struct HelperEntry {
     /// The key #define name (e.g. "DM_KEY_BATTERY_STATUS_VOLTAGE")
     define_name: String,
-    /// Helper function suffix (e.g. "BATTERY_STATUS_VOLTAGE")
+    /// Helper function suffix, uppercased path (e.g. "BATTERY_STATUS_VOLTAGE")
     helper_name: String,
+    /// Original-case path (e.g. "battery_status_voltage" / "product_config_prodSerial"),
+    /// used for the `--udm-compat` lowercase `DataModel_{Get,Set}<path>` symbol alias.
+    orig_path: String,
     /// C type for the value (e.g. "uint16_t", "bool")
     c_type: String,
     /// dm_val_t union field (e.g. "u16val", "bval") — empty for strings
@@ -518,6 +559,19 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
             let helper_name = format!("{c_ns_name}_{class_name}_{key_name}");
 
+            // Original-case path for the UDM-compat lowercase accessor alias.
+            // The UDM catalog authors a lowercase/concatenated `id` plus a
+            // mixed-case display `name`; the lowercase accessor uses the display
+            // name (class + key), falling back to `id` when no name is given, so
+            // camelCase segments (awsJob, prodSerial, versionNumber) survive and
+            // the alias matches the UDM symbol libBissellIoT links against, e.g.
+            // DataModel_Getlocal_config_awsJob_id. The uppercase C surface is
+            // derived independently via id.to_uppercase(), so it is unaffected.
+            let ns_orig = resolve_ns_name(class, model);
+            let class_orig = class.name.as_deref().unwrap_or(&class.id).replace(' ', "_");
+            let key_orig = key.name.as_deref().unwrap_or(&key.id).replace(' ', "_");
+            let orig_path = format!("{ns_orig}_{class_orig}_{key_orig}");
+
             let (c_type, val_field, is_string) = match key.data_type {
                 DataType::Bool => ("bool".to_string(), "bval".to_string(), false),
                 DataType::Uint8 => ("uint8_t".to_string(), "u8val".to_string(), false),
@@ -533,6 +587,7 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
             helpers.push(HelperEntry {
                 define_name,
                 helper_name,
+                orig_path,
                 c_type,
                 val_field,
                 is_string,
@@ -542,6 +597,92 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
     }
 
     helpers
+}
+
+/// A single named enum constant ready for template rendering.
+#[derive(Debug, Serialize)]
+struct EnumConstRenderable {
+    /// Fully-qualified constant name (e.g. "APPLIANCE_STATUS_MODE_OFF").
+    name: String,
+    /// The declared integer value (wire-semantic — must equal the schema's).
+    value: i64,
+}
+
+/// A `<PATH>_ENUM_T` typedef ready for template rendering.
+#[derive(Debug, Serialize)]
+struct EnumTypeRenderable {
+    /// The typedef name (e.g. "APPLIANCE_STATUS_MODE_ENUM_T").
+    type_name: String,
+    /// The uppercase key path prefix (e.g. "APPLIANCE_STATUS_MODE"), used for
+    /// the trailing `_MAX_STORAGE_VALUE` sentinel constant.
+    prefix: String,
+    /// The stdint sentinel bound for this key's storage width (e.g. "UINT8_MAX").
+    max_macro: String,
+    /// Named constants, ordered by value then name for deterministic output.
+    values: Vec<EnumConstRenderable>,
+}
+
+/// Map a key's storage type to the stdint `*_MAX` sentinel used for the
+/// generated enum's `_MAX_STORAGE_VALUE` guard (mirrors the UDM emitter).
+fn enum_max_macro(data_type: DataType) -> &'static str {
+    match data_type {
+        DataType::Bool | DataType::Uint8 => "UINT8_MAX",
+        DataType::Int8 => "INT8_MAX",
+        DataType::Uint16 => "UINT16_MAX",
+        DataType::Int16 => "INT16_MAX",
+        DataType::Uint32 => "UINT32_MAX",
+        DataType::Int32 => "INT32_MAX",
+        // Enums never attach to string/binary keys; guard defensively.
+        DataType::String | DataType::Binary => "UINT8_MAX",
+    }
+}
+
+/// Collect one `<PATH>_ENUM_T` typedef per enum-referencing key.
+///
+/// The typedef and its constants are named after the *key's* path (not the
+/// enum domain), matching the UDM generator: the same `[enums.*]` domain
+/// referenced by two keys yields two distinct typedefs. Constant values are
+/// emitted verbatim from the schema (Data Quality — they are wire-semantic).
+fn collect_enum_types(model: &DataModel, ns_id: u16) -> Vec<EnumTypeRenderable> {
+    let mut out = Vec::new();
+
+    for (pos, class) in model.classes.iter().enumerate() {
+        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
+        let class_name = class.id.to_uppercase();
+        let _ = resolve_ns_id(class, ns_id);
+        let _ = resolve_class_idx(class, pos);
+
+        for key in &class.keys {
+            let Some(enum_ref) = key.enum_ref.as_ref() else {
+                continue;
+            };
+            let Some(enum_def) = model.enums.get(enum_ref) else {
+                continue;
+            };
+
+            let key_name = key.id.to_uppercase().replace(' ', "_");
+            let prefix = format!("{c_ns_name}_{class_name}_{key_name}");
+
+            let mut values: Vec<EnumConstRenderable> = enum_def
+                .values
+                .iter()
+                .map(|(name, &value)| EnumConstRenderable {
+                    name: format!("{prefix}_{}", name.to_uppercase().replace(' ', "_")),
+                    value,
+                })
+                .collect();
+            values.sort_by(|a, b| a.value.cmp(&b.value).then(a.name.cmp(&b.name)));
+
+            out.push(EnumTypeRenderable {
+                type_name: format!("{prefix}_ENUM_T"),
+                max_macro: enum_max_macro(key.data_type).to_string(),
+                prefix,
+                values,
+            });
+        }
+    }
+
+    out
 }
 
 /// A persistence test entry for Unity test generation.

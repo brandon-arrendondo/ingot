@@ -114,3 +114,10 @@ fn full_with_tinyfsm_is_byte_identical_across_runs() {
 fn full_no_events_is_byte_identical_across_runs() {
     assert_byte_identical("full_no_events", "examples/full.toml", &["--no-events"]);
 }
+
+#[test]
+fn full_with_udm_compat_is_byte_identical_across_runs() {
+    // --udm-compat adds macro/accessor/bare-key aliases + dm_enums.h; the enum
+    // constants are value-sorted for stable ordering. Assert re-runs match.
+    assert_byte_identical("full_udm_compat", "examples/full.toml", &["--udm-compat"]);
+}

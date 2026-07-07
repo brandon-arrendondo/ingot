@@ -13,6 +13,14 @@ extern "C" {
  * type={{ key.type_name }}{% if key.unit %}, unit={{ key.unit }}{% endif %}{% if key.read_only %}, read_only{% endif %}{% if key.thread_safe %}, thread_safe{% endif %}{% if key.persistent %}, persistent{% endif %}{% if key.event %}, event{% endif %} */
 #define {{ key.define_name }} {{ key.hex_value }}U
 {% endfor %}
+{%- if udm_compat %}
+
+/* UDM-compat bare-key aliases: <PATH> resolves to its DM_KEY_<PATH> (same
+ * packed id round-trips into the store), matching the libBissellIoT surface. */
+{% for key in keys %}
+#define {{ key.bare_name }} {{ key.define_name }}
+{% endfor %}
+{%- endif %}
 
 #ifdef __cplusplus
 }

@@ -33,6 +33,14 @@ static inline DM_RETURN_CODE DataModel_Set_{{ h.helper_name }}({{ h.c_type }} x)
 }
 {% endif %}
 {% endif %}
+{%- if udm_compat %}
+#define DATAMODEL_GET_{{ h.helper_name }}() DataModel_Get_{{ h.helper_name }}()
+#define DataModel_Get{{ h.orig_path }} DataModel_Get_{{ h.helper_name }}
+{% if not h.is_read_only %}
+#define DATAMODEL_SET_{{ h.helper_name }}(val) DataModel_Set_{{ h.helper_name }}(val)
+#define DataModel_Set{{ h.orig_path }} DataModel_Set_{{ h.helper_name }}
+{% endif %}
+{%- endif %}
 {% endfor %}
 
 #ifdef __cplusplus
