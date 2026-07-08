@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include "dm.h"
 #include "key_definitions.h"
+{% if udm_compat %}#include "dm_enums.h"
+{% endif %}
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,10 +36,38 @@ static inline DM_RETURN_CODE DataModel_Set_{{ h.helper_name }}({{ h.c_type }} x)
 {% endif %}
 {% endif %}
 {%- if udm_compat %}
+{% if h.is_string %}
 #define DATAMODEL_GET_{{ h.helper_name }}() DataModel_Get_{{ h.helper_name }}()
+{% elif h.enum_type_name %}
+{# Enum-typed keys: original UDM emitted DATAMODEL_GET_<PATH> as a real
+   `static inline <ENUM_TYPE>` wrapper casting the raw storage value to the
+   enum type (see ~/.local/share/Trash/files/gen/udm/dm_helpers.h:2226-2229,
+   cited in P2-20260707-013) — the native DataModel_Get_<name> getter (this
+   file, above) returns the raw storage type (e.g. uint8_t), which is not
+   implicitly convertible to the enum type under C++ strict typing. A bare
+   macro alias (P2-010's shape for non-enum keys) would just rename the
+   identifier to that raw-typed getter, which is wrong here. #}
+static inline {{ h.enum_type_name }} DATAMODEL_GET_{{ h.helper_name }}(void)
+{
+    return ({{ h.enum_type_name }})DataModel_Get_{{ h.helper_name }}();
+}
+{% else %}
+{# bool/int: the original UDM generator emitted DATAMODEL_GET_<PATH> as a real,
+   address-of-able function (not a call-style macro) — durableInterface.c's DCI
+   dispatch table takes its address without invoking it. An object-like macro
+   (no parameter list) achieves this: it textually renames the identifier to
+   the real DataModel_Get_<name> function everywhere it's referenced, whether
+   called with () or taken bare via &, unlike a function-like macro which is
+   left unexpanded (and so undefined) when not immediately followed by "(". #}
+#define DATAMODEL_GET_{{ h.helper_name }} DataModel_Get_{{ h.helper_name }}
+{% endif %}
 #define DataModel_Get{{ h.orig_path }} DataModel_Get_{{ h.helper_name }}
 {% if not h.is_read_only %}
+{% if h.is_string %}
 #define DATAMODEL_SET_{{ h.helper_name }}(val) DataModel_Set_{{ h.helper_name }}(val)
+{% else %}
+#define DATAMODEL_SET_{{ h.helper_name }} DataModel_Set_{{ h.helper_name }}
+{% endif %}
 #define DataModel_Set{{ h.orig_path }} DataModel_Set_{{ h.helper_name }}
 {% endif %}
 {%- endif %}

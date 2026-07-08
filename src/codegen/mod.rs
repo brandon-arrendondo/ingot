@@ -128,7 +128,14 @@ pub fn generate(
     // Generate C++/tinyfsm event artifacts (opt-in, additive — see --emit-tinyfsm).
     // Off by default so C99-only consumers and their output are untouched.
     if opts.emit_tinyfsm {
-        generate_tinyfsm_events(&tera, version, &key_defs, output_dir)?;
+        let emitted_events = generate_tinyfsm_events(&tera, version, &key_defs, output_dir)?;
+        // UDM-compat only (P2-20260707-006): also emit dm_key_events.h/.c, the
+        // C-linkage `send_dm_key_event(uint32_t)` surface the dropped
+        // gen/udm/dm_key_events.c used to provide. Only meaningful once there
+        // is a dispatch table to forward to.
+        if opts.udm_compat && emitted_events {
+            generate_dm_key_events_alias(&tera, version, output_dir)?;
+        }
     }
 
     // Generate jenkins_hash.h and jenkins_hash.c
@@ -143,9 +150,20 @@ pub fn generate(
     }
 
     // Generate dm_key.h
+    //
+    // Under --udm-compat, also emits `DATA_MODEL_KEY_TYPE_*` #define aliases
+    // onto the `DM_KEY_TYPE_*` enumerators declared in this same file. The
+    // recovered original gen/udm/dm_key.h declared `DATA_MODEL_KEY_TYPE` as
+    // its own enum with identical values for the shared members (BOOLEAN=0,
+    // UINT8=1, UINT16=2, UINT32=3, INT8=4, INT16=5, INT32=6, STRING=8);
+    // libBissellIoT call sites (e.g. telem_broker_handler.c) use these names
+    // as array-index-valid compile-time integer constants in static
+    // initializers, so a #define alias onto the enumerator (not a runtime
+    // value) is required (P2-20260707-014 Gap B).
     {
         let mut ctx = Context::new();
         ctx.insert("version", version);
+        ctx.insert("udm_compat", &opts.udm_compat);
         let h = tera.render("dm_key.h", &ctx)?;
         std::fs::write(output_dir.join("dm_key.h"), h)?;
         log::info!("Generated dm_key.h");
@@ -185,6 +203,19 @@ pub fn generate(
             bs.num_keys,
             bs.num_words
         );
+
+        // --- Generate dm_boolean_storage.h alias (UDM-compat only) ---
+        // libBissellIoT's telemetry.c, endpoint_handler.c, local_comm.c, and udm_comm.c
+        // #include "dm_boolean_storage.h" — the filename the dropped gen/udm codegen used to
+        // emit for BooleanStorage_SetKey/GetKey. Alias to the canonical boolean_storage.h
+        // rather than hand-maintaining it in the lib tree (P2-20260707-014 Gap A).
+        if opts.udm_compat {
+            let mut ctx = Context::new();
+            ctx.insert("version", version);
+            let h = tera.render("dm_boolean_storage.h", &ctx)?;
+            std::fs::write(output_dir.join("dm_boolean_storage.h"), h)?;
+            log::info!("Generated dm_boolean_storage.h (UDM-compat alias for boolean_storage.h)");
+        }
     }
 
     // Generate integer_storage.h/.c
@@ -200,6 +231,18 @@ pub fn generate(
             "Generated integer_storage.h/.c ({} type groups)",
             int_storages.len()
         );
+
+        // --- Generate dm_integer_storage.h alias (UDM-compat only) ---
+        // Same shape as the dm_boolean_storage.h alias above (P2-20260707-014): the dropped
+        // gen/udm codegen emitted IntegerStorage_Set/GetUINT8Key/etc. under this filename;
+        // ingot's own integer_storage.h exposes the identical signatures.
+        if opts.udm_compat {
+            let mut ctx = Context::new();
+            ctx.insert("version", version);
+            let h = tera.render("dm_integer_storage.h", &ctx)?;
+            std::fs::write(output_dir.join("dm_integer_storage.h"), h)?;
+            log::info!("Generated dm_integer_storage.h (UDM-compat alias for integer_storage.h)");
+        }
     }
 
     // Generate string_storage.h/.c
@@ -219,6 +262,18 @@ pub fn generate(
             ss.ro.as_ref().map_or(0, |g| g.num_keys),
             ss.rw.as_ref().map_or(0, |g| g.num_keys),
         );
+
+        // --- Generate dm_string_storage.h alias (UDM-compat only) ---
+        // Same shape as the dm_boolean_storage.h/dm_integer_storage.h aliases above
+        // (P2-20260707-014): telemetry.c/endpoint_handler.c/local_comm.c #include this filename
+        // without calling any StringStorage_* function directly.
+        if opts.udm_compat {
+            let mut ctx = Context::new();
+            ctx.insert("version", version);
+            let h = tera.render("dm_string_storage.h", &ctx)?;
+            std::fs::write(output_dir.join("dm_string_storage.h"), h)?;
+            log::info!("Generated dm_string_storage.h (UDM-compat alias for string_storage.h)");
+        }
     }
 
     // Generate persistence_storage.h/.c
@@ -231,6 +286,20 @@ pub fn generate(
         std::fs::write(output_dir.join("persistence_storage.h"), h)?;
         std::fs::write(output_dir.join("persistence_storage.c"), c)?;
         log::info!("Generated persistence_storage.h/.c ({} keys)", ps.num_keys);
+
+        // --- Generate dm_persistence_storage.h alias (UDM-compat only) ---
+        // Same shape as the other dm_*_storage.h aliases above (P2-20260707-014):
+        // endpoint_handler.c/local_comm.c #include this filename without calling any
+        // PersistenceStorage_*/DataModel_*PersistentKeys function directly.
+        if opts.udm_compat {
+            let mut ctx = Context::new();
+            ctx.insert("version", version);
+            let h = tera.render("dm_persistence_storage.h", &ctx)?;
+            std::fs::write(output_dir.join("dm_persistence_storage.h"), h)?;
+            log::info!(
+                "Generated dm_persistence_storage.h (UDM-compat alias for persistence_storage.h)"
+            );
+        }
     }
 
     // --- Generate dm.h / dm.c (main API layer) ---
@@ -313,6 +382,20 @@ pub fn generate(
         }
     }
 
+    // --- Generate dm_key_definitions.h alias (UDM-compat only) ---
+    // libBissellIoT's ~1033 DATAMODEL_SET/GET call sites #include "dm_key_definitions.h" — the
+    // filename its OWN dropped gen/udm codegen used to emit for the bare-key #defines. Rather
+    // than hand-maintain that filename in the lib tree (drift risk), emit a one-line alias
+    // header here that #includes the canonical key_definitions.h, so those call sites compile
+    // unchanged against the shared store (P2-20260707-006).
+    if opts.udm_compat {
+        let mut ctx = Context::new();
+        ctx.insert("version", version);
+        let h = tera.render("dm_key_definitions.h", &ctx)?;
+        std::fs::write(output_dir.join("dm_key_definitions.h"), h)?;
+        log::info!("Generated dm_key_definitions.h (UDM-compat alias for key_definitions.h)");
+    }
+
     // --- Generate Unity test files ---
     {
         let test_keys = collect_test_keys(model, ns_id);
@@ -342,16 +425,20 @@ pub fn generate(
 ///
 /// Emits nothing when no key carries `event = true` — a consumer with no
 /// event keys gets no C++ artifacts even with the flag on.
+/// Returns `true` when the dispatch table was actually emitted (i.e. the
+/// model has at least one event key), so callers gating a downstream,
+/// dispatch-table-dependent emission (`--udm-compat`'s `dm_key_events.h`) know
+/// whether there is anything to forward to.
 fn generate_tinyfsm_events(
     tera: &Tera,
     version: &str,
     key_defs: &[KeyDefRenderable],
     output_dir: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
     let (events, groups) = collect_event_keys(key_defs);
     if events.is_empty() {
         log::info!("No event keys — skipping tinyfsm event generation");
-        return Ok(());
+        return Ok(false);
     }
 
     let mut hpp_ctx = Context::new();
@@ -372,6 +459,27 @@ fn generate_tinyfsm_events(
         "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp ({} event keys)",
         events.len()
     );
+    Ok(true)
+}
+
+/// Render the UDM-compat `dm_key_events.h`/`.c` alias (P2-20260707-006).
+///
+/// Behavior-identical replacement for the dropped `gen/udm/dm_key_events.h`/
+/// `.c`: declares/defines `send_dm_key_event(uint32_t)` with C linkage,
+/// forwarding to the ingot-native `send_tinyfsm_event_by_key` dispatch table.
+/// Only called when that dispatch table was actually emitted.
+fn generate_dm_key_events_alias(
+    tera: &Tera,
+    version: &str,
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut ctx = Context::new();
+    ctx.insert("version", version);
+    let h = tera.render("dm_key_events.h", &ctx)?;
+    let c = tera.render("dm_key_events.c", &ctx)?;
+    std::fs::write(output_dir.join("dm_key_events.h"), h)?;
+    std::fs::write(output_dir.join("dm_key_events.c"), c)?;
+    log::info!("Generated dm_key_events.h/.c (UDM-compat send_dm_key_event alias)");
     Ok(())
 }
 
@@ -525,6 +633,15 @@ struct HelperEntry {
     is_string: bool,
     /// True for read-only keys
     is_read_only: bool,
+    /// `Some("<PATH>_ENUM_T")` when this key has an `enum_ref` — original UDM
+    /// emitted `DATAMODEL_GET_<PATH>` as a real `static inline <ENUM_TYPE>`
+    /// wrapper casting the native getter's raw storage-typed return to the
+    /// enum type (see `~/.local/share/Trash/files/gen/udm/dm_helpers.h:2226`,
+    /// cited in P2-20260707-013), not the bare macro alias used for non-enum
+    /// keys. `None` for keys without an enum, which keep the P2-010 macro
+    /// shape. The SET side is unaffected: original UDM's enum setters took
+    /// the raw storage type (uint8_t), same as the existing macro alias.
+    enum_type_name: Option<String>,
 }
 
 /// Collect helper entries for keys with helpers=true.
@@ -572,6 +689,14 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
             let key_orig = key.name.as_deref().unwrap_or(&key.id).replace(' ', "_");
             let orig_path = format!("{ns_orig}_{class_orig}_{key_orig}");
 
+            // Mirrors collect_enum_types' `prefix`/`type_name` computation exactly
+            // (same c_ns_name/class_name/key_name inputs) so the two never drift.
+            let enum_type_name = key
+                .enum_ref
+                .as_ref()
+                .filter(|enum_ref| model.enums.contains_key(*enum_ref))
+                .map(|_| format!("{helper_name}_ENUM_T"));
+
             let (c_type, val_field, is_string) = match key.data_type {
                 DataType::Bool => ("bool".to_string(), "bval".to_string(), false),
                 DataType::Uint8 => ("uint8_t".to_string(), "u8val".to_string(), false),
@@ -592,6 +717,7 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
                 val_field,
                 is_string,
                 is_read_only: key.read_only,
+                enum_type_name,
             });
         }
     }

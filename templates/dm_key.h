@@ -33,6 +33,31 @@ typedef enum {
     DM_KEY_TYPE_MAX
 } DM_KEY_TYPE;
 
+{% if udm_compat -%}
+/* UDM-compat aliases (P2-20260707-014 Gap B): the recovered original
+ * gen/udm/dm_key.h declared these as its own DATA_MODEL_KEY_TYPE enum with
+ * identical values for the members shared with DM_KEY_TYPE above. Callers
+ * (e.g. libBissellIoT's telem_broker_handler.c) use them as
+ * array-index-valid compile-time integer constants in static initializers,
+ * so these must resolve to the real enumerator, not a runtime value. */
+#define DATA_MODEL_KEY_TYPE_BOOLEAN DM_KEY_TYPE_BOOL
+#define DATA_MODEL_KEY_TYPE_UINT8   DM_KEY_TYPE_UINT8
+#define DATA_MODEL_KEY_TYPE_UINT16  DM_KEY_TYPE_UINT16
+#define DATA_MODEL_KEY_TYPE_UINT32  DM_KEY_TYPE_UINT32
+#define DATA_MODEL_KEY_TYPE_INT8    DM_KEY_TYPE_INT8
+#define DATA_MODEL_KEY_TYPE_INT16   DM_KEY_TYPE_INT16
+#define DATA_MODEL_KEY_TYPE_INT32   DM_KEY_TYPE_INT32
+#define DATA_MODEL_KEY_TYPE_STRING  DM_KEY_TYPE_STRING
+#define DATA_MODEL_KEY_TYPE_BYTEARRAY DM_KEY_TYPE_BINARY
+/* FLOAT/LIST/MAX have no DM_KEY_TYPE_* equivalent (ingot's model has no
+ * float or list storage class) -- preserve the original enum's numeric
+ * values verbatim so any index/comparison arithmetic against them still
+ * matches the recovered gen/udm/dm_key.h layout exactly. */
+#define DATA_MODEL_KEY_TYPE_FLOAT   7
+#define DATA_MODEL_KEY_TYPE_LIST    10
+#define DATA_MODEL_KEY_TYPE_MAX     11
+{% endif -%}
+
 typedef union {
     struct {
         unsigned int read_only    : 1;
