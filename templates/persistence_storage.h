@@ -41,6 +41,12 @@ DM_RETURN_CODE DataModel_LoadPersistentKeys(const char *filepath);
  */
 DM_RETURN_CODE DataModel_SavePersistentKeys(const char *filepath);
 
+/**
+ * Log every persistent key's name and current live value at INFO (via printf).
+ * Diagnostic/eng-debug only — not on any production code path.
+ */
+void DataModel_PrintPersistentKeys(void);
+
 #ifdef __cplusplus
 }
 #endif

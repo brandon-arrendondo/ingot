@@ -2,6 +2,16 @@
 #ifndef INGOT_DM_ENUMS_H
 #define INGOT_DM_ENUMS_H
 
+/*
+ * BISSELL_DM_ENUMS_H is libBissellIoT's own UDM-generated dm_enums.h guard.
+ * Every enum below is UDM-compat mode's byte-identical re-emission of a type
+ * the lib's header already declares; skip the body entirely when the lib's
+ * header has already been included, or every TU that includes both (any
+ * B12_WITH_LIBBISSELLIOT guarded TU that also needs this header) fails with
+ * a duplicate-declaration error.
+ */
+#ifndef BISSELL_DM_ENUMS_H
+
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -18,5 +28,7 @@ typedef enum {
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* BISSELL_DM_ENUMS_H */
 
 #endif /* INGOT_DM_ENUMS_H */

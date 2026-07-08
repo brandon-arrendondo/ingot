@@ -135,3 +135,17 @@ DM_RETURN_CODE DataModel_SavePersistentKeys(const char *filepath)
 
     return DM_RETURN_CODE_SUCCESS;
 }
+
+/* ---- Diagnostic dump ---- */
+
+void DataModel_PrintPersistentKeys(void)
+{
+    PersistenceStorage_SyncFromStorage();
+{% for e in persistence.entries %}
+{% if e.is_string %}
+    printf("%s = %s\n", "{{ e.define_name }}", persistence_data.{{ e.field_name }});
+{% else %}
+    printf("%s = %lld\n", "{{ e.define_name }}", (long long) persistence_data.{{ e.field_name }});
+{% endif %}
+{% endfor %}
+}
