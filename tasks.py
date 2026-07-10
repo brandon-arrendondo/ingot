@@ -35,26 +35,29 @@ def _read_cargo_version():
 # Files that embed THIS crate's own version, with the pattern that locates it
 # and a replacement template ({new} = new version, {date} = today YYYY-MM-DD).
 #
-# Patterns match any semver (not just the current one) so a bump heals any
-# existing drift instead of silently skipping an out-of-sync file.
+# Cargo.toml: keyed to the exact current version (read from the file itself) —
+# guaranteed to match since it's the source of truth.
+# Man page patterns: match ANY semver so a bump heals drift even if the docs
+# fell out of sync with a previous release.
 #
 # NOT touched (intentionally):
 #   - .pre-commit-config.yaml `rev: v1.8.2`  -> that pins knots, not this crate
-VERSION_FILES = [
-    # (path, pattern, replacement-template)
-    ("Cargo.toml", r'^(version = ")' + SEMVER + r'(")', r"\g<1>{new}\g<2>"),
-    (
-        "docs/ingot.1",
-        r'("ingot )' + SEMVER + r'(")',
-        r"\g<1>{new}\g<2>",
-    ),
-    # Refresh the man page date stamp on every bump.
-    (
-        "docs/ingot.1",
-        r'(\.TH INGOT 1 ")\d{4}-\d{2}-\d{2}(")',
-        r"\g<1>{date}\g<2>",
-    ),
-]
+def _version_files(current):
+    return [
+        # (path, pattern, replacement-template)
+        ("Cargo.toml", rf'^(version = "){re.escape(current)}(")', r"\g<1>{new}\g<2>"),
+        (
+            "docs/ingot.1",
+            r'("ingot )' + SEMVER + r'(")',
+            r"\g<1>{new}\g<2>",
+        ),
+        # Refresh the man page date stamp on every bump.
+        (
+            "docs/ingot.1",
+            r'(\.TH INGOT 1 ")\d{4}-\d{2}-\d{2}(")',
+            r"\g<1>{date}\g<2>",
+        ),
+    ]
 
 
 @task
@@ -69,11 +72,12 @@ def bump_version(c, new_version=None):
         new_version: Target version string, e.g. 1.0.2 (no leading 'v').
     """
     current = _read_cargo_version()
+    version_files = _version_files(current)
 
     if not new_version:
         print(f"Current version (Cargo.toml): {current}")
         print("\nFiles that would be updated:")
-        for path, *_ in VERSION_FILES:
+        for path, *_ in version_files:
             print(f"  {path}")
         print("\nRun: invoke bump-version --new-version X.Y.Z")
         return
@@ -84,7 +88,7 @@ def bump_version(c, new_version=None):
     today = datetime.date.today().isoformat()
     changed = []
 
-    for path, pattern, tmpl in VERSION_FILES:
+    for path, pattern, tmpl in version_files:
         p = Path(path)
         if not p.exists():
             continue
