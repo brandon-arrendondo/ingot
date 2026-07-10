@@ -164,6 +164,24 @@ impl DataType {
             DataType::Binary => "uint8_t *",
         }
     }
+
+    /// Rust type name for code generation.
+    ///
+    /// `String`/`Binary` have no single scalar Rust type (they're generated
+    /// as fixed-size `[u8; N]` byte arrays) — this returns a byte-slice
+    /// placeholder for those two variants.
+    pub fn rust_type(self) -> &'static str {
+        match self {
+            DataType::Bool => "bool",
+            DataType::Uint8 => "u8",
+            DataType::Int8 => "i8",
+            DataType::Uint16 => "u16",
+            DataType::Int16 => "i16",
+            DataType::Uint32 => "u32",
+            DataType::Int32 => "i32",
+            DataType::String | DataType::Binary => "&[u8]",
+        }
+    }
 }
 
 #[cfg(test)]
@@ -260,5 +278,14 @@ mod tests {
         assert_eq!(DataType::Uint8.c_type(), "uint8_t");
         assert_eq!(DataType::Bool.c_type(), "bool");
         assert_eq!(DataType::String.c_type(), "char *");
+    }
+
+    #[test]
+    fn data_type_rust_names() {
+        assert_eq!(DataType::Uint8.rust_type(), "u8");
+        assert_eq!(DataType::Int32.rust_type(), "i32");
+        assert_eq!(DataType::Bool.rust_type(), "bool");
+        assert_eq!(DataType::String.rust_type(), "&[u8]");
+        assert_eq!(DataType::Binary.rust_type(), "&[u8]");
     }
 }

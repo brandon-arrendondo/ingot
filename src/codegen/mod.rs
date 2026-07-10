@@ -1,3 +1,4 @@
+pub mod rust_kvp;
 pub mod storage;
 pub mod target;
 pub mod yaml_manifest;
@@ -8,7 +9,7 @@ use serde::Serialize;
 use std::path::Path;
 use tera::{Context, Tera};
 
-fn write_generated(path: impl AsRef<Path>, content: String) -> std::io::Result<()> {
+pub(crate) fn write_generated(path: impl AsRef<Path>, content: String) -> std::io::Result<()> {
     let normalized = format!("{}\n", content.trim_end_matches('\n'));
     std::fs::write(path, normalized)
 }
@@ -412,12 +413,12 @@ fn collect_namespaces(model: &DataModel, fallback_ns_id: u16) -> Vec<NamespaceDe
 }
 
 /// Resolve the namespace ID for a class, using per-class override or model-level fallback.
-fn resolve_ns_id(class: &crate::model::schema::Class, fallback: u16) -> u16 {
+pub(crate) fn resolve_ns_id(class: &crate::model::schema::Class, fallback: u16) -> u16 {
     class.namespace_id.unwrap_or(fallback)
 }
 
 /// Resolve the namespace name for a class, using per-class override or model-level fallback.
-fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataModel) -> String {
+pub(crate) fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataModel) -> String {
     class
         .namespace_name
         .as_deref()
@@ -426,7 +427,7 @@ fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataModel) -> St
 }
 
 /// Resolve the class index, using explicit class_index or positional fallback.
-fn resolve_class_idx(class: &crate::model::schema::Class, position: usize) -> u8 {
+pub(crate) fn resolve_class_idx(class: &crate::model::schema::Class, position: usize) -> u8 {
     class.class_index.unwrap_or(position as u8)
 }
 

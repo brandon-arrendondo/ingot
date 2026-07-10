@@ -69,7 +69,7 @@ struct Cli {
     verbose: u8,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq, Eq)]
 enum Target {
     /// 32-bit ARM STM32 microcontrollers (bare-metal)
     Stm32,
@@ -81,6 +81,8 @@ enum Target {
     Mcu8bit,
     /// 64-bit Linux systems
     Linux64,
+    /// Rust data model (no_std, perfect-hash static storage) instead of C
+    Rust,
 }
 
 fn main() {
@@ -183,15 +185,6 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     let template_dir = resolve_template_dir(cli.templates.as_deref())?;
 
-    let target = match cli.target {
-        Target::Stm32 => codegen::target::Target::Stm32,
-        Target::EspXtensa => codegen::target::Target::EspXtensa,
-        Target::EspRiscv => codegen::target::Target::EspRiscv,
-        Target::Mcu8bit => codegen::target::Target::Mcu8bit,
-        Target::Linux64 => codegen::target::Target::Linux64,
-    };
-    let target_config = codegen::target::TargetConfig::for_target(target);
-
     let mut data_model = load_models(&cli.model)?;
 
     // Stamp original key positions before filtering so encoded IDs survive
@@ -266,6 +259,28 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     // Namespace ID 0 as fallback (per-class overrides take precedence)
     let ns_id: u16 = data_model.meta.namespace_id.unwrap_or(0);
+
+    if cli.target == Target::Rust {
+        if cli.emit_tinyfsm {
+            log::warn!("--emit-tinyfsm has no effect for --target rust (C++/tinyfsm only)");
+        }
+        if cli.no_events {
+            log::warn!("--no-events has no effect for --target rust (C-only concept)");
+        }
+        codegen::rust_kvp::generate(&data_model, ns_id, &cli.output, &template_dir)?;
+        log::info!("Rust code generation complete → {}", cli.output.display());
+        return Ok(());
+    }
+
+    let target = match cli.target {
+        Target::Stm32 => codegen::target::Target::Stm32,
+        Target::EspXtensa => codegen::target::Target::EspXtensa,
+        Target::EspRiscv => codegen::target::Target::EspRiscv,
+        Target::Mcu8bit => codegen::target::Target::Mcu8bit,
+        Target::Linux64 => codegen::target::Target::Linux64,
+        Target::Rust => unreachable!("handled above"),
+    };
+    let target_config = codegen::target::TargetConfig::for_target(target);
 
     codegen::generate(
         &data_model,

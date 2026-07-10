@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-10
+
+### Added
+- `--target rust`: generate a `no_std` Rust key-value data model (`dm.rs`)
+  instead of C. Emits a single `pub struct DataModel` with named
+  getter/setter methods per key, backed by the same perfect-hash
+  static-array storage strategy as the C backend (no heap, no `HashMap`).
+  Also exposes a generic get/set-by-encoded-key API for scalar types and a
+  `PERSISTENT_KEYS` list, for consumers (persistence layers, protocol
+  bridges) that need dynamic dispatch. `--emit-tinyfsm`/`--no-events` are
+  C/C++-only and have no effect (with a warning) when `--target rust` is
+  selected.
+
 ## [1.0.3] - 2026-06-24
 
 ### Added
