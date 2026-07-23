@@ -1,3 +1,4 @@
+pub mod enums;
 pub mod rust_kvp;
 pub mod storage;
 pub mod target;
@@ -151,6 +152,17 @@ pub fn generate(
         log::info!("Generated dm_namespace_definitions.h");
     }
 
+    // Generate dm_enums.h (only when the model defines named enums)
+    let enum_defs = enums::collect_enums(model);
+    if !enum_defs.is_empty() {
+        let mut ctx = Context::new();
+        ctx.insert("version", version);
+        ctx.insert("enums", &enum_defs);
+        let h = tera.render("dm_enums.h", &ctx)?;
+        write_generated(output_dir.join("dm_enums.h"), h)?;
+        log::info!("Generated dm_enums.h ({} enum(s))", enum_defs.len());
+    }
+
     // Generate dm_full.yaml manifest
     yaml_manifest::generate_yaml_manifest(model, ns_id, output_dir)?;
 
@@ -265,10 +277,12 @@ pub fn generate(
         let helpers = collect_helpers(model, ns_id);
         if !helpers.is_empty() {
             let has_string_helpers = helpers.iter().any(|h| h.is_string);
+            let has_enum_helpers = helpers.iter().any(|h| h.is_enum);
             let mut ctx = Context::new();
             ctx.insert("version", version);
             ctx.insert("helpers", &helpers);
             ctx.insert("has_string_helpers", &has_string_helpers);
+            ctx.insert("has_enum_helpers", &has_enum_helpers);
             let h = tera.render("dm_helpers.h", &ctx)?;
             write_generated(output_dir.join("dm_helpers.h"), h)?;
             if has_string_helpers {
@@ -490,6 +504,11 @@ struct HelperEntry {
     is_string: bool,
     /// True for read-only keys
     is_read_only: bool,
+    /// True when this key has an `enum = "..."` reference; `c_type` is then
+    /// the generated enum typedef name rather than the raw integer type.
+    is_enum: bool,
+    /// Raw integer C type backing an enum-typed key (unused otherwise).
+    storage_c_type: String,
 }
 
 /// Collect helper entries for keys with helpers=true.
@@ -524,7 +543,7 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
             let helper_name = format!("{c_ns_name}_{class_name}_{key_name}");
 
-            let (c_type, val_field, is_string) = match key.data_type {
+            let (raw_c_type, val_field, is_string) = match key.data_type {
                 DataType::Bool => ("bool".to_string(), "bval".to_string(), false),
                 DataType::Uint8 => ("uint8_t".to_string(), "u8val".to_string(), false),
                 DataType::Int8 => ("int8_t".to_string(), "s8val".to_string(), false),
@@ -536,6 +555,12 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
                 DataType::Binary => ("const uint8_t *".to_string(), String::new(), true),
             };
 
+            let is_enum = !is_string && key.enum_ref.is_some();
+            let c_type = match (&key.enum_ref, is_enum) {
+                (Some(enum_ref), true) => enums::enum_type_name(enum_ref, &model.meta.id),
+                _ => raw_c_type.clone(),
+            };
+
             helpers.push(HelperEntry {
                 define_name,
                 helper_name,
@@ -543,6 +568,8 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
                 val_field,
                 is_string,
                 is_read_only: key.read_only,
+                is_enum,
+                storage_c_type: raw_c_type,
             });
         }
     }

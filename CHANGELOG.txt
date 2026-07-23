@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-23
+
+### Added
+- `dm_enums.h`: generated C `typedef enum` for every named `[enums.*]` block
+  in the data model (one shared type per enum, reused across every key that
+  references it via `enum = "..."`). Keys with `helpers = true` and an
+  `enum` reference now get enum-typed generated getter/setter helpers
+  (`DataModel_Get_*`/`DataModel_Set_*`) instead of the raw integer storage
+  type, casting to/from the underlying storage type internally.
+
 ## [1.1.0] - 2026-07-10
 
 ### Added

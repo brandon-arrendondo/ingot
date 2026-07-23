@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include "dm.h"
 #include "key_definitions.h"
+{% if has_enum_helpers %}#include "dm_enums.h"
+{% endif %}
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,13 +24,13 @@ DM_RETURN_CODE DataModel_Set_{{ h.helper_name }}(const char *val);
 static inline {{ h.c_type }} DataModel_Get_{{ h.helper_name }}(void)
 {
     dm_val_t val = DataModel_GetIntegralTypeByKey({{ h.define_name }});
-    return val.{{ h.val_field }};
+    return {% if h.is_enum %}({{ h.c_type }})val.{{ h.val_field }}{% else %}val.{{ h.val_field }}{% endif %};
 }
 {% if not h.is_read_only %}
 static inline DM_RETURN_CODE DataModel_Set_{{ h.helper_name }}({{ h.c_type }} x)
 {
     dm_val_t val = { 0 };
-    val.{{ h.val_field }} = x;
+    val.{{ h.val_field }} = {% if h.is_enum %}({{ h.storage_c_type }})x{% else %}x{% endif %};
     return DataModel_SetIntegralTypeByKey({{ h.define_name }}, val);
 }
 {% endif %}
