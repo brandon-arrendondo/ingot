@@ -1,3 +1,4 @@
+pub mod enums;
 pub mod storage;
 
 use crate::model::schema::DataModel;
@@ -34,6 +35,7 @@ pub fn generate(
 
     let version = env!("CARGO_PKG_VERSION");
 
+    let rust_enums = enums::collect_rust_enums(model);
     let (int_groups, int_accessors) = storage::collect_int_groups(model, ns_id)?;
     let (bool_group, bool_accessors) = storage::collect_bool_group(model, ns_id)?;
     let bytes_accessors = storage::collect_bytes_accessors(model, ns_id);
@@ -75,6 +77,7 @@ pub fn generate(
 
     let mut ctx = Context::new();
     ctx.insert("version", version);
+    ctx.insert("enums", &rust_enums);
     ctx.insert("key_consts", &key_consts);
     ctx.insert("int_groups", &int_groups);
     ctx.insert("int_accessors", &int_accessors);

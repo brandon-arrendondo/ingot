@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--target rust`: named enums now generate a shared `#[repr(u8/16/32)]` Rust
+  enum per `[enums.*]` block (namespace-qualified type name, e.g.
+  `BatteryLevel`), reused across every key that references it. Keys with
+  `enum = "..."` get enum-typed accessor methods (`from_raw`/`to_raw`
+  convert to/from the underlying storage type) instead of the raw integer.
+
 ## [1.2.0] - 2026-07-23
 
 ### Added

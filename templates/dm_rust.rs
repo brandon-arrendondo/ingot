@@ -40,6 +40,32 @@ pub const {{ c.const_name }}: u32 = {{ c.hex_value }};
 pub const PERSISTENT_KEYS: &[u32] = &[
 {% for name in persistent_key_names %}    {{ name }},
 {% endfor %}];
+{% for e in enums %}
+{%- if e.doc %}
+/// {{ e.doc }}
+{%- endif %}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr({{ e.repr }})]
+pub enum {{ e.type_name }} {
+{% for m in e.members %}    {{ m.name }} = {{ m.value }},
+{% endfor %}}
+
+impl {{ e.type_name }} {
+    /// Maps a raw storage value back to a variant, falling back to
+    /// `{{ e.fallback_name }}` for a value that matches no member (only
+    /// reachable via the generic by-key API, which bypasses this type).
+    pub const fn from_raw(v: {{ e.repr }}) -> Self {
+        match v {
+{% for m in e.members %}            {{ m.value }} => Self::{{ m.name }},
+{% endfor %}            _ => Self::{{ e.fallback_name }},
+        }
+    }
+
+    pub const fn to_raw(self) -> {{ e.repr }} {
+        self as {{ e.repr }}
+    }
+}
+{% endfor %}
 {% for g in int_groups %}
 const {{ g.field_name | upper }}_SEED_1: u32 = {{ g.seed1 }};
 const {{ g.field_name | upper }}_SEED_2: u32 = {{ g.seed2 }};
@@ -89,6 +115,16 @@ impl DataModel {
 {% endfor %}        }
     }
 {% for a in int_accessors %}
+{% if a.enum_type %}
+    pub fn {{ a.method_name }}(&self) -> {{ a.enum_type }} {
+        {{ a.enum_type }}::from_raw(self.{{ a.field_name }}[{{ a.idx }}] as {{ a.enum_repr }})
+    }
+{% if not a.read_only %}
+    pub fn set_{{ a.method_name }}(&mut self, value: {{ a.enum_type }}) {
+        self.{{ a.field_name }}[{{ a.idx }}] = value.to_raw() as {{ a.rust_type }};
+    }
+{% endif %}
+{% else %}
     pub fn {{ a.method_name }}(&self) -> {{ a.rust_type }} {
         self.{{ a.field_name }}[{{ a.idx }}]
     }
@@ -96,7 +132,9 @@ impl DataModel {
     pub fn set_{{ a.method_name }}(&mut self, value: {{ a.rust_type }}) {
         self.{{ a.field_name }}[{{ a.idx }}] = value;
     }
-{% endif %}{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
 {% for a in bool_accessors %}
     pub fn {{ a.method_name }}(&self) -> bool {
         self.bool_values[{{ a.idx }}]
@@ -197,6 +235,22 @@ mod tests {
     }
 {% endif %}
 {% for a in int_accessors %}
+{% if a.enum_type %}
+    #[test]
+    fn {{ a.method_name }}_roundtrip() {
+        let {% if not a.read_only %}mut {% endif %}dm = DataModel::new();
+        let before = dm.{{ a.method_name }}();
+        assert_eq!(dm.get_{{ a.field_name }}({{ a.const_name }}), Some(before.to_raw()));
+{% if not a.read_only %}
+        let next_raw: {{ a.rust_type }} = if before.to_raw() == 0 { 1 } else { 0 };
+        let next = {{ a.enum_type }}::from_raw(next_raw as {{ a.enum_repr }});
+        dm.set_{{ a.method_name }}(next);
+        assert_eq!(dm.{{ a.method_name }}().to_raw(), next.to_raw());
+        assert!(dm.set_{{ a.field_name }}({{ a.const_name }}, before.to_raw()));
+        assert_eq!(dm.{{ a.method_name }}().to_raw(), before.to_raw());
+{% endif %}
+    }
+{% else %}
     #[test]
     fn {{ a.method_name }}_roundtrip() {
         let {% if not a.read_only %}mut {% endif %}dm = DataModel::new();
@@ -210,6 +264,7 @@ mod tests {
         assert_eq!(dm.{{ a.method_name }}(), before);
 {% endif %}
     }
+{% endif %}
 {% endfor %}
 {% for a in bool_accessors %}
     #[test]

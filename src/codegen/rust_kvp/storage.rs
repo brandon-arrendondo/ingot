@@ -3,6 +3,7 @@ use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
+use super::enums;
 use crate::codegen::{resolve_class_idx, resolve_ns_id};
 
 /// One group of same-typed integer/bool keys sharing a perfect hash table.
@@ -37,6 +38,12 @@ pub struct RustScalarAccessor {
     pub rust_type: String,
     pub read_only: bool,
     pub persistent: bool,
+    /// Generated Rust enum type name for keys with an `enum = "..."`
+    /// reference (e.g. "BatteryLevel") — `None` for plain scalar keys.
+    pub enum_type: Option<String>,
+    /// The enum's own `#[repr]` type (e.g. "u8") — always `Some` alongside
+    /// `enum_type`, used to cast to/from the underlying storage type.
+    pub enum_repr: Option<String>,
 }
 
 /// A named accessor backed by its own fixed-size `[u8; N]` field (string/binary).
@@ -82,6 +89,10 @@ struct ResolvedKey<'a> {
     key: &'a KeyDef,
     method_name: String,
     const_name: String,
+    /// (enum type name, enum repr type) for integer keys with an
+    /// `enum = "..."` reference — `None` otherwise (including for bool
+    /// keys, which can't sensibly reference a multi-value enum).
+    enum_info: Option<(String, String)>,
 }
 
 /// Walk every class/key in the model, resolving names and the 32-bit encoding.
@@ -119,11 +130,20 @@ fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
             let key_upper = key.id.to_uppercase().replace(' ', "_");
             let const_name = format!("DM_KEY_{ns_upper}_{class_upper}_{key_upper}");
 
+            let enum_info = if INT_TYPES.contains(&key.data_type) {
+                key.enum_ref
+                    .as_ref()
+                    .and_then(|enum_ref| enums::resolve_enum_ref(model, enum_ref))
+            } else {
+                None
+            };
+
             out.push(ResolvedKey {
                 encoded,
                 key,
                 method_name,
                 const_name,
+                enum_info,
             });
         }
     }
@@ -214,6 +234,8 @@ fn build_scalar_group(
             rust_type: rust_type.to_string(),
             read_only: rk.key.read_only,
             persistent: rk.key.persistent,
+            enum_type: rk.enum_info.as_ref().map(|(t, _)| t.clone()),
+            enum_repr: rk.enum_info.as_ref().map(|(_, r)| r.clone()),
         });
     }
 
