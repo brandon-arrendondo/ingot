@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `enum = "..."` get enum-typed accessor methods (`from_raw`/`to_raw`
   convert to/from the underlying storage type) instead of the raw integer.
 
+### Fixed
+- CI: bumped `actions/checkout` (v4→v7), `actions/upload-artifact` (v4→v7),
+  `actions/download-artifact` (v4→v8), and `softprops/action-gh-release`
+  (v2→v3) to Node.js 24 releases, clearing the "Node.js 20 is deprecated"
+  warnings GitHub Actions now emits on every job.
+
 ## [1.2.0] - 2026-07-23
 
 ### Added

@@ -16,7 +16,7 @@ jobs:
     name: Linux x86_64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -49,7 +49,7 @@ jobs:
           tar -czf ingot-linux-x86_64.tar.gz -C dist .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ingot-linux-x86_64
           path: ingot-linux-x86_64.tar.gz
@@ -59,7 +59,7 @@ jobs:
     name: Windows x86_64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -96,7 +96,7 @@ jobs:
           cd dist && zip -r ../ingot-windows-x86_64.zip .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ingot-windows-x86_64
           path: ingot-windows-x86_64.zip
@@ -106,7 +106,7 @@ jobs:
     name: Debian package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -131,7 +131,7 @@ jobs:
         run: cargo deb
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ingot-deb
           path: target/debian/*.deb
@@ -141,7 +141,7 @@ jobs:
     name: RPM package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -169,7 +169,7 @@ jobs:
         run: cargo generate-rpm
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ingot-rpm
           path: target/generate-rpm/*.rpm
@@ -179,7 +179,7 @@ jobs:
     name: AppImage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -237,7 +237,7 @@ jobs:
           mv ingot-*.AppImage ingot-x86_64.AppImage 2>/dev/null || mv Ingot-*.AppImage ingot-x86_64.AppImage 2>/dev/null || true
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ingot-appimage
           path: ingot-x86_64.AppImage
@@ -248,15 +248,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: [linux, windows, deb, rpm, appimage]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: |
