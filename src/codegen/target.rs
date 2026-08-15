@@ -96,7 +96,14 @@ impl TargetConfig {
                 mutex_decl: "static pthread_mutex_t dm_mutex = PTHREAD_MUTEX_INITIALIZER;"
                     .to_string(),
                 mutex_init: String::new(), // static initializer is sufficient
-                mutex_destroy: "pthread_mutex_destroy(&dm_mutex);".to_string(),
+                // EMPTY, for the same reason mutex_init is: the mutex is created by
+                // PTHREAD_MUTEX_INITIALIZER and never dynamically initialised, so nothing re-creates
+                // it after a destroy. Destroying it made DataModel_TearDown() a ONE-WAY door —
+                // DataModel_Initialize() only sets a flag, so every threadsafe key access after a
+                // teardown/init cycle locked a destroyed mutex. That is undefined behaviour, and
+                // ThreadSanitizer reports it as "use of an invalid mutex" at the lock site
+                // (B12 2026-08-15: dispatch + lidar_scan, dm.c in SetIntegralTypeByKey).
+                mutex_destroy: String::new(),
                 mutex_lock: "pthread_mutex_lock(&dm_mutex)".to_string(),
                 mutex_unlock: "pthread_mutex_unlock(&dm_mutex)".to_string(),
             },
