@@ -128,7 +128,7 @@ pub fn generate(
     // Generate C++/tinyfsm event artifacts (opt-in, additive — see --emit-tinyfsm).
     // Off by default so C99-only consumers and their output are untouched.
     if opts.emit_tinyfsm {
-        let emitted_events = generate_tinyfsm_events(&tera, version, &key_defs, output_dir)?;
+        let emitted_events = generate_tinyfsm_events(&tera, version, &key_defs, ns_id, output_dir)?;
         // UDM-compat only (P2-20260707-006): also emit dm_key_events.h/.c, the
         // C-linkage `send_dm_key_event(uint32_t)` surface the dropped
         // gen/udm/dm_key_events.c used to provide. Only meaningful once there
@@ -433,6 +433,7 @@ fn generate_tinyfsm_events(
     tera: &Tera,
     version: &str,
     key_defs: &[KeyDefRenderable],
+    ns_id: u16,
     output_dir: &Path,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let (events, groups) = collect_event_keys(key_defs);
@@ -450,6 +451,7 @@ fn generate_tinyfsm_events(
     let mut wrap_ctx = Context::new();
     wrap_ctx.insert("version", version);
     wrap_ctx.insert("events", &events);
+    wrap_ctx.insert("ns_id", &ns_id);
     let wrapper_h = tera.render("dm_key_events_wrapper.hpp", &wrap_ctx)?;
     let wrapper_c = tera.render("dm_key_events_wrapper.cpp", &wrap_ctx)?;
     std::fs::write(output_dir.join("dm_key_events_wrapper.hpp"), wrapper_h)?;

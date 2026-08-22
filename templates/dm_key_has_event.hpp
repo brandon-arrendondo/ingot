@@ -33,6 +33,29 @@ extern "C" {
  * switch over compile-time constants, so the compiler lowers it to a jump table or
  * binary search rather than a linear scan.
  */
+/*
+ * The namespace a key belongs to, and the namespace THIS model generates.
+ *
+ * Layout is ingot's own, from src/model/key.rs: the namespace occupies the top bits of the
+ * key id (`(namespace & 0x3FF) << 22`). Exposed here rather than left for a consumer to
+ * rediscover, because the alternative is a hand-derived numeric range in consumer code --
+ * a magic number that silently rots the first time a namespace is added.
+ *
+ * WHY A CONSUMER WANTS THIS. dm_key_has_event() alone is not a safe enqueue filter for a
+ * process that fans key changes to MORE than its own FSM dispatch: a foreign consumer may
+ * read keys this model says nothing about. Pairing the two IS safe -- "in MY namespace and
+ * carrying no event" is a key that only this model's own FSM layer could have wanted, and
+ * that layer provably does not, because no event struct exists for it.
+ */
+#define DM_KEY_NS_SHIFT 22U
+#define DM_KEY_NS_MASK 0x3FFU
+#define DM_KEY_NS_LOCAL {{ ns_id }}U
+
+static inline uint32_t dm_key_namespace(uint32_t key)
+{
+    return (key >> DM_KEY_NS_SHIFT) & DM_KEY_NS_MASK;
+}
+
 static inline bool dm_key_has_event(uint32_t key)
 {
     switch (key) {
