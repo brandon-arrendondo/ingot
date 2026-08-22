@@ -455,8 +455,16 @@ fn generate_tinyfsm_events(
     std::fs::write(output_dir.join("dm_key_events_wrapper.hpp"), wrapper_h)?;
     std::fs::write(output_dir.join("dm_key_events_wrapper.cpp"), wrapper_c)?;
 
+    // The has-event predicate lets a consumer's value-change callback ask, cheaply, whether
+    // a changed key is one anything can react to. Without it `event = false` is true of the
+    // generated TYPES (no FSM_EVENT_ struct) but silently false of the runtime TRAFFIC: the
+    // callback fires per changed key and has to enqueue every one of them. See the header's
+    // own comment for the measured cost of that gap on the B12 robot.
+    let has_event = tera.render("dm_key_has_event.hpp", &wrap_ctx)?;
+    std::fs::write(output_dir.join("dm_key_has_event.hpp"), has_event)?;
+
     log::info!(
-        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp ({} event keys)",
+        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp + dm_key_has_event.hpp ({} event keys)",
         events.len()
     );
     Ok(true)
