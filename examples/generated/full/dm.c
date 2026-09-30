@@ -42,8 +42,6 @@ void DataModel_TearDown(void)
     dm_event_callback = NULL;
 
 
-    pthread_mutex_destroy(&dm_mutex);
-
 }
 
 DM_RETURN_CODE DataModel_SetIntegralTypeByKey(uint32_t key, dm_val_t inval)

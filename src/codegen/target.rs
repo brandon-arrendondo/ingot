@@ -96,7 +96,11 @@ impl TargetConfig {
                 mutex_decl: "static pthread_mutex_t dm_mutex = PTHREAD_MUTEX_INITIALIZER;"
                     .to_string(),
                 mutex_init: String::new(), // static initializer is sufficient
-                mutex_destroy: "pthread_mutex_destroy(&dm_mutex);".to_string(),
+                // Empty for the same reason mutex_init is: the mutex comes from
+                // PTHREAD_MUTEX_INITIALIZER and is never re-created, so destroying it in
+                // DataModel_TearDown() would leave every later lock after a teardown/init
+                // cycle operating on a destroyed mutex (undefined behaviour).
+                mutex_destroy: String::new(),
                 mutex_lock: "pthread_mutex_lock(&dm_mutex)".to_string(),
                 mutex_unlock: "pthread_mutex_unlock(&dm_mutex)".to_string(),
             },
@@ -122,6 +126,24 @@ mod tests {
         assert!(cfg.has_mutex);
         assert!(cfg.mutex_include.contains("semphr.h"));
         assert!(cfg.mutex_lock.contains("xSemaphoreTake"));
+    }
+
+    #[test]
+    fn mutex_destroy_only_when_dynamically_initialised() {
+        for t in [
+            Target::Stm32,
+            Target::EspXtensa,
+            Target::EspRiscv,
+            Target::Mcu8bit,
+            Target::Linux64,
+        ] {
+            let cfg = TargetConfig::for_target(t);
+            assert_eq!(
+                cfg.mutex_init.is_empty(),
+                cfg.mutex_destroy.is_empty(),
+                "{t:?}: mutex_init and mutex_destroy must be both set or both empty"
+            );
+        }
     }
 
     #[test]
