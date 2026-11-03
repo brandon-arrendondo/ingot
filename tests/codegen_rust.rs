@@ -83,3 +83,11 @@ fn battery_rust_target_compiles_and_tests_pass() {
 fn full_rust_target_compiles_and_tests_pass() {
     assert_generated_rust_compiles_and_tests_pass("full", "examples/full.toml");
 }
+
+#[test]
+fn read_only_keys_rust_target_rejects_by_key_writes() {
+    assert_generated_rust_compiles_and_tests_pass(
+        "read_only_keys",
+        "tests/fixtures/rust_readonly_keys.toml",
+    );
+}

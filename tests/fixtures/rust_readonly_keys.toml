@@ -1,0 +1,29 @@
+[meta]
+id = "readonly_keys"
+version = "1.0.0"
+
+[enums.mode.values]
+idle = 0
+active = 1
+
+[[classes]]
+id = "status"
+
+    [[classes.keys]]
+    id = "enabled"
+    type = "bool"
+    default = true
+    read_only = true
+
+    [[classes.keys]]
+    id = "counter"
+    type = "uint16"
+    default = 513
+    read_only = true
+
+    [[classes.keys]]
+    id = "mode"
+    type = "uint16"
+    default = 1
+    enum = "mode"
+    read_only = true

@@ -180,6 +180,10 @@ impl DataModel {
     }
 
     pub fn set_{{ g.field_name }}(&mut self, key: u32, value: {{ g.rust_type }}) -> bool {
+        // Bit 0 of an encoded key is its read-only flag.
+        if key & 1 != 0 {
+            return false;
+        }
         let idx = hash_index({{ g.field_name | upper }}_SEED_1, {{ g.field_name | upper }}_SEED_2, &{{ g.field_name | upper }}_G, {{ g.num_keys }}, key);
         if {{ g.field_name | upper }}_KEYS[idx] != key {
             return false;
@@ -198,6 +202,10 @@ impl DataModel {
     }
 
     pub fn set_bool_values(&mut self, key: u32, value: bool) -> bool {
+        // Bit 0 of an encoded key is its read-only flag.
+        if key & 1 != 0 {
+            return false;
+        }
         let idx = hash_index(BOOL_VALUES_SEED_1, BOOL_VALUES_SEED_2, &BOOL_VALUES_G, {{ bool_group.num_keys }}, key);
         if BOOL_VALUES_KEYS[idx] != key {
             return false;
@@ -240,13 +248,18 @@ mod tests {
     fn {{ a.method_name }}_roundtrip() {
         let {% if not a.read_only %}mut {% endif %}dm = DataModel::new();
         let before = dm.{{ a.method_name }}();
-        assert_eq!(dm.get_{{ a.field_name }}({{ a.const_name }}), Some(before.to_raw()));
+        let before_raw: {{ a.rust_type }} = before.to_raw() as {{ a.rust_type }};
+        assert_eq!(dm.get_{{ a.field_name }}({{ a.const_name }}), Some(before_raw));
 {% if not a.read_only %}
-        let next_raw: {{ a.rust_type }} = if before.to_raw() == 0 { 1 } else { 0 };
+        let next_raw: {{ a.rust_type }} = if before_raw == 0 { 1 } else { 0 };
         let next = {{ a.enum_type }}::from_raw(next_raw as {{ a.enum_repr }});
         dm.set_{{ a.method_name }}(next);
         assert_eq!(dm.{{ a.method_name }}().to_raw(), next.to_raw());
-        assert!(dm.set_{{ a.field_name }}({{ a.const_name }}, before.to_raw()));
+        assert!(dm.set_{{ a.field_name }}({{ a.const_name }}, before_raw));
+        assert_eq!(dm.{{ a.method_name }}().to_raw(), before.to_raw());
+{% else %}
+        let mut dm = DataModel::new();
+        assert!(!dm.set_{{ a.field_name }}({{ a.const_name }}, before_raw));
         assert_eq!(dm.{{ a.method_name }}().to_raw(), before.to_raw());
 {% endif %}
     }
@@ -262,6 +275,10 @@ mod tests {
         assert_eq!(dm.{{ a.method_name }}(), next);
         assert!(dm.set_{{ a.field_name }}({{ a.const_name }}, before));
         assert_eq!(dm.{{ a.method_name }}(), before);
+{% else %}
+        let mut dm = DataModel::new();
+        assert!(!dm.set_{{ a.field_name }}({{ a.const_name }}, before));
+        assert_eq!(dm.{{ a.method_name }}(), before);
 {% endif %}
     }
 {% endif %}
@@ -276,6 +293,10 @@ mod tests {
         dm.set_{{ a.method_name }}(!before);
         assert_eq!(dm.{{ a.method_name }}(), !before);
         assert!(dm.set_bool_values({{ a.const_name }}, before));
+        assert_eq!(dm.{{ a.method_name }}(), before);
+{% else %}
+        let mut dm = DataModel::new();
+        assert!(!dm.set_bool_values({{ a.const_name }}, !before));
         assert_eq!(dm.{{ a.method_name }}(), before);
 {% endif %}
     }

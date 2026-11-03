@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   convert to/from the underlying storage type) instead of the raw integer.
 
 ### Fixed
+- `--target rust`: generic by-key setters reject writes to keys marked
+  `read_only`, matching the C target's behavior.
 - Linux64 target: `DataModel_TearDown()` no longer calls
   `pthread_mutex_destroy` on the statically initialised `dm_mutex`. Nothing
   re-created it, so any access after a teardown/initialize cycle locked a
