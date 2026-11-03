@@ -48,7 +48,7 @@ Classes
 
 Classes group related keys within a namespace. A namespace can have up to 31
 classes, each with up to 1023 keys. A class may also set an optional ``name``,
-the display spelling used for ``--udm-compat`` lowercase aliases (defaults to
+the display spelling used for ``--dm-compat`` lowercase aliases (defaults to
 ``id``). A ``name`` may hold only ASCII letters, digits, underscores and
 spaces (spaces become ``_``).
 
@@ -71,7 +71,7 @@ Key Attributes
 Attribute        Type      Default      Description
 ===============  ========  ===========  ==========================================
 ``id``           string    (required)   Key identifier
-``name``         string    none         Display spelling for ``--udm-compat``
+``name``         string    none         Display spelling for ``--dm-compat``
                                         lowercase aliases (defaults to ``id``)
 ``type``         string    (required)   Data type (see below)
 ``default``      value     type zero    Default value
@@ -135,4 +135,4 @@ Constraints
 - Key IDs must be unique within a class
 - A class or key ``name`` may hold only ASCII letters, digits, underscores
   and spaces
-- Under ``--udm-compat``, no two generated C identifiers may be the same
+- Under ``--dm-compat``, no two generated C identifiers may be the same

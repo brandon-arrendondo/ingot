@@ -31,10 +31,10 @@ Output & Target
 +------------------------+----------------+--------------------------------------------------+
 | ``--emit-tinyfsm``     | off            | Emit C++/tinyfsm event types and dispatch        |
 +------------------------+----------------+--------------------------------------------------+
-| ``--udm-compat``       | off            | Emit the UDM-shaped C compatibility surface      |
+| ``--dm-compat``       | off            | Emit the DM-shaped C compatibility surface      |
 +------------------------+----------------+--------------------------------------------------+
-| ``--udm-enums-guard``  | none           | Legacy ``dm_enums.h`` guard to defer to          |
-| ``<MACRO>``            |                | (requires ``--udm-compat``)                      |
+| ``--dm-enums-guard``  | none           | Legacy ``dm_enums.h`` guard to defer to          |
+| ``<MACRO>``            |                | (requires ``--dm-compat``)                      |
 +------------------------+----------------+--------------------------------------------------+
 | ``--templates <DIR>``  | auto           | Override template directory                      |
 +------------------------+----------------+--------------------------------------------------+
@@ -46,10 +46,10 @@ source for consumers using tinyfsm, plus ``dm_key_has_event.hpp``:
 and ``dm_key_namespace(key)`` / ``DM_KEY_NS_LOCAL`` let a value-change callback
 skip keys that belong to this model but carry no event.
 
-``--udm-compat`` applies only to C targets and is purely additive: without it,
+``--dm-compat`` applies only to C targets and is purely additive: without it,
 output is unchanged (``--emit-tinyfsm`` separately adds
-``dm_key_has_event.hpp``). It lets code written against the legacy UDM
-data-model API compile against ingot's store:
+``dm_key_has_event.hpp``). It lets code written against the legacy
+DM-shaped C API compile against ingot's store:
 
 - ``DATAMODEL_GET_<PATH>`` / ``DATAMODEL_SET_<PATH>`` aliases for every
   ``helpers = true`` key. Bool and integer accessors stay address-of-able;
@@ -77,7 +77,7 @@ lowercase alias. Rename one of them.
 
 If a translation unit may also include a legacy ``dm_enums.h`` that declares
 the same per-key typedefs, pass that header's include guard with
-``--udm-enums-guard`` and ingot skips its copies when the guard is defined.
+``--dm-enums-guard`` and ingot skips its copies when the guard is defined.
 
 Key Filtering
 -------------
@@ -107,8 +107,8 @@ Variant Overrides
 Option                     Description
 =========================  ==========================================
 ``--variant <NAME>``       Product variant for per-variant default
-                           overrides (e.g. ``peabodyv0``,
-                           ``omnidrive_v2``). Applies variant-specific
+                           overrides (e.g. ``variant_a``,
+                           ``variant_b_v2``). Applies variant-specific
                            defaults from ``[classes.keys.defaults]``
                            and merges variant enum values from
                            ``[enums.*.variants.*]``.
@@ -145,7 +145,7 @@ The ``rust`` target generates a standalone no_std Rust module using static
 perfect-hash storage. It provides named accessors, scalar access by encoded
 key, and ``PERSISTENT_KEYS`` metadata. Persistence I/O and mutex handling are
 left to the consumer. C-only options such as ``--no-events``,
-``--emit-tinyfsm``, and ``--udm-compat`` have no effect for Rust.
+``--emit-tinyfsm``, and ``--dm-compat`` have no effect for Rust.
 
 
 Examples
@@ -157,7 +157,7 @@ Generate from a single model file::
 
 Merge a directory of namespace TOML files::
 
-    ingot -m models/ -o gen/udm -t linux64
+    ingot -m models/ -o gen/dm -t linux64
 
 Merge files from multiple locations::
 
@@ -174,4 +174,4 @@ Apply per-key property overrides::
 
 Generate for a specific product variant::
 
-    ingot -m models/ --variant peabodyv0 -o gen/
+    ingot -m models/ --variant variant_a -o gen/

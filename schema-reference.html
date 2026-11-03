@@ -128,7 +128,7 @@ comments in the generated <code class="docutils literal notranslate"><span class
 <h2>Classes<a class="headerlink" href="#classes" title="Link to this heading"></a></h2>
 <p>Classes group related keys within a namespace. A namespace can have up to 31
 classes, each with up to 1023 keys. A class may also set an optional <code class="docutils literal notranslate"><span class="pre">name</span></code>,
-the display spelling used for <code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code> lowercase aliases (defaults to
+the display spelling used for <code class="docutils literal notranslate"><span class="pre">--dm-compat</span></code> lowercase aliases (defaults to
 <code class="docutils literal notranslate"><span class="pre">id</span></code>). A <code class="docutils literal notranslate"><span class="pre">name</span></code> may hold only ASCII letters, digits, underscores and
 spaces (spaces become <code class="docutils literal notranslate"><span class="pre">_</span></code>).</p>
 <div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[[classes]]</span>
@@ -161,7 +161,7 @@ spaces (spaces become <code class="docutils literal notranslate"><span class="pr
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
 <td><p>string</p></td>
 <td><p>none</p></td>
-<td><p>Display spelling for <code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code>
+<td><p>Display spelling for <code class="docutils literal notranslate"><span class="pre">--dm-compat</span></code>
 lowercase aliases (defaults to <code class="docutils literal notranslate"><span class="pre">id</span></code>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
@@ -311,7 +311,7 @@ lowercase aliases (defaults to <code class="docutils literal notranslate"><span 
 <li><p>Key IDs must be unique within a class</p></li>
 <li><p>A class or key <code class="docutils literal notranslate"><span class="pre">name</span></code> may hold only ASCII letters, digits, underscores
 and spaces</p></li>
-<li><p>Under <code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code>, no two generated C identifiers may be the same</p></li>
+<li><p>Under <code class="docutils literal notranslate"><span class="pre">--dm-compat</span></code>, no two generated C identifiers may be the same</p></li>
 </ul>
 </section>
 </section>
