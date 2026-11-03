@@ -61,8 +61,9 @@ cargo-about using `about.toml` and `about.hbs`, and
 Windows zip, deb, rpm and AppImage). That workflow also generates and ships a
 CycloneDX JSON software bill of materials (SBOM) in each package. The MIT
 licence for ingot does not replace an incorporated source's own licence
-obligations, and code ingot generates into a user's project carries no
-third-party material.
+obligations. Code ingot generates into a user's project is ingot's own,
+except the hash mix in `jenkins_hash.c`, which comes from Bob Jenkins'
+public-domain `lookup3.c` and is credited in the generated file.
 Contributions require the DCO sign-off recorded in AGENTS.md; a sign-off does
 not substitute for the accountable Associate's artifact review.
 
