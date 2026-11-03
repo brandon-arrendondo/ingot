@@ -33,6 +33,27 @@ typedef enum {
     DM_KEY_TYPE_MAX
 } DM_KEY_TYPE;
 
+{% if udm_compat -%}
+/* UDM-compat aliases: the legacy UDM dm_key.h declared a DATA_MODEL_KEY_TYPE
+ * enum with the same values as the shared DM_KEY_TYPE members above. Callers
+ * use these as compile-time constants (array indices in static initializers),
+ * so they alias the enumerators rather than runtime values. */
+#define DATA_MODEL_KEY_TYPE_BOOLEAN DM_KEY_TYPE_BOOL
+#define DATA_MODEL_KEY_TYPE_UINT8   DM_KEY_TYPE_UINT8
+#define DATA_MODEL_KEY_TYPE_UINT16  DM_KEY_TYPE_UINT16
+#define DATA_MODEL_KEY_TYPE_UINT32  DM_KEY_TYPE_UINT32
+#define DATA_MODEL_KEY_TYPE_INT8    DM_KEY_TYPE_INT8
+#define DATA_MODEL_KEY_TYPE_INT16   DM_KEY_TYPE_INT16
+#define DATA_MODEL_KEY_TYPE_INT32   DM_KEY_TYPE_INT32
+#define DATA_MODEL_KEY_TYPE_STRING  DM_KEY_TYPE_STRING
+#define DATA_MODEL_KEY_TYPE_BYTEARRAY DM_KEY_TYPE_BINARY
+/* FLOAT/LIST/MAX have no DM_KEY_TYPE equivalent (ingot has no float or list
+ * storage); keep the legacy numeric values so index arithmetic still works. */
+#define DATA_MODEL_KEY_TYPE_FLOAT   7
+#define DATA_MODEL_KEY_TYPE_LIST    10
+#define DATA_MODEL_KEY_TYPE_MAX     11
+{% endif -%}
+
 typedef union {
     struct {
         unsigned int read_only    : 1;

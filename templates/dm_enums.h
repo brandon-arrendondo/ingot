@@ -2,7 +2,9 @@
 #ifndef INGOT_DM_ENUMS_H
 #define INGOT_DM_ENUMS_H
 
-#ifdef __cplusplus
+{% if compat_enums %}#include <stdint.h>
+
+{% endif %}#ifdef __cplusplus
 extern "C" {
 #endif
 {% for e in enums %}
@@ -13,6 +15,21 @@ typedef enum {
 {% for m in e.members %}    {{ m.name }} = {{ m.value }}{% if not loop.last %},{% endif %}
 {% endfor %}} {{ e.type_name }};
 {% endfor %}
+{%- if compat_enums %}
+/* UDM-compat: one <PATH>_ENUM_T typedef per enum-typed key. */
+{%- if compat_guard %}
+#ifndef {{ compat_guard }}
+{%- endif %}
+{% for e in compat_enums %}
+typedef enum {
+{% for c in e.values %}    {{ c.name }} = {{ c.value }},
+{% endfor %}    {{ e.prefix }}_MAX_STORAGE_VALUE = {{ e.max_macro }}
+} {{ e.type_name }};
+{% endfor %}
+{%- if compat_guard %}
+#endif /* {{ compat_guard }} */
+{%- endif %}
+{%- endif %}
 #ifdef __cplusplus
 }
 #endif

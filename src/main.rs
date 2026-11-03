@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod codegen;
 mod hash;
@@ -39,6 +39,19 @@ struct Cli {
     /// (additive, opt-in; independent of --no-events; C99 output unchanged)
     #[arg(long)]
     emit_tinyfsm: bool,
+
+    /// Emit the UDM-shaped C compatibility surface (additive, opt-in): uppercase
+    /// DATAMODEL_GET/SET_<PATH> aliases, lowercase DataModel_{Get,Set}<path>
+    /// aliases, bare-key `#define <PATH> DM_KEY_<PATH>` constants, per-key
+    /// <PATH>_ENUM_T typedefs, and legacy header-name aliases. C targets only.
+    #[arg(long)]
+    udm_compat: bool,
+
+    /// With --udm-compat: include guard of a legacy dm_enums.h that already
+    /// declares the per-key <PATH>_ENUM_T typedefs. The compat typedefs are
+    /// skipped in any translation unit that has already included it.
+    #[arg(long, value_name = "MACRO", requires = "udm_compat")]
+    udm_enums_guard: Option<String>,
 
     /// YAML file listing keys to include (whitelist); all others are excluded
     #[arg(long)]
@@ -178,6 +191,41 @@ fn resolve_template_dir(
     )
 }
 
+/// The C code-generation toggles selected on the command line.
+fn codegen_options(cli: &Cli) -> codegen::CodegenOptions {
+    codegen::CodegenOptions {
+        no_events: cli.no_events,
+        emit_tinyfsm: cli.emit_tinyfsm,
+        udm_compat: cli.udm_compat,
+        udm_enums_guard: cli.udm_enums_guard.clone(),
+    }
+}
+
+/// Generate the no_std Rust module, warning about any C-only flags given.
+fn generate_rust(
+    cli: &Cli,
+    data_model: &model::schema::DataModel,
+    ns_id: u16,
+    template_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    warn_c_only_flags(cli);
+    codegen::rust_kvp::generate(data_model, ns_id, &cli.output, template_dir)?;
+    log::info!("Rust code generation complete → {}", cli.output.display());
+    Ok(())
+}
+
+/// Warn about each C-only flag given with `--target rust`, where it has no effect.
+fn warn_c_only_flags(cli: &Cli) {
+    let flags = [
+        (cli.emit_tinyfsm, "--emit-tinyfsm"),
+        (cli.no_events, "--no-events"),
+        (cli.udm_compat, "--udm-compat"),
+    ];
+    for (_, flag) in flags.iter().filter(|(set, _)| *set) {
+        log::warn!("{flag} has no effect for --target rust (C targets only)");
+    }
+}
+
 fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     if cli.include_list.is_some() && cli.exclude_list.is_some() {
         return Err("--include-list and --exclude-list are mutually exclusive".into());
@@ -261,15 +309,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     let ns_id: u16 = data_model.meta.namespace_id.unwrap_or(0);
 
     if cli.target == Target::Rust {
-        if cli.emit_tinyfsm {
-            log::warn!("--emit-tinyfsm has no effect for --target rust (C++/tinyfsm only)");
-        }
-        if cli.no_events {
-            log::warn!("--no-events has no effect for --target rust (C-only concept)");
-        }
-        codegen::rust_kvp::generate(&data_model, ns_id, &cli.output, &template_dir)?;
-        log::info!("Rust code generation complete → {}", cli.output.display());
-        return Ok(());
+        return generate_rust(cli, &data_model, ns_id, &template_dir);
     }
 
     let target = match cli.target {
@@ -288,8 +328,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         &cli.output,
         &template_dir,
         &target_config,
-        cli.no_events,
-        cli.emit_tinyfsm,
+        codegen_options(cli),
     )?;
     log::info!("Code generation complete → {}", cli.output.display());
 

@@ -20,6 +20,9 @@ hashing -- no dynamic memory, no collisions, no linear search.
 - **Event callbacks**: optional value-change notifications
 - **tinyfsm dispatch (opt-in)**: `--emit-tinyfsm` generates C++ `tinyfsm::Event`
   structs + a `key_id`→event dispatch wrapper for `event = true` keys
+- **UDM compatibility (opt-in)**: `--udm-compat` emits the legacy UDM-shaped C
+  API (`DATAMODEL_GET/SET_*`, bare-key constants, per-key enum typedefs) as
+  aliases over ingot's store
 - **Persistence**: packed-struct binary save/load with magic number validation
 - **Unity test generation**: auto-generated C tests for every key (defaults, roundtrip, read-only)
 
@@ -62,6 +65,10 @@ Options:
 --no-events        Disable event callback generation
 --emit-tinyfsm     Also emit C++/tinyfsm event structs + dispatch-by-key wrapper
                    (opt-in, additive; independent of --no-events)
+--udm-compat       Also emit the UDM-shaped C compatibility surface (opt-in, additive)
+--udm-enums-guard <MACRO>
+                   With --udm-compat: defer per-key enum typedefs to a legacy
+                   dm_enums.h with this include guard
 -v                 Verbose output (-vv for debug, -vvv for trace)
 ```
 
@@ -91,6 +98,13 @@ With `--emit-tinyfsm`, ingot additionally emits (for `event = true` keys):
 |------|---------|
 | `dm_key_events.hpp` | One empty `tinyfsm::Event` struct per event key |
 | `dm_key_events_wrapper.hpp/.cpp` | `send_tinyfsm_event_by_key(key_id)` dispatch switch (calls a consumer-provided `send_tinyfsm_event` seam) |
+| `dm_key_has_event.hpp` | `dm_key_has_event(key)` and `dm_key_namespace(key)` predicates for filtering value-change traffic |
+
+With `--udm-compat`, ingot adds UDM-shaped aliases to `dm_helpers.h`,
+`key_definitions.h`, `dm_key.h`, `dm_enums.h`, and `persistence_storage.*`, and
+emits the header-name aliases `dm_key_definitions.h` and
+`dm_{boolean,integer,string,persistence}_storage.h` (plus `dm_key_events.h/.c`
+with `--emit-tinyfsm`). See `docs/cli-reference.rst`.
 
 ## Data Model Format
 

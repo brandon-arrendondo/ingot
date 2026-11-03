@@ -1,0 +1,20 @@
+[meta]
+id = "beta"
+namespace_id = 2
+version = "1.0.0"
+
+[enums.level]
+doc = "sensor level"
+[enums.level.values]
+low = 1
+high = 42
+
+[[classes]]
+id = "sensor"
+
+    [[classes.keys]]
+    id = "level"
+    type = "uint16"
+    enum = "level"
+    default = 1
+    helpers = true

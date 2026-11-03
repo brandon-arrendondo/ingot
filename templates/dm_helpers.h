@@ -35,6 +35,38 @@ static inline DM_RETURN_CODE DataModel_Set_{{ h.helper_name }}({{ h.c_type }} x)
 }
 {% endif %}
 {% endif %}
+{%- if udm_compat %}
+{#- UDM-compat surface. Non-enum GET/SET are object-like macros, not
+   function-like ones, so the name still resolves when a caller takes its
+   address (`&DATAMODEL_GET_X`) instead of calling it. Enum-typed keys get real
+   static inline wrappers instead: the getter returns the per-key <PATH>_ENUM_T
+   and the setter takes the raw storage type, because C++ will not implicitly
+   convert between distinct enum types or from an integer to an enum. #}
+{% if h.is_string %}
+#define DATAMODEL_GET_{{ h.helper_name }}() DataModel_Get_{{ h.helper_name }}()
+{% elif h.enum_type_name %}
+static inline {{ h.enum_type_name }} DATAMODEL_GET_{{ h.helper_name }}(void)
+{
+    return ({{ h.enum_type_name }})DataModel_Get_{{ h.helper_name }}();
+}
+{% else %}
+#define DATAMODEL_GET_{{ h.helper_name }} DataModel_Get_{{ h.helper_name }}
+{% endif %}
+#define DataModel_Get{{ h.orig_path }} DATAMODEL_GET_{{ h.helper_name }}
+{% if not h.is_read_only %}
+{% if h.is_string %}
+#define DATAMODEL_SET_{{ h.helper_name }}(val) DataModel_Set_{{ h.helper_name }}(val)
+{% elif h.enum_type_name %}
+static inline DM_RETURN_CODE DATAMODEL_SET_{{ h.helper_name }}({{ h.storage_c_type }} x)
+{
+    return DataModel_Set_{{ h.helper_name }}(({{ h.c_type }})x);
+}
+{% else %}
+#define DATAMODEL_SET_{{ h.helper_name }} DataModel_Set_{{ h.helper_name }}
+{% endif %}
+#define DataModel_Set{{ h.orig_path }} DATAMODEL_SET_{{ h.helper_name }}
+{% endif %}
+{%- endif %}
 {% endfor %}
 
 #ifdef __cplusplus

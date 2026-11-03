@@ -62,6 +62,13 @@ pub struct EnumDef {
 pub struct Class {
     pub id: String,
     pub doc: Option<String>,
+    /// Optional original-case display name (e.g. "deviceConfig").
+    ///
+    /// A UDM catalog pairs a lowercase `id` (which drives key encoding and the
+    /// uppercase C surface) with a mixed-case display name. `--udm-compat`
+    /// uses this spelling for the class segment of the lowercase
+    /// `DataModel_{Get,Set}<path>` aliases. Falls back to `id` when absent.
+    pub name: Option<String>,
     /// Optional 5-bit class index (0–31) for key encoding.
     /// When set, occupies bits 21–17 of every key in this class.
     pub class_index: Option<u8>,
@@ -80,6 +87,12 @@ pub struct Class {
 #[derive(Debug, Deserialize)]
 pub struct KeyDef {
     pub id: String,
+    /// Optional original-case display name (e.g. "versionNumber").
+    ///
+    /// Parallels `Class::name`: `--udm-compat` uses this spelling for the key
+    /// segment of the lowercase `DataModel_{Get,Set}<path>` aliases. Falls
+    /// back to `id` when absent.
+    pub name: Option<String>,
     #[serde(rename = "type")]
     pub data_type: DataType,
     pub doc: Option<String>,

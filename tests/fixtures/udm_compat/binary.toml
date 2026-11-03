@@ -1,0 +1,19 @@
+[meta]
+id = "bin"
+version = "1.0.0"
+
+[[classes]]
+id = "cfg"
+
+    [[classes.keys]]
+    id = "blob"
+    type = "binary"
+    max_size = 4
+    persistent = true
+
+    [[classes.keys]]
+    id = "name"
+    type = "string"
+    max_size = 8
+    default = "x"
+    persistent = true

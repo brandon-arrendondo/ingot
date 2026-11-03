@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--udm-compat` (C targets, opt-in, additive): emits the legacy UDM-shaped C
+  API as aliases over ingot's store, so code written against UDM compiles
+  unchanged. Adds `DATAMODEL_GET/SET_<PATH>` and lowercase
+  `DataModel_{Get,Set}<path>` aliases, bare-key `#define <PATH>` constants,
+  `DATA_MODEL_KEY_TYPE_*` aliases, per-key `<PATH>_ENUM_T` typedefs in
+  `dm_enums.h`, `DataModel_PrintPersistentKeys()`, and header-name aliases
+  (`dm_key_definitions.h`, `dm_*_storage.h`, and with `--emit-tinyfsm`
+  `dm_key_events.h/.c`). Classes and keys accept an optional `name` for the
+  lowercase alias spelling. `--udm-enums-guard <MACRO>` defers the per-key
+  typedefs to a legacy `dm_enums.h` with that include guard.
+- `--emit-tinyfsm` also emits `dm_key_has_event.hpp`: `dm_key_has_event(key)`
+  reports whether a key carries an event, and `dm_key_namespace(key)` with
+  `DM_KEY_NS_LOCAL` lets a value-change callback drop this model's non-event
+  keys before they reach a dispatch queue.
 - `--target rust`: named enums now generate a shared `#[repr(u8/16/32)]` Rust
   enum per `[enums.*]` block (namespace-qualified type name, e.g.
   `BatteryLevel`), reused across every key that references it. Keys with

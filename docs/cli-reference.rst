@@ -31,12 +31,43 @@ Output & Target
 +------------------------+----------------+--------------------------------------------------+
 | ``--emit-tinyfsm``     | off            | Emit C++/tinyfsm event types and dispatch        |
 +------------------------+----------------+--------------------------------------------------+
+| ``--udm-compat``       | off            | Emit the UDM-shaped C compatibility surface      |
++------------------------+----------------+--------------------------------------------------+
+| ``--udm-enums-guard``  | none           | Legacy ``dm_enums.h`` guard to defer to          |
+| ``<MACRO>``            |                | (requires ``--udm-compat``)                      |
++------------------------+----------------+--------------------------------------------------+
 | ``--templates <DIR>``  | auto           | Override template directory                      |
 +------------------------+----------------+--------------------------------------------------+
 
 ``--templates`` also accepts the ``INGOT_TEMPLATES_DIR`` environment variable.
 ``--emit-tinyfsm`` applies only to C targets. It emits additive C++ headers and
-source for consumers using tinyfsm.
+source for consumers using tinyfsm, plus ``dm_key_has_event.hpp``:
+``dm_key_has_event(key)`` reports whether a key was declared ``event = true``,
+and ``dm_key_namespace(key)`` / ``DM_KEY_NS_LOCAL`` let a value-change callback
+skip keys that belong to this model but carry no event.
+
+``--udm-compat`` applies only to C targets and is purely additive: without it,
+output is byte-for-byte unchanged. It lets code written against the legacy UDM
+data-model API compile against ingot's store:
+
+- ``DATAMODEL_GET_<PATH>`` / ``DATAMODEL_SET_<PATH>`` aliases for every
+  ``helpers = true`` key. Bool and integer accessors stay address-of-able;
+  enum-typed keys get wrappers that return ``<PATH>_ENUM_T`` and take the raw
+  storage type.
+- Lowercase ``DataModel_Get<ns>_<class>_<key>`` aliases, spelled with the
+  optional class and key ``name`` (falling back to ``id``).
+- Bare-key ``#define <PATH> DM_KEY_<PATH>`` constants and
+  ``DATA_MODEL_KEY_TYPE_*`` aliases in ``dm_key.h``.
+- Per-key ``<PATH>_ENUM_T`` typedefs in ``dm_enums.h``, beside the named enums.
+- ``DataModel_PrintPersistentKeys()`` in ``persistence_storage.c``.
+- Header-name aliases ``dm_key_definitions.h`` and
+  ``dm_{boolean,integer,string,persistence}_storage.h``, and, with
+  ``--emit-tinyfsm``, ``dm_key_events.h/.c`` providing
+  ``send_dm_key_event(key)``.
+
+If a translation unit may also include a legacy ``dm_enums.h`` that declares
+the same per-key typedefs, pass that header's include guard with
+``--udm-enums-guard`` and ingot skips its copies when the guard is defined.
 
 Key Filtering
 -------------
@@ -103,8 +134,8 @@ Thread-safe keys are protected by the target's mutex mechanism. Keys without
 The ``rust`` target generates a standalone no_std Rust module using static
 perfect-hash storage. It provides named accessors, scalar access by encoded
 key, and ``PERSISTENT_KEYS`` metadata. Persistence I/O and mutex handling are
-left to the consumer. C-only options such as ``--no-events`` and
-``--emit-tinyfsm`` have no effect for Rust.
+left to the consumer. C-only options such as ``--no-events``,
+``--emit-tinyfsm``, and ``--udm-compat`` have no effect for Rust.
 
 
 Examples

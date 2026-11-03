@@ -1,0 +1,48 @@
+[meta]
+id = "alpha"
+namespace_id = 1
+version = "1.0.0"
+
+[enums.mode]
+doc = "operating mode"
+[enums.mode.values]
+off = 0
+wetAndDry = 2
+night_mode = 3
+active = 7
+
+[[classes]]
+id = "status"
+
+    [[classes.keys]]
+    id = "mode"
+    type = "uint8"
+    enum = "mode"
+    default = 0
+    helpers = true
+    event = true
+
+    [[classes.keys]]
+    id = "label"
+    type = "string"
+    max_size = 16
+    default = ""
+    helpers = true
+
+    [[classes.keys]]
+    id = "active"
+    type = "bool"
+    default = false
+    helpers = true
+
+[[classes]]
+id = "devicecfg"
+name = "deviceCfg"
+
+    [[classes.keys]]
+    id = "versionnumber"
+    name = "versionNumber"
+    type = "int32"
+    default = 0
+    helpers = true
+    persistent = true

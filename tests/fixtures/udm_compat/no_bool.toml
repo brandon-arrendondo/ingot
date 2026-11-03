@@ -1,0 +1,13 @@
+[meta]
+id = "beta"
+namespace_id = 2
+version = "1.0.0"
+
+[[classes]]
+id = "sensor"
+
+    [[classes.keys]]
+    id = "level"
+    type = "uint16"
+    default = 1
+    helpers = true

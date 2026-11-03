@@ -5,7 +5,7 @@ pub mod target;
 pub mod yaml_manifest;
 
 use crate::model::key::KeyEncoding;
-use crate::model::schema::{DataModel, DataType};
+use crate::model::schema::{Class, DataModel, DataType, KeyDef};
 use serde::Serialize;
 use std::path::Path;
 use tera::{Context, Tera};
@@ -15,6 +15,24 @@ pub(crate) fn write_generated(path: impl AsRef<Path>, content: String) -> std::i
     std::fs::write(path, normalized)
 }
 
+/// Opt-in codegen toggles. Every field defaults off and is purely additive to
+/// the C99 core output, so `CodegenOptions::default()` reproduces the baseline
+/// output byte for byte.
+#[derive(Debug, Clone, Default)]
+pub struct CodegenOptions {
+    /// Disable event callback generation.
+    pub no_events: bool,
+    /// Emit C++/tinyfsm event structs + dispatch-by-key wrapper.
+    pub emit_tinyfsm: bool,
+    /// Emit the UDM-shaped compatibility surface (macros, accessors, bare-key
+    /// constants, per-key enum typedefs, legacy header aliases).
+    pub udm_compat: bool,
+    /// Include guard of a legacy `dm_enums.h` that already declares the
+    /// per-key enum typedefs. When set, the UDM-compat enum block is skipped
+    /// in any translation unit that has already included that header.
+    pub udm_enums_guard: Option<String>,
+}
+
 /// A key definition ready for template rendering.
 #[derive(Debug, Serialize)]
 pub struct KeyDefRenderable {
@@ -22,6 +40,9 @@ pub struct KeyDefRenderable {
     pub class: String,
     pub name: String,
     pub define_name: String,
+    /// The `DM_KEY_`-less uppercase path (e.g. "APPLIANCE_STATUS_MODE"), used
+    /// for the `--udm-compat` bare-key `#define <PATH> DM_KEY_<PATH>` alias.
+    pub bare_name: String,
     pub hex_value: String,
     pub type_name: String,
     pub unit: Option<String>,
@@ -81,6 +102,26 @@ fn int_type_info(suffix: &str) -> DmIntTypeInfo {
     }
 }
 
+/// Render each named template with `ctx` into a same-named file in `output_dir`.
+fn render_files(
+    tera: &Tera,
+    ctx: &Context,
+    output_dir: &Path,
+    names: &[&str],
+) -> Result<(), Box<dyn std::error::Error>> {
+    for name in names {
+        write_generated(output_dir.join(name), tera.render(name, ctx)?)?;
+    }
+    Ok(())
+}
+
+/// A context holding only the generator version, shared by every template.
+fn version_context(version: &str) -> Context {
+    let mut ctx = Context::new();
+    ctx.insert("version", version);
+    ctx
+}
+
 /// Generate all C code from a parsed data model.
 pub fn generate(
     model: &DataModel,
@@ -88,8 +129,7 @@ pub fn generate(
     output_dir: &Path,
     template_dir: &Path,
     target: &target::TargetConfig,
-    no_events: bool,
-    emit_tinyfsm: bool,
+    opts: CodegenOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
 
@@ -107,59 +147,58 @@ pub fn generate(
 
     // Generate key_definitions.h
     {
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("keys", &key_defs);
-        let rendered = tera.render("key_definitions.h", &ctx)?;
-        write_generated(output_dir.join("key_definitions.h"), rendered)?;
+        ctx.insert("udm_compat", &opts.udm_compat);
+        render_files(&tera, &ctx, output_dir, &["key_definitions.h"])?;
         log::info!("Generated key_definitions.h ({} keys)", key_defs.len());
     }
 
     // Generate C++/tinyfsm event artifacts (opt-in, additive — see --emit-tinyfsm).
     // Off by default so C99-only consumers and their output are untouched.
-    if emit_tinyfsm {
-        generate_tinyfsm_events(&tera, version, &key_defs, output_dir)?;
-    }
+    generate_event_artifacts(&tera, version, &key_defs, ns_id, &opts, output_dir)?;
 
     // Generate jenkins_hash.h and jenkins_hash.c
     {
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
-        let h = tera.render("jenkins_hash.h", &ctx)?;
-        let c = tera.render("jenkins_hash.c", &ctx)?;
-        write_generated(output_dir.join("jenkins_hash.h"), h)?;
-        write_generated(output_dir.join("jenkins_hash.c"), c)?;
+        let ctx = version_context(version);
+        render_files(
+            &tera,
+            &ctx,
+            output_dir,
+            &["jenkins_hash.h", "jenkins_hash.c"],
+        )?;
         log::info!("Generated jenkins_hash.h/.c");
     }
 
-    // Generate dm_key.h
+    // Generate dm_key.h (under --udm-compat, with the legacy
+    // DATA_MODEL_KEY_TYPE_* compile-time aliases onto DM_KEY_TYPE_*).
     {
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
-        let h = tera.render("dm_key.h", &ctx)?;
-        write_generated(output_dir.join("dm_key.h"), h)?;
+        let mut ctx = version_context(version);
+        ctx.insert("udm_compat", &opts.udm_compat);
+        render_files(&tera, &ctx, output_dir, &["dm_key.h"])?;
         log::info!("Generated dm_key.h");
     }
 
     // Generate dm_namespace_definitions.h
     {
         let namespaces = collect_namespaces(model, ns_id);
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("namespaces", &namespaces);
-        let h = tera.render("dm_namespace_definitions.h", &ctx)?;
-        write_generated(output_dir.join("dm_namespace_definitions.h"), h)?;
+        render_files(&tera, &ctx, output_dir, &["dm_namespace_definitions.h"])?;
         log::info!("Generated dm_namespace_definitions.h");
     }
 
-    // Generate dm_enums.h (only when the model defines named enums)
+    // Generate dm_enums.h (only when the model defines named enums). Under
+    // --udm-compat it also carries one <PATH>_ENUM_T typedef per enum-typed
+    // key; such a key always references a named enum, so the file exists
+    // whenever there is a compat typedef to put in it.
     let enum_defs = enums::collect_enums(model);
     if !enum_defs.is_empty() {
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("enums", &enum_defs);
-        let h = tera.render("dm_enums.h", &ctx)?;
-        write_generated(output_dir.join("dm_enums.h"), h)?;
+        ctx.insert("compat_enums", &compat_enum_types(model, &opts));
+        ctx.insert("compat_guard", &opts.udm_enums_guard);
+        render_files(&tera, &ctx, output_dir, &["dm_enums.h"])?;
         log::info!("Generated dm_enums.h ({} enum(s))", enum_defs.len());
     }
 
@@ -174,13 +213,14 @@ pub fn generate(
 
     // Generate boolean_storage.h/.c
     if let Some(ref bs) = bool_storage {
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("bool", bs);
-        let h = tera.render("boolean_storage.h", &ctx)?;
-        let c = tera.render("boolean_storage.c", &ctx)?;
-        write_generated(output_dir.join("boolean_storage.h"), h)?;
-        write_generated(output_dir.join("boolean_storage.c"), c)?;
+        render_files(
+            &tera,
+            &ctx,
+            output_dir,
+            &["boolean_storage.h", "boolean_storage.c"],
+        )?;
         log::info!(
             "Generated boolean_storage.h/.c ({} keys, {} word(s))",
             bs.num_keys,
@@ -190,13 +230,14 @@ pub fn generate(
 
     // Generate integer_storage.h/.c
     if !int_storages.is_empty() {
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("types", &int_storages);
-        let h = tera.render("integer_storage.h", &ctx)?;
-        let c = tera.render("integer_storage.c", &ctx)?;
-        write_generated(output_dir.join("integer_storage.h"), h)?;
-        write_generated(output_dir.join("integer_storage.c"), c)?;
+        render_files(
+            &tera,
+            &ctx,
+            output_dir,
+            &["integer_storage.h", "integer_storage.c"],
+        )?;
         log::info!(
             "Generated integer_storage.h/.c ({} type groups)",
             int_storages.len()
@@ -205,15 +246,16 @@ pub fn generate(
 
     // Generate string_storage.h/.c
     if let Some(ref ss) = str_storage {
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("total_keys", &ss.total_keys);
         ctx.insert("ro", &ss.ro);
         ctx.insert("rw", &ss.rw);
-        let h = tera.render("string_storage.h", &ctx)?;
-        let c = tera.render("string_storage.c", &ctx)?;
-        write_generated(output_dir.join("string_storage.h"), h)?;
-        write_generated(output_dir.join("string_storage.c"), c)?;
+        render_files(
+            &tera,
+            &ctx,
+            output_dir,
+            &["string_storage.h", "string_storage.c"],
+        )?;
         log::info!(
             "Generated string_storage.h/.c ({} total, {} RO, {} RW)",
             ss.total_keys,
@@ -224,15 +266,22 @@ pub fn generate(
 
     // Generate persistence_storage.h/.c
     if let Some(ref ps) = persist_storage {
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("persistence", ps);
-        let h = tera.render("persistence_storage.h", &ctx)?;
-        let c = tera.render("persistence_storage.c", &ctx)?;
-        write_generated(output_dir.join("persistence_storage.h"), h)?;
-        write_generated(output_dir.join("persistence_storage.c"), c)?;
+        ctx.insert("udm_compat", &opts.udm_compat);
+        let names = ["persistence_storage.h", "persistence_storage.c"];
+        render_files(&tera, &ctx, output_dir, &names)?;
         log::info!("Generated persistence_storage.h/.c ({} keys)", ps.num_keys);
     }
+
+    // --- Generate the UDM-compat header-name aliases ---
+    let present = [
+        bool_storage.is_some(),
+        !int_storages.is_empty(),
+        str_storage.is_some(),
+        persist_storage.is_some(),
+    ];
+    generate_udm_compat_aliases(&tera, version, &opts, present, output_dir)?;
 
     // --- Generate dm.h / dm.c (main API layer) ---
     {
@@ -248,8 +297,7 @@ pub fn generate(
             .map(|s| int_type_info(&s.suffix))
             .collect();
 
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("has_bool", &has_bool);
         ctx.insert("has_integers", &has_integers);
         ctx.insert("has_ro_strings", &has_ro_strings);
@@ -257,12 +305,9 @@ pub fn generate(
         ctx.insert("has_persistence", &has_persistence);
         ctx.insert("int_types", &api_int_types);
         ctx.insert("target", target);
-        ctx.insert("no_events", &no_events);
+        ctx.insert("no_events", &opts.no_events);
 
-        let h = tera.render("dm.h", &ctx)?;
-        let c = tera.render("dm.c", &ctx)?;
-        write_generated(output_dir.join("dm.h"), h)?;
-        write_generated(output_dir.join("dm.c"), c)?;
+        render_files(&tera, &ctx, output_dir, &["dm.h", "dm.c"])?;
         log::info!(
             "Generated dm.h/.c (bool={}, int_types={}, ro_str={}, rw_str={})",
             has_bool,
@@ -278,17 +323,17 @@ pub fn generate(
         if !helpers.is_empty() {
             let has_string_helpers = helpers.iter().any(|h| h.is_string);
             let has_enum_helpers = helpers.iter().any(|h| h.is_enum);
-            let mut ctx = Context::new();
-            ctx.insert("version", version);
+            let mut ctx = version_context(version);
             ctx.insert("helpers", &helpers);
             ctx.insert("has_string_helpers", &has_string_helpers);
             ctx.insert("has_enum_helpers", &has_enum_helpers);
-            let h = tera.render("dm_helpers.h", &ctx)?;
-            write_generated(output_dir.join("dm_helpers.h"), h)?;
-            if has_string_helpers {
-                let c = tera.render("dm_helpers.c", &ctx)?;
-                write_generated(output_dir.join("dm_helpers.c"), c)?;
-            }
+            ctx.insert("udm_compat", &opts.udm_compat);
+            let names: &[&str] = if has_string_helpers {
+                &["dm_helpers.h", "dm_helpers.c"]
+            } else {
+                &["dm_helpers.h"]
+            };
+            render_files(&tera, &ctx, output_dir, names)?;
             log::info!(
                 "Generated dm_helpers.h{} ({} helpers)",
                 if has_string_helpers { "/.c" } else { "" },
@@ -302,17 +347,13 @@ pub fn generate(
         let test_keys = collect_test_keys(model, ns_id);
         let has_persistence = persist_storage.is_some();
         let persist_test_entries = collect_persistence_test_entries(model, ns_id);
-        let mut ctx = Context::new();
-        ctx.insert("version", version);
+        let mut ctx = version_context(version);
         ctx.insert("keys", &test_keys);
         ctx.insert("namespace", &model.meta.id);
-        ctx.insert("no_events", &no_events);
+        ctx.insert("no_events", &opts.no_events);
         ctx.insert("has_persistence", &has_persistence);
         ctx.insert("persistence_entries", &persist_test_entries);
-        let test_c = tera.render("test_dm.c", &ctx)?;
-        write_generated(output_dir.join("test_dm.c"), test_c)?;
-        let cmake = tera.render("CMakeLists.txt", &ctx)?;
-        write_generated(output_dir.join("CMakeLists.txt"), cmake)?;
+        render_files(&tera, &ctx, output_dir, &["test_dm.c", "CMakeLists.txt"])?;
         log::info!(
             "Generated test_dm.c + CMakeLists.txt ({} test keys)",
             test_keys.len()
@@ -322,40 +363,108 @@ pub fn generate(
     Ok(())
 }
 
+/// Emit the opt-in event artifacts: the tinyfsm headers under
+/// `--emit-tinyfsm`, plus the UDM-compat `dm_key_events.h/.c` alias when
+/// `--udm-compat` is also set and there is a dispatch table to forward to.
+fn generate_event_artifacts(
+    tera: &Tera,
+    version: &str,
+    key_defs: &[KeyDefRenderable],
+    ns_id: u16,
+    opts: &CodegenOptions,
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if !opts.emit_tinyfsm {
+        return Ok(());
+    }
+    let emitted = generate_tinyfsm_events(tera, version, key_defs, ns_id, output_dir)?;
+    if opts.udm_compat && emitted {
+        let ctx = version_context(version);
+        render_files(
+            tera,
+            &ctx,
+            output_dir,
+            &["dm_key_events.h", "dm_key_events.c"],
+        )?;
+        log::info!("Generated dm_key_events.h/.c (UDM-compat send_dm_key_event alias)");
+    }
+    Ok(())
+}
+
 /// Render the C++/tinyfsm event header + dispatch-by-key wrapper.
 ///
 /// Emits nothing when no key carries `event = true` — a consumer with no
-/// event keys gets no C++ artifacts even with the flag on.
+/// event keys gets no C++ artifacts even with the flag on. Returns `true`
+/// when the dispatch table was emitted, so a caller emitting something that
+/// forwards to it knows whether there is anything to forward to.
 fn generate_tinyfsm_events(
     tera: &Tera,
     version: &str,
     key_defs: &[KeyDefRenderable],
+    ns_id: u16,
     output_dir: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
     let (events, groups) = collect_event_keys(key_defs);
     if events.is_empty() {
         log::info!("No event keys — skipping tinyfsm event generation");
-        return Ok(());
+        return Ok(false);
     }
 
-    let mut hpp_ctx = Context::new();
-    hpp_ctx.insert("version", version);
+    let mut hpp_ctx = version_context(version);
     hpp_ctx.insert("groups", &groups);
-    let hpp = tera.render("dm_key_events.hpp", &hpp_ctx)?;
-    write_generated(output_dir.join("dm_key_events.hpp"), hpp)?;
+    render_files(tera, &hpp_ctx, output_dir, &["dm_key_events.hpp"])?;
 
-    let mut wrap_ctx = Context::new();
-    wrap_ctx.insert("version", version);
+    // dm_key_has_event.hpp lets a consumer's value-change callback ask, cheaply,
+    // whether a changed key is one anything can react to. Without it `event =
+    // false` is true of the generated types (no FSM_EVENT_ struct) but not of
+    // the runtime traffic: the callback fires per changed key and has to
+    // enqueue every one of them.
+    let mut wrap_ctx = version_context(version);
     wrap_ctx.insert("events", &events);
-    let wrapper_h = tera.render("dm_key_events_wrapper.hpp", &wrap_ctx)?;
-    let wrapper_c = tera.render("dm_key_events_wrapper.cpp", &wrap_ctx)?;
-    write_generated(output_dir.join("dm_key_events_wrapper.hpp"), wrapper_h)?;
-    write_generated(output_dir.join("dm_key_events_wrapper.cpp"), wrapper_c)?;
+    wrap_ctx.insert("ns_id", &ns_id);
+    let names = [
+        "dm_key_events_wrapper.hpp",
+        "dm_key_events_wrapper.cpp",
+        "dm_key_has_event.hpp",
+    ];
+    render_files(tera, &wrap_ctx, output_dir, &names)?;
 
     log::info!(
-        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp ({} event keys)",
+        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp + dm_key_has_event.hpp ({} event keys)",
         events.len()
     );
+    Ok(true)
+}
+
+/// Emit the UDM-compat headers that only repoint a legacy UDM filename to
+/// ingot's own header. `present` flags whether boolean, integer, string, and
+/// persistence storage were generated; each storage alias follows its header.
+fn generate_udm_compat_aliases(
+    tera: &Tera,
+    version: &str,
+    opts: &CodegenOptions,
+    present: [bool; 4],
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if !opts.udm_compat {
+        return Ok(());
+    }
+    let storage_aliases = [
+        "dm_boolean_storage.h",
+        "dm_integer_storage.h",
+        "dm_string_storage.h",
+        "dm_persistence_storage.h",
+    ];
+    let names: Vec<&str> = std::iter::once("dm_key_definitions.h")
+        .chain(
+            storage_aliases
+                .iter()
+                .zip(present)
+                .filter_map(|(name, emitted)| emitted.then_some(*name)),
+        )
+        .collect();
+    render_files(tera, &version_context(version), output_dir, &names)?;
+    log::info!("Generated UDM-compat header aliases: {}", names.join(", "));
     Ok(())
 }
 
@@ -469,12 +578,14 @@ fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderabl
 
             let encoded = encoding.encode();
             let key_name = key.id.to_uppercase().replace(' ', "_");
+            let bare_name = format!("{c_ns_name}_{class_name}_{key_name}");
 
             defs.push(KeyDefRenderable {
                 namespace: resolve_ns_name(class, model),
                 class: class.id.clone(),
                 name: key.id.clone(),
-                define_name: format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}"),
+                define_name: format!("DM_KEY_{bare_name}"),
+                bare_name,
                 hex_value: format!("{encoded:#010X}"),
                 type_name: format!("{:?}", key.data_type).to_lowercase(),
                 unit: key.unit.clone(),
@@ -494,8 +605,11 @@ fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderabl
 struct HelperEntry {
     /// The key #define name (e.g. "DM_KEY_BATTERY_STATUS_VOLTAGE")
     define_name: String,
-    /// Helper function suffix (e.g. "BATTERY_STATUS_VOLTAGE")
+    /// Helper function suffix, uppercased path (e.g. "BATTERY_STATUS_VOLTAGE")
     helper_name: String,
+    /// Original-case path (e.g. "battery_status_voltage" / "local_config_deviceName"),
+    /// used for the `--udm-compat` lowercase `DataModel_{Get,Set}<path>` symbol alias.
+    orig_path: String,
     /// C type for the value (e.g. "uint16_t", "bool")
     c_type: String,
     /// dm_val_t union field (e.g. "u16val", "bval") — empty for strings
@@ -509,6 +623,39 @@ struct HelperEntry {
     is_enum: bool,
     /// Raw integer C type backing an enum-typed key (unused otherwise).
     storage_c_type: String,
+    /// `Some("<PATH>_ENUM_T")` for an enum-typed key. Under `--udm-compat`,
+    /// `DATAMODEL_GET_<PATH>` is then a `static inline` wrapper returning that
+    /// per-key typedef, because C++ will not implicitly convert between enum
+    /// types. Must match the names `collect_enum_types` emits.
+    enum_type_name: Option<String>,
+}
+
+/// Original-case `<ns>_<class>_<key>` path for the UDM-compat lowercase
+/// accessor alias.
+///
+/// A UDM catalog authors a lowercase `id` plus a mixed-case display `name`;
+/// the alias uses the display names, falling back to `id`, so camelCase
+/// segments survive (e.g. `DataModel_Getlocal_config_deviceName`). The
+/// uppercase C surface derives from `id` independently.
+fn display_path(model: &DataModel, class: &Class, key: &KeyDef) -> String {
+    let class_name = class.name.as_deref().unwrap_or(&class.id).replace(' ', "_");
+    let key_name = key.name.as_deref().unwrap_or(&key.id).replace(' ', "_");
+    format!("{}_{class_name}_{key_name}", resolve_ns_name(class, model))
+}
+
+/// Helper value C type, `dm_val_t` field, and string flag for a key type.
+fn helper_c_types(data_type: DataType) -> (String, String, bool) {
+    match data_type {
+        DataType::Bool => ("bool".to_string(), "bval".to_string(), false),
+        DataType::Uint8 => ("uint8_t".to_string(), "u8val".to_string(), false),
+        DataType::Int8 => ("int8_t".to_string(), "s8val".to_string(), false),
+        DataType::Uint16 => ("uint16_t".to_string(), "u16val".to_string(), false),
+        DataType::Int16 => ("int16_t".to_string(), "s16val".to_string(), false),
+        DataType::Uint32 => ("uint32_t".to_string(), "u32val".to_string(), false),
+        DataType::Int32 => ("int32_t".to_string(), "s32val".to_string(), false),
+        DataType::String => ("const char *".to_string(), String::new(), true),
+        DataType::Binary => ("const uint8_t *".to_string(), String::new(), true),
+    }
 }
 
 /// Collect helper entries for keys with helpers=true.
@@ -543,26 +690,18 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
             let helper_name = format!("{c_ns_name}_{class_name}_{key_name}");
 
-            let (raw_c_type, val_field, is_string) = match key.data_type {
-                DataType::Bool => ("bool".to_string(), "bval".to_string(), false),
-                DataType::Uint8 => ("uint8_t".to_string(), "u8val".to_string(), false),
-                DataType::Int8 => ("int8_t".to_string(), "s8val".to_string(), false),
-                DataType::Uint16 => ("uint16_t".to_string(), "u16val".to_string(), false),
-                DataType::Int16 => ("int16_t".to_string(), "s16val".to_string(), false),
-                DataType::Uint32 => ("uint32_t".to_string(), "u32val".to_string(), false),
-                DataType::Int32 => ("int32_t".to_string(), "s32val".to_string(), false),
-                DataType::String => ("const char *".to_string(), String::new(), true),
-                DataType::Binary => ("const uint8_t *".to_string(), String::new(), true),
-            };
+            let (raw_c_type, val_field, is_string) = helper_c_types(key.data_type);
 
             let is_enum = !is_string && key.enum_ref.is_some();
             let c_type = match (&key.enum_ref, is_enum) {
                 (Some(enum_ref), true) => enums::enum_type_name(enum_ref, &model.meta.id),
                 _ => raw_c_type.clone(),
             };
+            let enum_type_name = is_enum.then(|| format!("{helper_name}_ENUM_T"));
 
             helpers.push(HelperEntry {
                 define_name,
+                orig_path: display_path(model, class, key),
                 helper_name,
                 c_type,
                 val_field,
@@ -570,11 +709,105 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
                 is_read_only: key.read_only,
                 is_enum,
                 storage_c_type: raw_c_type,
+                enum_type_name,
             });
         }
     }
 
     helpers
+}
+
+/// A single named enum constant ready for template rendering.
+#[derive(Debug, Serialize)]
+struct EnumConstRenderable {
+    /// Fully-qualified constant name (e.g. "APPLIANCE_STATUS_MODE_OFF").
+    name: String,
+    /// The declared integer value (wire-semantic — must equal the schema's).
+    value: i64,
+}
+
+/// A `<PATH>_ENUM_T` typedef ready for template rendering.
+#[derive(Debug, Serialize)]
+struct EnumTypeRenderable {
+    /// The typedef name (e.g. "APPLIANCE_STATUS_MODE_ENUM_T").
+    type_name: String,
+    /// The uppercase key path prefix (e.g. "APPLIANCE_STATUS_MODE"), used for
+    /// the trailing `_MAX_STORAGE_VALUE` sentinel constant.
+    prefix: String,
+    /// The stdint sentinel bound for this key's storage width (e.g. "UINT8_MAX").
+    max_macro: String,
+    /// Named constants, ordered by value then name for deterministic output.
+    values: Vec<EnumConstRenderable>,
+}
+
+/// Map a key's storage type to the stdint `*_MAX` sentinel used for the
+/// generated enum's `_MAX_STORAGE_VALUE` guard (mirrors the UDM emitter).
+fn enum_max_macro(data_type: DataType) -> &'static str {
+    match data_type {
+        DataType::Bool | DataType::Uint8 => "UINT8_MAX",
+        DataType::Int8 => "INT8_MAX",
+        DataType::Uint16 => "UINT16_MAX",
+        DataType::Int16 => "INT16_MAX",
+        DataType::Uint32 => "UINT32_MAX",
+        DataType::Int32 => "INT32_MAX",
+        // Enums never attach to string/binary keys; guard defensively.
+        DataType::String | DataType::Binary => "UINT8_MAX",
+    }
+}
+
+/// The per-key compat enum typedefs, or none unless `--udm-compat` is set.
+fn compat_enum_types(model: &DataModel, opts: &CodegenOptions) -> Vec<EnumTypeRenderable> {
+    if opts.udm_compat {
+        collect_enum_types(model)
+    } else {
+        Vec::new()
+    }
+}
+
+/// Collect one `<PATH>_ENUM_T` typedef per enum-referencing key.
+///
+/// The typedef and its constants are named after the *key's* path (not the
+/// enum domain), matching the UDM generator: the same `[enums.*]` domain
+/// referenced by two keys yields two distinct typedefs. Constant values are
+/// emitted verbatim from the schema (Data Quality — they are wire-semantic).
+fn collect_enum_types(model: &DataModel) -> Vec<EnumTypeRenderable> {
+    let mut out = Vec::new();
+
+    for class in &model.classes {
+        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
+        let class_name = class.id.to_uppercase();
+
+        for key in &class.keys {
+            let Some(enum_ref) = key.enum_ref.as_ref() else {
+                continue;
+            };
+            let Some(enum_def) = model.enums.get(enum_ref) else {
+                continue;
+            };
+
+            let key_name = key.id.to_uppercase().replace(' ', "_");
+            let prefix = format!("{c_ns_name}_{class_name}_{key_name}");
+
+            let mut values: Vec<EnumConstRenderable> = enum_def
+                .values
+                .iter()
+                .map(|(name, &value)| EnumConstRenderable {
+                    name: format!("{prefix}_{}", name.to_uppercase().replace(' ', "_")),
+                    value,
+                })
+                .collect();
+            values.sort_by(|a, b| a.value.cmp(&b.value).then(a.name.cmp(&b.name)));
+
+            out.push(EnumTypeRenderable {
+                type_name: format!("{prefix}_ENUM_T"),
+                max_macro: enum_max_macro(key.data_type).to_string(),
+                prefix,
+                values,
+            });
+        }
+    }
+
+    out
 }
 
 /// A persistence test entry for Unity test generation.

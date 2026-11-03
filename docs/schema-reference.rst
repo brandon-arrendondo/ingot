@@ -47,7 +47,9 @@ Classes
 -------
 
 Classes group related keys within a namespace. A namespace can have up to 31
-classes, each with up to 1023 keys.
+classes, each with up to 1023 keys. A class may also set an optional ``name``,
+the display spelling used for ``--udm-compat`` lowercase aliases (defaults to
+``id``).
 
 .. code-block:: toml
 
@@ -68,6 +70,8 @@ Key Attributes
 Attribute        Type      Default      Description
 ===============  ========  ===========  ==========================================
 ``id``           string    (required)   Key identifier
+``name``         string    none         Display spelling for ``--udm-compat``
+                                        lowercase aliases (defaults to ``id``)
 ``type``         string    (required)   Data type (see below)
 ``default``      value     type zero    Default value
 ``defaults``     table     ``{}``       Per-variant default overrides
