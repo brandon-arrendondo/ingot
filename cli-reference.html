@@ -138,6 +138,16 @@ into a single data model.</p></td>
 <td><p>off</p></td>
 <td><p>Emit C++/tinyfsm event types and dispatch</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code></p></td>
+<td><p>off</p></td>
+<td><p>Emit the UDM-shaped C compatibility surface</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--udm-enums-guard</span></code>
+<code class="docutils literal notranslate"><span class="pre">&lt;MACRO&gt;</span></code></p></td>
+<td><p>none</p></td>
+<td><p>Legacy <code class="docutils literal notranslate"><span class="pre">dm_enums.h</span></code> guard to defer to
+(requires <code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code>)</p></td>
+</tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--templates</span> <span class="pre">&lt;DIR&gt;</span></code></p></td>
 <td><p>auto</p></td>
 <td><p>Override template directory</p></td>
@@ -146,7 +156,41 @@ into a single data model.</p></td>
 </table>
 <p><code class="docutils literal notranslate"><span class="pre">--templates</span></code> also accepts the <code class="docutils literal notranslate"><span class="pre">INGOT_TEMPLATES_DIR</span></code> environment variable.
 <code class="docutils literal notranslate"><span class="pre">--emit-tinyfsm</span></code> applies only to C targets. It emits additive C++ headers and
-source for consumers using tinyfsm.</p>
+source for consumers using tinyfsm, plus <code class="docutils literal notranslate"><span class="pre">dm_key_has_event.hpp</span></code>:
+<code class="docutils literal notranslate"><span class="pre">dm_key_has_event(key)</span></code> reports whether a key was declared <code class="docutils literal notranslate"><span class="pre">event</span> <span class="pre">=</span> <span class="pre">true</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">dm_key_namespace(key)</span></code> / <code class="docutils literal notranslate"><span class="pre">DM_KEY_NS_LOCAL</span></code> let a value-change callback
+skip keys that belong to this model but carry no event.</p>
+<p><code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code> applies only to C targets and is purely additive: without it,
+output is unchanged (<code class="docutils literal notranslate"><span class="pre">--emit-tinyfsm</span></code> separately adds
+<code class="docutils literal notranslate"><span class="pre">dm_key_has_event.hpp</span></code>). It lets code written against the legacy UDM
+data-model API compile against ingot’s store:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">DATAMODEL_GET_&lt;PATH&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">DATAMODEL_SET_&lt;PATH&gt;</span></code> aliases for every
+<code class="docutils literal notranslate"><span class="pre">helpers</span> <span class="pre">=</span> <span class="pre">true</span></code> key. Bool and integer accessors stay address-of-able;
+enum-typed keys get wrappers that return <code class="docutils literal notranslate"><span class="pre">&lt;PATH&gt;_ENUM_T</span></code> and take the raw
+storage type.</p></li>
+<li><p>Lowercase <code class="docutils literal notranslate"><span class="pre">DataModel_Get&lt;ns&gt;_&lt;class&gt;_&lt;key&gt;</span></code> aliases, spelled with the
+optional class and key <code class="docutils literal notranslate"><span class="pre">name</span></code> (falling back to <code class="docutils literal notranslate"><span class="pre">id</span></code>).</p></li>
+<li><p>Bare-key <code class="docutils literal notranslate"><span class="pre">#define</span> <span class="pre">&lt;PATH&gt;</span> <span class="pre">DM_KEY_&lt;PATH&gt;</span></code> constants and
+<code class="docutils literal notranslate"><span class="pre">DATA_MODEL_KEY_TYPE_*</span></code> aliases in <code class="docutils literal notranslate"><span class="pre">dm_key.h</span></code>.</p></li>
+<li><p>Per-key <code class="docutils literal notranslate"><span class="pre">&lt;PATH&gt;_ENUM_T</span></code> typedefs in <code class="docutils literal notranslate"><span class="pre">dm_enums.h</span></code>, beside the named enums.
+When the key’s named enum is itself called <code class="docutils literal notranslate"><span class="pre">&lt;class&gt;_&lt;key&gt;</span></code>, its members
+already carry the per-key constant names, so <code class="docutils literal notranslate"><span class="pre">&lt;PATH&gt;_ENUM_T</span></code> is a typedef
+of that enum.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DataModel_PrintPersistentKeys()</span></code> in <code class="docutils literal notranslate"><span class="pre">persistence_storage.c</span></code>.</p></li>
+<li><p>Header-name aliases <code class="docutils literal notranslate"><span class="pre">dm_key_definitions.h</span></code> and
+<code class="docutils literal notranslate"><span class="pre">dm_{boolean,integer,string,persistence}_storage.h</span></code>, and, with
+<code class="docutils literal notranslate"><span class="pre">--emit-tinyfsm</span></code>, <code class="docutils literal notranslate"><span class="pre">dm_key_events.h/.c</span></code> providing
+<code class="docutils literal notranslate"><span class="pre">send_dm_key_event(key)</span></code>.</p></li>
+</ul>
+<p>These aliases share one C namespace with the key and enum names, so ingot
+stops with an error naming both sources when two of them would declare the
+same identifier: for example, a key <code class="docutils literal notranslate"><span class="pre">mode_off</span></code> beside an enum key <code class="docutils literal notranslate"><span class="pre">mode</span></code>
+with a value <code class="docutils literal notranslate"><span class="pre">off</span></code>, or two keys whose <code class="docutils literal notranslate"><span class="pre">name</span></code> resolves to the same
+lowercase alias. Rename one of them.</p>
+<p>If a translation unit may also include a legacy <code class="docutils literal notranslate"><span class="pre">dm_enums.h</span></code> that declares
+the same per-key typedefs, pass that header’s include guard with
+<code class="docutils literal notranslate"><span class="pre">--udm-enums-guard</span></code> and ingot skips its copies when the guard is defined.</p>
 </section>
 <section id="key-filtering">
 <h2>Key Filtering<a class="headerlink" href="#key-filtering" title="Link to this heading"></a></h2>
@@ -264,8 +308,8 @@ and merges variant enum values from
 <p>The <code class="docutils literal notranslate"><span class="pre">rust</span></code> target generates a standalone no_std Rust module using static
 perfect-hash storage. It provides named accessors, scalar access by encoded
 key, and <code class="docutils literal notranslate"><span class="pre">PERSISTENT_KEYS</span></code> metadata. Persistence I/O and mutex handling are
-left to the consumer. C-only options such as <code class="docutils literal notranslate"><span class="pre">--no-events</span></code> and
-<code class="docutils literal notranslate"><span class="pre">--emit-tinyfsm</span></code> have no effect for Rust.</p>
+left to the consumer. C-only options such as <code class="docutils literal notranslate"><span class="pre">--no-events</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--emit-tinyfsm</span></code>, and <code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code> have no effect for Rust.</p>
 </section>
 <section id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h2>

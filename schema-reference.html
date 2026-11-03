@@ -127,7 +127,10 @@ comments in the generated <code class="docutils literal notranslate"><span class
 <section id="classes">
 <h2>Classes<a class="headerlink" href="#classes" title="Link to this heading"></a></h2>
 <p>Classes group related keys within a namespace. A namespace can have up to 31
-classes, each with up to 1023 keys.</p>
+classes, each with up to 1023 keys. A class may also set an optional <code class="docutils literal notranslate"><span class="pre">name</span></code>,
+the display spelling used for <code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code> lowercase aliases (defaults to
+<code class="docutils literal notranslate"><span class="pre">id</span></code>). A <code class="docutils literal notranslate"><span class="pre">name</span></code> may hold only ASCII letters, digits, underscores and
+spaces (spaces become <code class="docutils literal notranslate"><span class="pre">_</span></code>).</p>
 <div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[[classes]]</span>
 <span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;status&quot;</span>
 <span class="n">doc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Runtime status&quot;</span>
@@ -155,62 +158,68 @@ classes, each with up to 1023 keys.</p>
 <td><p>(required)</p></td>
 <td><p>Key identifier</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
+<td><p>string</p></td>
+<td><p>none</p></td>
+<td><p>Display spelling for <code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code>
+lowercase aliases (defaults to <code class="docutils literal notranslate"><span class="pre">id</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
 <td><p>string</p></td>
 <td><p>(required)</p></td>
 <td><p>Data type (see below)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">default</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">default</span></code></p></td>
 <td><p>value</p></td>
 <td><p>type zero</p></td>
 <td><p>Default value</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">defaults</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">defaults</span></code></p></td>
 <td><p>table</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
 <td><p>Per-variant default overrides</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enum</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enum</span></code></p></td>
 <td><p>string</p></td>
 <td><p>none</p></td>
 <td><p>Reference to an <code class="docutils literal notranslate"><span class="pre">[enums]</span></code> entry</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">max_size</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">max_size</span></code></p></td>
 <td><p>integer</p></td>
 <td><p>none</p></td>
 <td><p>Max bytes (required for string/binary)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">read_only</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">read_only</span></code></p></td>
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Prevent modification at runtime</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">thread_safe</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">thread_safe</span></code></p></td>
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Protect with target mutex</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">persistent</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">persistent</span></code></p></td>
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Include in binary save/load</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">event</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">event</span></code></p></td>
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Fire callback on value change</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">helpers</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">helpers</span></code></p></td>
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Generate named getter/setter functions</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">unit</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unit</span></code></p></td>
 <td><p>string</p></td>
 <td><p>none</p></td>
 <td><p>Physical unit (documentary)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">doc</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">doc</span></code></p></td>
 <td><p>string</p></td>
 <td><p>none</p></td>
 <td><p>Documentation string</p></td>
@@ -300,6 +309,9 @@ classes, each with up to 1023 keys.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">enum</span></code> references must point to a defined <code class="docutils literal notranslate"><span class="pre">[enums]</span></code> entry</p></li>
 <li><p>Class IDs must be unique within a namespace</p></li>
 <li><p>Key IDs must be unique within a class</p></li>
+<li><p>A class or key <code class="docutils literal notranslate"><span class="pre">name</span></code> may hold only ASCII letters, digits, underscores
+and spaces</p></li>
+<li><p>Under <code class="docutils literal notranslate"><span class="pre">--udm-compat</span></code>, no two generated C identifiers may be the same</p></li>
 </ul>
 </section>
 </section>
