@@ -4,12 +4,23 @@ version = "1.2.0"
 edition = "2021"
 authors = ["Brandon Arrendondo"]
 license = "MIT"
-description = "Embedded database C code generator with compile-time perfect hashing"
+description = "Embedded database C and no_std Rust code generator with compile-time perfect hashing"
 repository = "https://github.com/brandon-arrendondo/ingot"
 homepage = "https://brandon-arrendondo.github.io/ingot"
 documentation = "https://brandon-arrendondo.github.io/ingot"
 keywords = ["embedded", "codegen", "database", "kvp", "microcontroller"]
 categories = ["command-line-utilities", "development-tools", "embedded"]
+include = [
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/LICENSE",
+    "/README.md",
+    "/CHANGELOG.md",
+    "src/**",
+    "templates/**",
+    "examples/*.toml",
+    "docs/**",
+]
 
 [[bin]]
 name = "ingot"

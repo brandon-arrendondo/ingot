@@ -1,5 +1,7 @@
 # Ingot — Claude Code Project Guide
 
+@AGENTS.md
+
 ## Build & Test Commands
 
 ```sh
@@ -32,14 +34,17 @@ src/
     schema.rs          - serde types for TOML input format
     key.rs             - 32-bit key encoding/decoding
     validation.rs      - Model validation passes
-  codegen/             - C code generation
-    target.rs          - Target platform configs (STM32, ESP, 8-bit, Linux)
-    storage/           - Per-type storage generators (bool, int, string, binary)
+  codegen/             - C and Rust code generation
+    target.rs          - C target platform configs (STM32, ESP, 8-bit, Linux)
+    storage/           - C per-type storage generators (bool, int, string)
+    rust_kvp/          - no_std Rust module generator
+      storage.rs       - Rust static storage and encoded-key access
+      enums.rs         - Rust enum code generation
   hash/                - Perfect hash implementation
     jenkins.rs         - Jenkins lookup3.c final() hash
     mod.rs             - CHM perfect hash generation
 
-templates/             - Tera templates for C output
+templates/             - Tera templates for generated Rust module and C output
 examples/              - Example TOML data models
 tests/                 - Integration tests
 deps/unity/            - Unity C test framework (git submodule)
@@ -51,10 +56,10 @@ docs/                  - User guide and manpage
 - All public functions need unit tests
 - Use `thiserror` for error types
 - Use `log` macros (not println) for diagnostic output
-- Generated C code targets C99
-- Pre-commit hooks enforce: cargo fmt, cargo clippy (deny warnings), cargo test
+- Generated C code targets C99; the Rust target emits a no_std module
+- `invoke check` runs formatting, Clippy with warnings denied, the coverage gate, and the knots complexity hook
 - Commit messages follow conventional format
-- CHANGELOG.txt uses keepachangelog format
+- CHANGELOG.md uses keepachangelog format
 - PLAN.md tracks roadmap tasks
 
 ## Key Architecture Decisions

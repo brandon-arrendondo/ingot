@@ -1,6 +1,6 @@
 .TH INGOT 1 "2026-07-23" "ingot 1.2.0" "Ingot Manual"
 .SH NAME
-ingot \- embedded database C code generator with compile-time perfect hashing
+ingot \- embedded database code generator with compile-time perfect hashing
 .SH SYNOPSIS
 .B ingot
 .B \-m
@@ -22,11 +22,14 @@ ingot \- embedded database C code generator with compile-time perfect hashing
 .IR file ]
 .RB [ \-\-variant
 .IR name ]
+.RB [ \-\-emit\-tinyfsm ]
+.RB [ \-\-templates
+.IR dir ]
 .RB [ \-v ...]
 .SH DESCRIPTION
 .B ingot
-reads a TOML data model specification and generates optimized C99 code for
-key-value storage on resource-constrained embedded systems.
+reads a TOML data model specification and generates optimized C99 or no_std
+Rust code for key-value storage on resource-constrained embedded systems.
 All data structures are statically allocated.
 Key lookup is O(1) via minimal perfect hashing using the CHM algorithm with
 Jenkins lookup3 hash.
@@ -48,6 +51,11 @@ Optional persistence (binary save/load with magic number validation)
 Optional event callbacks on value change
 .IP \(bu 2
 Unity test suite with CMakeLists.txt
+.PP
+The \fBrust\fR target emits one standalone \fBdm.rs\fR module with static
+perfect-hash storage, named accessors, scalar access by encoded key, and
+\fBPERSISTENT_KEYS\fR metadata. Persistence I/O and synchronization are left
+to the consumer.
 .SH OPTIONS
 .TP
 .BI \-m ", " \-\-model " " path
@@ -58,7 +66,7 @@ When a directory is given, all \fB.toml\fR files in it are loaded and merged
 into a single data model with per-namespace class indices preserved.
 .TP
 .BI \-o ", " \-\-output " " dir
-Output directory for generated C code.
+Output directory for generated code.
 Created if it does not exist.
 Default: \fBgenerated/\fR.
 .TP
@@ -87,12 +95,22 @@ Bare-metal (no mutex), 1-byte alignment, 16-bit pointers.
 .B linux64
 64-bit Linux systems.
 pthread mutex with PTHREAD_MUTEX_INITIALIZER.
+.TP
+.B rust
+Standalone no_std Rust module. Mutexes and persistence I/O are consumer-managed.
 .RE
 .TP
 .B \-\-no\-events
 Disable event callback generation.
 When set, \fBDataModel_Initialize()\fR takes no arguments and no callback
 is fired after successful set operations.
+.TP
+.B \-\-emit\-tinyfsm
+Emit C++ tinyfsm event types and a dispatch wrapper for event keys. C targets only.
+.TP
+.BI \-\-templates " " dir
+Use templates from the specified directory. Also configurable through
+\fBINGOT_TEMPLATES_DIR\fR.
 .TP
 .BI \-\-include\-list " " file
 YAML file listing key define names to include (whitelist).

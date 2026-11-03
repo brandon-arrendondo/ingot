@@ -1,4 +1,12 @@
+fail_fast: true
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
 repos:
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
@@ -34,13 +42,38 @@ repos:
         pass_filenames: false
         verbose: true
 
-  # knots complexity gate. The default `knots` hook ships args
-  # [--aird-threshold=85], so no override is needed here. To tighten or add
-  # metrics, set `args:` (pre-commit replaces them wholesale), e.g.
-  #   args: [--aird-threshold=85, --cognitive-threshold=20]
+      - id: agent-guard-tests
+        name: agent and commit guard regression tests
+        entry: python3 -W error::ResourceWarning -m unittest discover -s scripts -p 'test_check_*.py'
+        language: system
+        pass_filenames: false
+        files: ^scripts/.*\.py$
+
+  # Keep the hook's source scope and the checked-in baseline in sync. This
+  # includes Rust source/tests and Python policy guards, excluding templates
+  # (which contain Rust fragments) and model fixtures.
+  # Args replace the hook defaults, so update the thresholds and baseline together.
   - repo: https://github.com/brandon-arrendondo/knots-pre-commit
-    rev: v1.13.1
+    rev: v1.19.0
     hooks:
       - id: knots
-        types_or: [rust, python, c, c++, header]
-        exclude: ^examples/generated/
+        args:
+          - --mccabe-threshold=15
+          - --cognitive-threshold=15
+          - --nesting-threshold=5
+          - --sloc-threshold=50
+          - --abc-threshold=20.0
+          - --return-threshold=3
+          - --aird-threshold=85
+          - --baseline=.knots-baseline.json
+        files: '^(src|tests)/.*\.rs$|^scripts/.*\.py$'
+        exclude: '^tests/fixtures/'
+        types_or: [rust, python]
+
+  - repo: local
+    hooks:
+      - id: commit-message-policy
+        name: DCO sign-off and no AI attribution trailers
+        entry: python3 scripts/check_commit_message.py
+        language: system
+        stages: [commit-msg]

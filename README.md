@@ -1,10 +1,10 @@
 # ingot
 
-Embedded database C code generator with compile-time perfect hashing.
+Embedded database C and no_std Rust code generator with compile-time perfect hashing.
 
-Ingot reads a TOML data model specification and generates optimized C99 code
-for key-value storage on resource-constrained embedded systems. All data
-structures are statically allocated. Key lookup is O(1) via minimal perfect
+Ingot reads a TOML data model specification and generates optimized C99 or
+no_std Rust code for key-value storage on resource-constrained embedded
+systems. All data structures are statically allocated. Key lookup is O(1) via minimal perfect
 hashing -- no dynamic memory, no collisions, no linear search.
 
 ## Features
@@ -25,6 +25,13 @@ hashing -- no dynamic memory, no collisions, no linear search.
 
 ## Targets
 
+The platform targets below generate C99. The separate `rust` target generates
+a single `dm.rs` no_std module with statically allocated perfect-hash storage.
+It supports scalar key access by encoded key and exports persistent-key
+metadata. Generic scalar setters return `false` for unknown and read-only
+keys; named setters are generated only for writable keys. Persistence I/O,
+mutexes, C++ tinyfsm output, and generated Unity tests are C-target features.
+
 | Target | Pointer | Mutex | Alignment |
 |--------|---------|-------|-----------|
 | STM32 (32-bit ARM) | 32-bit | bare-metal | 4-byte |
@@ -32,6 +39,7 @@ hashing -- no dynamic memory, no collisions, no linear search.
 | ESP32 RISC-V | 32-bit | FreeRTOS | 4-byte |
 | 8-bit MCU | 16-bit | bare-metal | 1-byte |
 | Linux (64-bit) | 64-bit | pthread | 8-byte |
+| Rust | no_std module | caller-managed | -- |
 
 ## Building
 
@@ -49,8 +57,8 @@ Options:
 
 ```
 --model <path>     Path to TOML data model specification (required)
---output <dir>     Output directory for generated C code (default: generated/)
---target <target>  Target platform: stm32, esp-xtensa, esp-riscv, mcu8bit, linux64
+--output <dir>     Output directory for generated code (default: generated/)
+--target <target>  Target: stm32, esp-xtensa, esp-riscv, mcu8bit, linux64, rust
 --no-events        Disable event callback generation
 --emit-tinyfsm     Also emit C++/tinyfsm event structs + dispatch-by-key wrapper
                    (opt-in, additive; independent of --no-events)
@@ -125,6 +133,8 @@ C output is in `examples/generated/`.
 
 ## Development
 
+Contributor and agent guidance is in [AGENTS.md](AGENTS.md).
+
 ```sh
 pip install invoke pre-commit
 pre-commit install
@@ -136,6 +146,16 @@ invoke coverage   # Rust lcov + C gcov/Cobertura coverage reports
 invoke generate   # Generate C code from battery example
 invoke clean      # Remove build artifacts
 ```
+
+## AI Assistance
+
+ingot has been developed with assistance from [Claude](https://claude.ai)
+(Anthropic) on code generation, feature work, bug fixes, and project setup.
+[Codex](https://openai.com/codex/) (OpenAI) has also contributed code review,
+fixes, tests, and repository maintenance. Some earlier commits credit Claude
+with a co-author trailer, but those trailers are not a complete record. AI
+assistance is acknowledged here rather than in new commit trailers. Brandon
+Arrendondo is responsible for reviewing and approving project changes.
 
 ## License
 

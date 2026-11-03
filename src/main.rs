@@ -8,14 +8,14 @@ mod codegen;
 mod hash;
 mod model;
 
-/// ingot - Embedded database C code generator
+/// ingot - Embedded database code generator
 ///
-/// Generates optimized C code for key-value databases targeting embedded
-/// systems. Uses compile-time perfect hashing for O(1) key lookup with
+/// Generates optimized C99 or no_std Rust code for embedded key-value
+/// databases. Uses compile-time perfect hashing for O(1) key lookup with
 /// minimal RAM/ROM footprint.
 ///
 /// Supported targets: STM32 (32-bit), ESP32 (Xtensa/RISC-V), 8-bit
-/// microcontrollers, and 64-bit Linux systems.
+/// microcontrollers, 64-bit Linux systems, and no_std Rust.
 #[derive(Parser, Debug)]
 #[command(name = "ingot", version, about, long_about)]
 struct Cli {
@@ -23,7 +23,7 @@ struct Cli {
     #[arg(short, long, required = true)]
     model: Vec<PathBuf>,
 
-    /// Output directory for generated C code
+    /// Output directory for generated code
     #[arg(short, long, default_value = "generated")]
     output: PathBuf,
 

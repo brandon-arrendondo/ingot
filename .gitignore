@@ -8,3 +8,7 @@ coverage/
 *.exe
 THIRD_PARTY_LICENSES.txt
 *.cdx.json
+__pycache__/
+*.py[cod]
+
+/todo-sqlite-cli.db

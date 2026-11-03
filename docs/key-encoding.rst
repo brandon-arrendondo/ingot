@@ -13,3 +13,7 @@ This encoding allows up to 1024 namespaces, 32 classes per namespace, and
 1024 keys per type per class. The type field supports 16 data types. Key
 properties (read-only, thread-safe) are encoded directly in the key value
 for O(1) property checks.
+
+For the Rust target, generic scalar setters that accept an encoded key return
+``false`` when the key is unknown or marked read-only. Named setter methods are
+generated only for writable keys.
