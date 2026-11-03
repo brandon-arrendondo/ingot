@@ -11,6 +11,12 @@ if(COVERAGE)
     add_link_options(--coverage)
 endif()
 
+option(SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+if(SANITIZE)
+    add_compile_options(-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
 # Unity test framework (set UNITY_DIR if not in default location)
 if(NOT DEFINED UNITY_DIR)
     message(FATAL_ERROR "Set UNITY_DIR to the Unity source directory, e.g. -DUNITY_DIR=../deps/unity/src")

@@ -39,6 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LICENSE` names BISSELL Homecare, Inc. as the copyright holder.
 
 ### Fixed
+- C targets: `DataModel_LoadPersistentKeys()` no longer reads past a string
+  field when the persisted file holds that field with no NUL terminator, as a
+  corrupt or hand-made image can. The loader now terminates each string field
+  at its capacity before applying it, so such a field loads as its first
+  `max_size - 1` bytes. Files written by `DataModel_SavePersistentKeys()` load
+  unchanged. The generated `CMakeLists.txt` gains a `SANITIZE` option
+  (AddressSanitizer and UndefinedBehaviorSanitizer), and the generated tests
+  load an image with unterminated string fields.
 - `--target rust`: generic by-key setters reject writes to keys marked
   `read_only`, matching the C target's behavior.
 - Linux64 target: `DataModel_TearDown()` no longer calls

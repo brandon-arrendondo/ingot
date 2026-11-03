@@ -109,6 +109,16 @@ DM_RETURN_CODE DataModel_LoadPersistentKeys(const char *filepath)
         return DM_RETURN_CODE_PERSISTENCE_MAGIC_MISMATCH;
     }
 
+    /* The file is input: a corrupt or hand-made image can fill a string field
+     * with no NUL, and SyncToStorage measures each one with strlen. Save always
+     * writes the last byte as NUL, so forcing it here leaves any file Save
+     * wrote unchanged and bounds every string read by its field's capacity. */
+{% for e in persistence.entries %}
+{% if e.is_string and e.c_type == "char" %}
+    tmp.{{ e.field_name }}[sizeof(tmp.{{ e.field_name }}) - 1] = '\0';
+{% endif %}
+{% endfor %}
+
     persistence_data = tmp;
     PersistenceStorage_SyncToStorage();
 

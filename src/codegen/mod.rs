@@ -349,24 +349,45 @@ pub fn generate(
         }
     }
 
-    // --- Generate Unity test files ---
-    {
-        let test_keys = collect_test_keys(model, ns_id);
-        let has_persistence = persist_storage.is_some();
-        let persist_test_entries = collect_persistence_test_entries(model, ns_id);
-        let mut ctx = version_context(version);
-        ctx.insert("keys", &test_keys);
-        ctx.insert("namespace", &model.meta.id);
-        ctx.insert("no_events", &opts.no_events);
-        ctx.insert("has_persistence", &has_persistence);
-        ctx.insert("persistence_entries", &persist_test_entries);
-        render_files(&tera, &ctx, output_dir, &["test_dm.c", "CMakeLists.txt"])?;
-        log::info!(
-            "Generated test_dm.c + CMakeLists.txt ({} test keys)",
-            test_keys.len()
-        );
-    }
+    render_unity_tests(
+        &tera,
+        model,
+        ns_id,
+        output_dir,
+        opts.no_events,
+        persist_storage.as_ref(),
+    )
+}
 
+/// Render the Unity test file and its CMakeLists.txt.
+fn render_unity_tests(
+    tera: &Tera,
+    model: &DataModel,
+    ns_id: u16,
+    output_dir: &Path,
+    no_events: bool,
+    persist_storage: Option<&storage::persistence::PersistenceStorage>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let test_keys = collect_test_keys(model, ns_id);
+    let persist_test_entries = collect_persistence_test_entries(model, ns_id);
+    let mut ctx = version_context(env!("CARGO_PKG_VERSION"));
+    ctx.insert("keys", &test_keys);
+    ctx.insert("namespace", &model.meta.id);
+    ctx.insert("no_events", &no_events);
+    ctx.insert("has_persistence", &persist_storage.is_some());
+    ctx.insert("persistence_entries", &persist_test_entries);
+    // The stored image's layout, so a test can write a malformed file.
+    let has_persistent_string = persist_storage
+        .is_some_and(|ps| ps.entries.iter().any(|e| e.is_string && e.c_type == "char"));
+    ctx.insert("has_persistent_string", &has_persistent_string);
+    if let Some(ps) = persist_storage {
+        ctx.insert("persistence", ps);
+    }
+    render_files(tera, &ctx, output_dir, &["test_dm.c", "CMakeLists.txt"])?;
+    log::info!(
+        "Generated test_dm.c + CMakeLists.txt ({} test keys)",
+        test_keys.len()
+    );
     Ok(())
 }
 

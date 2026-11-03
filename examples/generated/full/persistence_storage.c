@@ -542,6 +542,56 @@ DM_RETURN_CODE DataModel_LoadPersistentKeys(const char *filepath)
         return DM_RETURN_CODE_PERSISTENCE_MAGIC_MISMATCH;
     }
 
+    /* The file is input: a corrupt or hand-made image can fill a string field
+     * with no NUL, and SyncToStorage measures each one with strlen. Save always
+     * writes the last byte as NUL, so forcing it here leaves any file Save
+     * wrote unchanged and bounds every string read by its field's capacity. */
+
+
+
+
+    tmp.config_device_name[sizeof(tmp.config_device_name) - 1] = '\0';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    tmp.network_ssid[sizeof(tmp.network_ssid) - 1] = '\0';
+
+
+
+
+
+    tmp.network_mqtt_server[sizeof(tmp.network_mqtt_server) - 1] = '\0';
+
+
+
+
+
+
+
+
+
     persistence_data = tmp;
     PersistenceStorage_SyncToStorage();
 
