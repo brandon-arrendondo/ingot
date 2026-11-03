@@ -1,0 +1,19 @@
+# Two keys that resolve to the same lowercase accessor alias.
+[meta]
+id = "p"
+version = "1.0.0"
+
+[[classes]]
+id = "cfg"
+
+    [[classes.keys]]
+    id = "first"
+    name = "value"
+    type = "uint8"
+    helpers = true
+
+    [[classes.keys]]
+    id = "second"
+    name = "value"
+    type = "uint8"
+    helpers = true

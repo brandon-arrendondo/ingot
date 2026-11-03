@@ -49,7 +49,8 @@ Classes
 Classes group related keys within a namespace. A namespace can have up to 31
 classes, each with up to 1023 keys. A class may also set an optional ``name``,
 the display spelling used for ``--udm-compat`` lowercase aliases (defaults to
-``id``).
+``id``). A ``name`` may hold only ASCII letters, digits, underscores and
+spaces (spaces become ``_``).
 
 .. code-block:: toml
 
@@ -132,3 +133,6 @@ Constraints
 - ``enum`` references must point to a defined ``[enums]`` entry
 - Class IDs must be unique within a namespace
 - Key IDs must be unique within a class
+- A class or key ``name`` may hold only ASCII letters, digits, underscores
+  and spaces
+- Under ``--udm-compat``, no two generated C identifiers may be the same

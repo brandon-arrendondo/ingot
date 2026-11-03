@@ -117,12 +117,14 @@ Emit the UDM-shaped C compatibility surface: \fBDATAMODEL_GET_\fR/\fBSET_\fR
 and lowercase \fBDataModel_Get\fR/\fBSet\fR aliases, bare-key constants,
 per-key \fB_ENUM_T\fR typedefs, \fBDATA_MODEL_KEY_TYPE_*\fR aliases,
 \fBDataModel_PrintPersistentKeys()\fR, and legacy header-name aliases.
-Additive; C targets only.
+Additive; C targets only. Fails if two of these names, or a name and an
+existing key or enum identifier, would be the same.
 .TP
 .BI \-\-udm\-enums\-guard " " macro
 With \fB\-\-udm\-compat\fR, skip the per-key enum typedefs in any
 translation unit that has already defined \fImacro\fR, the include guard of
-a legacy \fBdm_enums.h\fR declaring the same types.
+a legacy \fBdm_enums.h\fR declaring the same types. \fImacro\fR must be a
+C identifier.
 .TP
 .BI \-\-templates " " dir
 Use templates from the specified directory. Also configurable through

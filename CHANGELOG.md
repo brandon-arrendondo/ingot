@@ -16,8 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dm_enums.h`, `DataModel_PrintPersistentKeys()`, and header-name aliases
   (`dm_key_definitions.h`, `dm_*_storage.h`, and with `--emit-tinyfsm`
   `dm_key_events.h/.c`). Classes and keys accept an optional `name` for the
-  lowercase alias spelling. `--udm-enums-guard <MACRO>` defers the per-key
-  typedefs to a legacy `dm_enums.h` with that include guard.
+  lowercase alias spelling; a `name` may hold only letters, digits,
+  underscores and spaces. `--udm-enums-guard <MACRO>` defers the per-key
+  typedefs to a legacy `dm_enums.h` with that include guard. Generation fails
+  with an error naming both sources when two compat identifiers would be the
+  same, and a per-key typedef aliases a named enum that already declares its
+  constants.
 - `--emit-tinyfsm` also emits `dm_key_has_event.hpp`: `dm_key_has_event(key)`
   reports whether a key carries an event, and `dm_key_namespace(key)` with
   `DM_KEY_NS_LOCAL` lets a value-change callback drop this model's non-event

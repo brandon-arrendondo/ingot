@@ -149,7 +149,7 @@ void DataModel_PrintPersistentKeys(void)
 {%- elif e.is_string %}
     printf("%s =", "{{ e.define_name }}");
     for (size_t i = 0; i < sizeof(persistence_data.{{ e.field_name }}); i++) {
-        printf(" %02x", (unsigned) persistence_data.{{ e.field_name }}[i]);
+        printf(" %02x", (unsigned) (unsigned char) persistence_data.{{ e.field_name }}[i]);
     }
     printf("\n");
 {%- else %}

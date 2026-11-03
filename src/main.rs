@@ -50,7 +50,12 @@ struct Cli {
     /// With --udm-compat: include guard of a legacy dm_enums.h that already
     /// declares the per-key <PATH>_ENUM_T typedefs. The compat typedefs are
     /// skipped in any translation unit that has already included it.
-    #[arg(long, value_name = "MACRO", requires = "udm_compat")]
+    #[arg(
+        long,
+        value_name = "MACRO",
+        requires = "udm_compat",
+        value_parser = parse_c_identifier
+    )]
     udm_enums_guard: Option<String>,
 
     /// YAML file listing keys to include (whitelist); all others are excluded
@@ -198,6 +203,19 @@ fn codegen_options(cli: &Cli) -> codegen::CodegenOptions {
         emit_tinyfsm: cli.emit_tinyfsm,
         udm_compat: cli.udm_compat,
         udm_enums_guard: cli.udm_enums_guard.clone(),
+    }
+}
+
+/// Accept only a C identifier, since the value is pasted into `#ifndef`.
+fn parse_c_identifier(raw: &str) -> Result<String, String> {
+    let mut chars = raw.chars();
+    let starts_ok = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+    if starts_ok && chars.all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        Ok(raw.to_string())
+    } else {
+        Err(format!("'{raw}' is not a C identifier"))
     }
 }
 

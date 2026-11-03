@@ -1,0 +1,22 @@
+# A key `mode_off` beside enum key `mode` with value `off`: the bare-key alias
+# `P_ST_MODE_OFF` would rewrite the enumerator of the same name.
+[meta]
+id = "p"
+version = "1.0.0"
+
+[enums.power]
+[enums.power.values]
+off = 0
+on = 1
+
+[[classes]]
+id = "st"
+
+    [[classes.keys]]
+    id = "mode"
+    type = "uint8"
+    enum = "power"
+
+    [[classes.keys]]
+    id = "mode_off"
+    type = "bool"

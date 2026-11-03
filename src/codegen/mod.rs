@@ -5,8 +5,9 @@ pub mod target;
 pub mod yaml_manifest;
 
 use crate::model::key::KeyEncoding;
-use crate::model::schema::{Class, DataModel, DataType, KeyDef};
+use crate::model::schema::{Class, DataModel, DataType, EnumDef, KeyDef};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::Path;
 use tera::{Context, Tera};
 
@@ -144,6 +145,12 @@ pub fn generate(
 
     // Collect all key definitions
     let key_defs = collect_key_definitions(model, ns_id);
+
+    // The compat surface adds bare-key macros and per-key enum constants to
+    // the C namespace; refuse to emit headers whose names would clash.
+    if opts.udm_compat {
+        check_compat_identifiers(model, ns_id, &key_defs)?;
+    }
 
     // Generate key_definitions.h
     {
@@ -738,6 +745,11 @@ struct EnumTypeRenderable {
     max_macro: String,
     /// Named constants, ordered by value then name for deterministic output.
     values: Vec<EnumConstRenderable>,
+    /// `Some("<STEM>_T")` when the referenced named enum is itself called
+    /// `<class>_<key>`: its members already carry exactly these constant
+    /// names and values, so the compat type is a typedef of the named enum
+    /// rather than a second declaration of the same enumerators.
+    alias_of: Option<String>,
 }
 
 /// Map a key's storage type to the stdint `*_MAX` sentinel used for the
@@ -764,6 +776,20 @@ fn compat_enum_types(model: &DataModel, opts: &CodegenOptions) -> Vec<EnumTypeRe
     }
 }
 
+/// One key's `<PATH>_<VALUE>` constants, ordered by value then name.
+fn compat_enum_constants(prefix: &str, enum_def: &EnumDef) -> Vec<EnumConstRenderable> {
+    let mut values: Vec<EnumConstRenderable> = enum_def
+        .values
+        .iter()
+        .map(|(name, &value)| EnumConstRenderable {
+            name: format!("{prefix}_{}", name.to_uppercase().replace(' ', "_")),
+            value,
+        })
+        .collect();
+    values.sort_by(|a, b| a.value.cmp(&b.value).then(a.name.cmp(&b.name)));
+    values
+}
+
 /// Collect one `<PATH>_ENUM_T` typedef per enum-referencing key.
 ///
 /// The typedef and its constants are named after the *key's* path (not the
@@ -787,27 +813,109 @@ fn collect_enum_types(model: &DataModel) -> Vec<EnumTypeRenderable> {
 
             let key_name = key.id.to_uppercase().replace(' ', "_");
             let prefix = format!("{c_ns_name}_{class_name}_{key_name}");
-
-            let mut values: Vec<EnumConstRenderable> = enum_def
-                .values
-                .iter()
-                .map(|(name, &value)| EnumConstRenderable {
-                    name: format!("{prefix}_{}", name.to_uppercase().replace(' ', "_")),
-                    value,
-                })
-                .collect();
-            values.sort_by(|a, b| a.value.cmp(&b.value).then(a.name.cmp(&b.name)));
+            let named_stem = enums::enum_stem(enum_ref, &model.meta.id);
+            let alias_of = (named_stem == prefix).then(|| format!("{named_stem}_T"));
 
             out.push(EnumTypeRenderable {
+                alias_of,
                 type_name: format!("{prefix}_ENUM_T"),
                 max_macro: enum_max_macro(key.data_type).to_string(),
+                values: compat_enum_constants(&prefix, enum_def),
                 prefix,
-                values,
             });
         }
     }
 
     out
+}
+
+/// Every C identifier the `--udm-compat` output declares, mapped to the
+/// schema element that produced it, so two elements that would emit the same
+/// name are reported instead of producing a header that fails to compile (or,
+/// for a macro, silently rewrites another declaration).
+#[derive(Default)]
+struct IdentRegistry {
+    seen: HashMap<String, String>,
+    clashes: Vec<String>,
+}
+
+impl IdentRegistry {
+    fn add(&mut self, ident: String, origin: &str) {
+        if let Some(first) = self.seen.get(&ident) {
+            self.clashes
+                .push(format!("`{ident}` from {origin} clashes with {first}"));
+        } else {
+            self.seen.insert(ident, origin.to_string());
+        }
+    }
+
+    fn add_keys(&mut self, key_defs: &[KeyDefRenderable]) {
+        for k in key_defs {
+            let path = format!("key {}.{}.{}", k.namespace, k.class, k.name);
+            self.add(k.define_name.clone(), &path);
+            self.add(k.bare_name.clone(), &format!("bare-key alias of {path}"));
+        }
+    }
+
+    fn add_named_enums(&mut self, model: &DataModel) {
+        for e in enums::collect_enums(model) {
+            let origin = format!("enum {}", e.type_name);
+            self.add(e.type_name.clone(), &origin);
+            for m in e.members {
+                self.add(m.name, &origin);
+            }
+        }
+    }
+
+    fn add_compat_enums(&mut self, model: &DataModel) {
+        for e in collect_enum_types(model) {
+            let origin = format!("compat enum {}", e.type_name);
+            self.add(e.type_name.clone(), &origin);
+            self.add(format!("{}_MAX_STORAGE_VALUE", e.prefix), &origin);
+            if e.alias_of.is_none() {
+                for c in e.values {
+                    self.add(c.name, &origin);
+                }
+            }
+        }
+    }
+
+    fn add_helpers(&mut self, model: &DataModel, ns_id: u16) {
+        for h in collect_helpers(model, ns_id) {
+            let origin = format!("accessors of {}", h.define_name);
+            let mut verbs = vec!["Get"];
+            if !h.is_read_only {
+                verbs.push("Set");
+            }
+            for verb in verbs {
+                let upper = verb.to_uppercase();
+                self.add(format!("DataModel_{verb}_{}", h.helper_name), &origin);
+                self.add(format!("DATAMODEL_{upper}_{}", h.helper_name), &origin);
+                self.add(format!("DataModel_{verb}{}", h.orig_path), &origin);
+            }
+        }
+    }
+}
+
+/// Fail when the `--udm-compat` surface would declare one C identifier twice.
+fn check_compat_identifiers(
+    model: &DataModel,
+    ns_id: u16,
+    key_defs: &[KeyDefRenderable],
+) -> Result<(), String> {
+    let mut reg = IdentRegistry::default();
+    reg.add_keys(key_defs);
+    reg.add_named_enums(model);
+    reg.add_compat_enums(model);
+    reg.add_helpers(model, ns_id);
+    if reg.clashes.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "--udm-compat would declare the same C identifier twice; rename a key, \
+         class, enum value or `name` so these differ:\n  {}",
+        reg.clashes.join("\n  ")
+    ))
 }
 
 /// A persistence test entry for Unity test generation.

@@ -21,11 +21,16 @@ typedef enum {
 #ifndef {{ compat_guard }}
 {%- endif %}
 {% for e in compat_enums %}
+{%- if e.alias_of %}
+typedef {{ e.alias_of }} {{ e.type_name }};
+enum { {{ e.prefix }}_MAX_STORAGE_VALUE = {{ e.max_macro }} };
+{% else %}
 typedef enum {
 {% for c in e.values %}    {{ c.name }} = {{ c.value }},
 {% endfor %}    {{ e.prefix }}_MAX_STORAGE_VALUE = {{ e.max_macro }}
 } {{ e.type_name }};
-{% endfor %}
+{% endif %}
+{%- endfor %}
 {%- if compat_guard %}
 #endif /* {{ compat_guard }} */
 {%- endif %}

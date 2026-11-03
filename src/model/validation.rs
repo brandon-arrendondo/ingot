@@ -76,12 +76,54 @@ pub enum ValidationError {
         index: u16,
     },
 
+    #[error(
+        "{what} has name '{name}', which is not usable in a C identifier \
+         (use letters, digits, underscores or spaces)"
+    )]
+    InvalidName { what: String, name: String },
+
     #[error("duplicate key_index {index} in {namespace}.{class}")]
     DuplicateKeyIndex {
         namespace: String,
         class: String,
         index: u16,
     },
+}
+
+/// A display `name` becomes part of a C identifier (spaces map to `_`), so it
+/// may only hold ASCII letters, digits, underscores and spaces.
+fn is_identifier_fragment(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ' ')
+}
+
+fn validate_name(
+    errors: &mut Vec<ValidationError>,
+    what: impl FnOnce() -> String,
+    name: &Option<String>,
+) {
+    if let Some(name) = name {
+        if !is_identifier_fragment(name) {
+            errors.push(ValidationError::InvalidName {
+                what: what(),
+                name: name.clone(),
+            });
+        }
+    }
+}
+
+/// Check the optional display `name` of a class and each of its keys.
+fn validate_names(errors: &mut Vec<ValidationError>, ns: &str, class: &Class) {
+    validate_name(errors, || format!("class {ns}.{}", class.id), &class.name);
+    for key in &class.keys {
+        validate_name(
+            errors,
+            || format!("key {ns}.{}.{}", class.id, key.id),
+            &key.name,
+        );
+    }
 }
 
 fn validate_key(
@@ -215,6 +257,18 @@ fn validate_class(
     }
 }
 
+/// Each namespace holds at most 31 classes.
+fn check_class_counts(errors: &mut Vec<ValidationError>, counts: &HashMap<String, usize>) {
+    for (ns, count) in counts {
+        if *count > 31 {
+            errors.push(ValidationError::TooManyClasses {
+                namespace: ns.clone(),
+                count: *count,
+            });
+        }
+    }
+}
+
 pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
 
@@ -248,16 +302,10 @@ pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
             ns_class_indices.entry(ns.clone()).or_default(),
             &model.enums,
         );
+        validate_names(&mut errors, &ns, class);
     }
 
-    for (ns, count) in &ns_class_counts {
-        if *count > 31 {
-            errors.push(ValidationError::TooManyClasses {
-                namespace: ns.clone(),
-                count: *count,
-            });
-        }
-    }
+    check_class_counts(&mut errors, &ns_class_counts);
 
     if errors.is_empty() {
         Ok(())
@@ -400,5 +448,39 @@ enum = "nonexistent"
         assert!(errs
             .iter()
             .any(|e| matches!(e, ValidationError::UndefinedEnum { .. })));
+    }
+
+    #[test]
+    fn detect_invalid_display_name() {
+        let model = parse_model(
+            r#"
+[meta]
+id = "test"
+version = "1.0.0"
+
+[[classes]]
+id = "cfg"
+name = "Config"
+
+    [[classes.keys]]
+    id = "device_name"
+    name = "device-name x"
+    type = "uint8"
+"#,
+        );
+        let errors = validate(&model).unwrap_err();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(matches!(
+            &errors[0],
+            ValidationError::InvalidName { name, .. } if name == "device-name x"
+        ));
+    }
+
+    #[test]
+    fn identifier_fragment_accepts_letters_digits_underscores_spaces() {
+        assert!(is_identifier_fragment("deviceName"));
+        assert!(is_identifier_fragment("device name_2"));
+        assert!(!is_identifier_fragment(""));
+        assert!(!is_identifier_fragment("a-b"));
     }
 }

@@ -451,11 +451,106 @@ fn print_persistent_keys_bounds_strings_and_hex_dumps_binary() {
     assert_all(
         &read(&out.join("persistence_storage.c")),
         &[
-            "printf(\" %02x\", (unsigned) persistence_data.cfg_blob[i]);",
+            "printf(\" %02x\", (unsigned) (unsigned char) persistence_data.cfg_blob[i]);",
             "(int) sizeof(persistence_data.cfg_name), persistence_data.cfg_name);",
         ],
     );
     assert_compiles_file("cc", &out, &out.join("persistence_storage.c"));
 
     let _ = fs::remove_dir_all(&dir);
+}
+
+/// Run ingot expecting failure; return its stderr.
+fn run_ingot_failing(args: &[&str]) -> String {
+    let output = Command::new(env!("CARGO_BIN_EXE_ingot"))
+        .args(args)
+        .output()
+        .expect("spawn ingot");
+    assert!(!output.status.success(), "ingot accepted {args:?}");
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+/// A named enum called `<class>_<key>` already declares the per-key compat
+/// constants, so the compat type must alias it rather than redeclare them.
+#[test]
+fn udm_compat_full_example_compiles_as_c_and_cpp() {
+    let dir = unique_dir("full");
+    let out = dir.join("gen");
+    run_ingot(&[
+        "--model",
+        "examples/full.toml",
+        "--udm-compat",
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+
+    assert!(read(&out.join("dm_enums.h"))
+        .contains("typedef APPLIANCE_NETWORK_STATE_T APPLIANCE_NETWORK_STATE_ENUM_T;"));
+    for file in ["dm_helpers.c", "dm.c", "persistence_storage.c"] {
+        assert_compiles_file("cc", &out, &out.join(file));
+    }
+    let source = r#"
+#include "dm_helpers.h"
+
+int compat_check(void)
+{
+    APPLIANCE_NETWORK_STATE_ENUM_T s = APPLIANCE_NETWORK_STATE_DISCONNECTED;
+    return (int)s + (int)APPLIANCE_NETWORK_STATE_MAX_STORAGE_VALUE;
+}
+"#;
+    assert_compiles("cc", "c", &out, source);
+    assert_compiles("c++", "cpp", &out, source);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn udm_compat_rejects_bare_key_clashing_with_enum_constant() {
+    let dir = unique_dir("clash_bare");
+    let stderr = run_ingot_failing(&[
+        "--model",
+        &format!("{FIXTURES}/clash_bare_key.toml"),
+        "--udm-compat",
+        "--output",
+        dir.join("gen").to_str().unwrap(),
+    ]);
+    assert!(stderr.contains("`P_ST_MODE_OFF`"), "{stderr}");
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn udm_compat_rejects_duplicate_accessor_alias() {
+    let dir = unique_dir("clash_name");
+    let stderr = run_ingot_failing(&[
+        "--model",
+        &format!("{FIXTURES}/clash_name.toml"),
+        "--udm-compat",
+        "--output",
+        dir.join("gen").to_str().unwrap(),
+    ]);
+    assert!(stderr.contains("`DataModel_Getp_cfg_value`"), "{stderr}");
+
+    // Without the compat surface the aliases are never emitted, so the
+    // model still generates.
+    run_ingot(&[
+        "--model",
+        &format!("{FIXTURES}/clash_name.toml"),
+        "--output",
+        dir.join("plain").to_str().unwrap(),
+    ]);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn udm_enums_guard_must_be_a_c_identifier() {
+    let stderr = run_ingot_failing(&[
+        "--model",
+        "examples/battery.toml",
+        "--udm-compat",
+        "--udm-enums-guard",
+        "NOT A-MACRO",
+    ]);
+    assert!(stderr.contains("not a C identifier"), "{stderr}");
 }
