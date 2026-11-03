@@ -8,12 +8,12 @@ From Source
 
     cargo install --path .
 
-From crates.io (When Published)
--------------------------------
+From crates.io
+--------------
 
 ::
 
-    cargo install ingot
+    cargo install ingot-db
 
 Prerequisites
 -------------

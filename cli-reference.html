@@ -114,6 +114,39 @@ into a single data model.</p></td>
 </section>
 <section id="output-target">
 <h2>Output &amp; Target<a class="headerlink" href="#output-target" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-o,</span> <span class="pre">--output</span> <span class="pre">&lt;DIR&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">generated/</span></code></p></td>
+<td><p>Output directory for generated code</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-t,</span> <span class="pre">--target</span> <span class="pre">&lt;T&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">linux64</span></code></p></td>
+<td><p>Target platform (see below)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--no-events</span></code></p></td>
+<td><p>off</p></td>
+<td><p>Disable event callback generation</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--emit-tinyfsm</span></code></p></td>
+<td><p>off</p></td>
+<td><p>Emit C++/tinyfsm event types and dispatch</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--templates</span> <span class="pre">&lt;DIR&gt;</span></code></p></td>
+<td><p>auto</p></td>
+<td><p>Override template directory</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">--templates</span></code> also accepts the <code class="docutils literal notranslate"><span class="pre">INGOT_TEMPLATES_DIR</span></code> environment variable.
+<code class="docutils literal notranslate"><span class="pre">--emit-tinyfsm</span></code> applies only to C targets. It emits additive C++ headers and
+source for consumers using tinyfsm.</p>
 </section>
 <section id="key-filtering">
 <h2>Key Filtering<a class="headerlink" href="#key-filtering" title="Link to this heading"></a></h2>
@@ -168,6 +201,20 @@ and merges variant enum values from
 </section>
 <section id="verbosity">
 <h2>Verbosity<a class="headerlink" href="#verbosity" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-v</span></code> / <code class="docutils literal notranslate"><span class="pre">-vv</span></code> / <code class="docutils literal notranslate"><span class="pre">-vvv</span></code></p></td>
+<td><p>warn</p></td>
+<td><p>Verbosity: info / debug / trace</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="targets">
 <h2>Targets<a class="headerlink" href="#targets" title="Link to this heading"></a></h2>
@@ -205,10 +252,20 @@ and merges variant enum values from
 <td><p>pthread mutex</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">PTHREAD_MUTEX_INITIALIZER</span></code></p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rust</span></code></p></td>
+<td><p>no_std Rust module</p></td>
+<td><p>Caller-managed</p></td>
+<td><p>Generates <code class="docutils literal notranslate"><span class="pre">dm.rs</span></code></p></td>
+</tr>
 </tbody>
 </table>
 <p>Thread-safe keys are protected by the target’s mutex mechanism. Keys without
 <code class="docutils literal notranslate"><span class="pre">thread_safe</span> <span class="pre">=</span> <span class="pre">true</span></code> bypass locking entirely.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">rust</span></code> target generates a standalone no_std Rust module using static
+perfect-hash storage. It provides named accessors, scalar access by encoded
+key, and <code class="docutils literal notranslate"><span class="pre">PERSISTENT_KEYS</span></code> metadata. Persistence I/O and mutex handling are
+left to the consumer. C-only options such as <code class="docutils literal notranslate"><span class="pre">--no-events</span></code> and
+<code class="docutils literal notranslate"><span class="pre">--emit-tinyfsm</span></code> have no effect for Rust.</p>
 </section>
 <section id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h2>

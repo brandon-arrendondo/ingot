@@ -20,13 +20,23 @@ Option                                Description
 Output & Target
 ---------------
 
-======================  ============  ==========================================
-Option                  Default       Description
-======================  ============  ==========================================
-``-o, --output <DIR>``  ``generated/``  Output directory for generated C code
-``-t, --target <T>``    ``linux64``   Target platform (see below)
-``--no-events``         off           Disable event callback generation
-======================  ============  ==========================================
++------------------------+----------------+--------------------------------------------------+
+| Option                 | Default        | Description                                      |
++========================+================+==================================================+
+| ``-o, --output <DIR>`` | ``generated/`` | Output directory for generated code              |
++------------------------+----------------+--------------------------------------------------+
+| ``-t, --target <T>``   | ``linux64``    | Target platform (see below)                      |
++------------------------+----------------+--------------------------------------------------+
+| ``--no-events``        | off            | Disable event callback generation                |
++------------------------+----------------+--------------------------------------------------+
+| ``--emit-tinyfsm``     | off            | Emit C++/tinyfsm event types and dispatch        |
++------------------------+----------------+--------------------------------------------------+
+| ``--templates <DIR>``  | auto           | Override template directory                      |
++------------------------+----------------+--------------------------------------------------+
+
+``--templates`` also accepts the ``INGOT_TEMPLATES_DIR`` environment variable.
+``--emit-tinyfsm`` applies only to C targets. It emits additive C++ headers and
+source for consumers using tinyfsm.
 
 Key Filtering
 -------------
@@ -66,11 +76,11 @@ Option                     Description
 Verbosity
 ---------
 
-=========================  ============  ==========================================
-Option                     Default       Description
-=========================  ============  ==========================================
-``-v`` / ``-vv`` / ``-vvv``  warn       Verbosity: info / debug / trace
-=========================  ============  ==========================================
++-----------------------------+---------+----------------------------------+
+| Option                      | Default | Description                      |
++=============================+=========+==================================+
+| ``-v`` / ``-vv`` / ``-vvv`` | warn    | Verbosity: info / debug / trace  |
++-----------------------------+---------+----------------------------------+
 
 
 Targets
@@ -84,10 +94,17 @@ Value            Platform            Mutex                 Notes
 ``esp-riscv``    ESP32 RISC-V        FreeRTOS semaphore    ``xSemaphoreTake``/``Give``
 ``mcu8bit``      8-bit MCU           None (bare-metal)     1-byte alignment, 16-bit pointers
 ``linux64``      64-bit Linux        pthread mutex         ``PTHREAD_MUTEX_INITIALIZER``
+``rust``         no_std Rust module  Caller-managed        Generates ``dm.rs``
 ===============  ==================  ====================  ==============================
 
 Thread-safe keys are protected by the target's mutex mechanism. Keys without
 ``thread_safe = true`` bypass locking entirely.
+
+The ``rust`` target generates a standalone no_std Rust module using static
+perfect-hash storage. It provides named accessors, scalar access by encoded
+key, and ``PERSISTENT_KEYS`` metadata. Persistence I/O and mutex handling are
+left to the consumer. C-only options such as ``--no-events`` and
+``--emit-tinyfsm`` have no effect for Rust.
 
 
 Examples
