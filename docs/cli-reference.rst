@@ -107,8 +107,8 @@ Variant Overrides
 Option                     Description
 =========================  ==========================================
 ``--variant <NAME>``       Product variant for per-variant default
-                           overrides (e.g. ``peabodyv0``,
-                           ``omnidrive_v2``). Applies variant-specific
+                           overrides (e.g. ``variant_a``,
+                           ``variant_b_v2``). Applies variant-specific
                            defaults from ``[classes.keys.defaults]``
                            and merges variant enum values from
                            ``[enums.*.variants.*]``.
@@ -174,4 +174,4 @@ Apply per-key property overrides::
 
 Generate for a specific product variant::
 
-    ingot -m models/ --variant peabodyv0 -o gen/
+    ingot -m models/ --variant variant_a -o gen/

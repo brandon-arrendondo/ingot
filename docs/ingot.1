@@ -161,7 +161,7 @@ Overrides the default value for matching keys.
 .TP
 .BI \-\-variant " " name
 Product variant name for per-variant default overrides (e.g.
-\fBpeabodyv0\fR, \fBomnidrive_v2\fR).
+\fBvariant_a\fR, \fBvariant_b_v2\fR).
 For each key with a \fBdefaults[variant]\fR entry, the base default is
 replaced with the variant-specific value.
 For each enum with a \fBvariants[variant]\fR entry, the variant's values
@@ -284,7 +284,7 @@ Generate for a specific product variant:
 .PP
 .RS
 .nf
-ingot -m models/ --variant peabodyv0 -o gen/
+ingot -m models/ --variant variant_a -o gen/
 .fi
 .RE
 .PP

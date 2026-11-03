@@ -60,7 +60,7 @@ docs/                  - User guide and manpage
 - `invoke check` runs formatting, Clippy with warnings denied, the coverage gate, and the knots complexity hook
 - Commit messages follow conventional format
 - CHANGELOG.md uses keepachangelog format
-- PLAN.md tracks roadmap tasks
+- The repository keeps no task tracker; branch, commit and open a PR as normal
 
 ## Key Architecture Decisions
 

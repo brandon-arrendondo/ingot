@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `enum = "..."` get enum-typed accessor methods (`from_raw`/`to_raw`
   convert to/from the underlying storage type) instead of the raw integer.
 
+### Changed
+- The example variant names in `examples/battery.toml` and the CLI
+  documentation are now `variant_a`, `variant_b_v2` and `variant_c`. Pass
+  those names to `--variant` when generating from the example.
+
 ### Fixed
 - `--target rust`: generic by-key setters reject writes to keys marked
   `read_only`, matching the C target's behavior.

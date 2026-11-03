@@ -74,7 +74,7 @@ struct Cli {
     #[arg(long)]
     property_override_list: Option<PathBuf>,
 
-    /// Product variant for per-variant default overrides (e.g. peabodyv0, omnidrive_v2)
+    /// Product variant for per-variant default overrides (e.g. variant_a, variant_b_v2)
     #[arg(long)]
     variant: Option<String>,
 
