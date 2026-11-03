@@ -40,23 +40,23 @@ struct Cli {
     #[arg(long)]
     emit_tinyfsm: bool,
 
-    /// Emit the UDM-shaped C compatibility surface (additive, opt-in): uppercase
+    /// Emit the DM-shaped C compatibility surface (additive, opt-in): uppercase
     /// DATAMODEL_GET/SET_<PATH> aliases, lowercase DataModel_{Get,Set}<path>
     /// aliases, bare-key `#define <PATH> DM_KEY_<PATH>` constants, per-key
     /// <PATH>_ENUM_T typedefs, and legacy header-name aliases. C targets only.
     #[arg(long)]
-    udm_compat: bool,
+    dm_compat: bool,
 
-    /// With --udm-compat: include guard of a legacy dm_enums.h that already
+    /// With --dm-compat: include guard of a legacy dm_enums.h that already
     /// declares the per-key <PATH>_ENUM_T typedefs. The compat typedefs are
     /// skipped in any translation unit that has already included it.
     #[arg(
         long,
         value_name = "MACRO",
-        requires = "udm_compat",
+        requires = "dm_compat",
         value_parser = parse_c_identifier
     )]
-    udm_enums_guard: Option<String>,
+    dm_enums_guard: Option<String>,
 
     /// YAML file listing keys to include (whitelist); all others are excluded
     #[arg(long)]
@@ -201,8 +201,8 @@ fn codegen_options(cli: &Cli) -> codegen::CodegenOptions {
     codegen::CodegenOptions {
         no_events: cli.no_events,
         emit_tinyfsm: cli.emit_tinyfsm,
-        udm_compat: cli.udm_compat,
-        udm_enums_guard: cli.udm_enums_guard.clone(),
+        dm_compat: cli.dm_compat,
+        dm_enums_guard: cli.dm_enums_guard.clone(),
     }
 }
 
@@ -237,7 +237,7 @@ fn warn_c_only_flags(cli: &Cli) {
     let flags = [
         (cli.emit_tinyfsm, "--emit-tinyfsm"),
         (cli.no_events, "--no-events"),
-        (cli.udm_compat, "--udm-compat"),
+        (cli.dm_compat, "--dm-compat"),
     ];
     for (_, flag) in flags.iter().filter(|(set, _)| *set) {
         log::warn!("{flag} has no effect for --target rust (C targets only)");
@@ -254,7 +254,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     let mut data_model = load_models(&cli.model)?;
 
     // Stamp original key positions before filtering so encoded IDs survive
-    // include/exclude list pruning (matching gen_udm_code behaviour).
+    // include/exclude list pruning (matching gen_dm_code behaviour).
     for class in &mut data_model.classes {
         for (i, key) in class.keys.iter_mut().enumerate() {
             if key.key_index.is_none() {

@@ -25,13 +25,13 @@ pub struct CodegenOptions {
     pub no_events: bool,
     /// Emit C++/tinyfsm event structs + dispatch-by-key wrapper.
     pub emit_tinyfsm: bool,
-    /// Emit the UDM-shaped compatibility surface (macros, accessors, bare-key
+    /// Emit the DM-shaped compatibility surface (macros, accessors, bare-key
     /// constants, per-key enum typedefs, legacy header aliases).
-    pub udm_compat: bool,
+    pub dm_compat: bool,
     /// Include guard of a legacy `dm_enums.h` that already declares the
-    /// per-key enum typedefs. When set, the UDM-compat enum block is skipped
+    /// per-key enum typedefs. When set, the DM-compat enum block is skipped
     /// in any translation unit that has already included that header.
-    pub udm_enums_guard: Option<String>,
+    pub dm_enums_guard: Option<String>,
 }
 
 /// A key definition ready for template rendering.
@@ -42,7 +42,7 @@ pub struct KeyDefRenderable {
     pub name: String,
     pub define_name: String,
     /// The `DM_KEY_`-less uppercase path (e.g. "APPLIANCE_STATUS_MODE"), used
-    /// for the `--udm-compat` bare-key `#define <PATH> DM_KEY_<PATH>` alias.
+    /// for the `--dm-compat` bare-key `#define <PATH> DM_KEY_<PATH>` alias.
     pub bare_name: String,
     pub hex_value: String,
     pub type_name: String,
@@ -148,7 +148,7 @@ pub fn generate(
 
     // The compat surface adds bare-key macros and per-key enum constants to
     // the C namespace; refuse to emit headers whose names would clash.
-    if opts.udm_compat {
+    if opts.dm_compat {
         check_compat_identifiers(model, ns_id, &key_defs)?;
     }
 
@@ -156,7 +156,7 @@ pub fn generate(
     {
         let mut ctx = version_context(version);
         ctx.insert("keys", &key_defs);
-        ctx.insert("udm_compat", &opts.udm_compat);
+        ctx.insert("dm_compat", &opts.dm_compat);
         render_files(&tera, &ctx, output_dir, &["key_definitions.h"])?;
         log::info!("Generated key_definitions.h ({} keys)", key_defs.len());
     }
@@ -177,11 +177,11 @@ pub fn generate(
         log::info!("Generated jenkins_hash.h/.c");
     }
 
-    // Generate dm_key.h (under --udm-compat, with the legacy
+    // Generate dm_key.h (under --dm-compat, with the legacy
     // DATA_MODEL_KEY_TYPE_* compile-time aliases onto DM_KEY_TYPE_*).
     {
         let mut ctx = version_context(version);
-        ctx.insert("udm_compat", &opts.udm_compat);
+        ctx.insert("dm_compat", &opts.dm_compat);
         render_files(&tera, &ctx, output_dir, &["dm_key.h"])?;
         log::info!("Generated dm_key.h");
     }
@@ -196,7 +196,7 @@ pub fn generate(
     }
 
     // Generate dm_enums.h (only when the model defines named enums). Under
-    // --udm-compat it also carries one <PATH>_ENUM_T typedef per enum-typed
+    // --dm-compat it also carries one <PATH>_ENUM_T typedef per enum-typed
     // key; such a key always references a named enum, so the file exists
     // whenever there is a compat typedef to put in it.
     let enum_defs = enums::collect_enums(model);
@@ -204,7 +204,7 @@ pub fn generate(
         let mut ctx = version_context(version);
         ctx.insert("enums", &enum_defs);
         ctx.insert("compat_enums", &compat_enum_types(model, &opts));
-        ctx.insert("compat_guard", &opts.udm_enums_guard);
+        ctx.insert("compat_guard", &opts.dm_enums_guard);
         render_files(&tera, &ctx, output_dir, &["dm_enums.h"])?;
         log::info!("Generated dm_enums.h ({} enum(s))", enum_defs.len());
     }
@@ -275,20 +275,20 @@ pub fn generate(
     if let Some(ref ps) = persist_storage {
         let mut ctx = version_context(version);
         ctx.insert("persistence", ps);
-        ctx.insert("udm_compat", &opts.udm_compat);
+        ctx.insert("dm_compat", &opts.dm_compat);
         let names = ["persistence_storage.h", "persistence_storage.c"];
         render_files(&tera, &ctx, output_dir, &names)?;
         log::info!("Generated persistence_storage.h/.c ({} keys)", ps.num_keys);
     }
 
-    // --- Generate the UDM-compat header-name aliases ---
+    // --- Generate the DM-compat header-name aliases ---
     let present = [
         bool_storage.is_some(),
         !int_storages.is_empty(),
         str_storage.is_some(),
         persist_storage.is_some(),
     ];
-    generate_udm_compat_aliases(&tera, version, &opts, present, output_dir)?;
+    generate_dm_compat_aliases(&tera, version, &opts, present, output_dir)?;
 
     // --- Generate dm.h / dm.c (main API layer) ---
     {
@@ -334,7 +334,7 @@ pub fn generate(
             ctx.insert("helpers", &helpers);
             ctx.insert("has_string_helpers", &has_string_helpers);
             ctx.insert("has_enum_helpers", &has_enum_helpers);
-            ctx.insert("udm_compat", &opts.udm_compat);
+            ctx.insert("dm_compat", &opts.dm_compat);
             let names: &[&str] = if has_string_helpers {
                 &["dm_helpers.h", "dm_helpers.c"]
             } else {
@@ -371,8 +371,8 @@ pub fn generate(
 }
 
 /// Emit the opt-in event artifacts: the tinyfsm headers under
-/// `--emit-tinyfsm`, plus the UDM-compat `dm_key_events.h/.c` alias when
-/// `--udm-compat` is also set and there is a dispatch table to forward to.
+/// `--emit-tinyfsm`, plus the DM-compat `dm_key_events.h/.c` alias when
+/// `--dm-compat` is also set and there is a dispatch table to forward to.
 fn generate_event_artifacts(
     tera: &Tera,
     version: &str,
@@ -385,7 +385,7 @@ fn generate_event_artifacts(
         return Ok(());
     }
     let emitted = generate_tinyfsm_events(tera, version, key_defs, ns_id, output_dir)?;
-    if opts.udm_compat && emitted {
+    if opts.dm_compat && emitted {
         let ctx = version_context(version);
         render_files(
             tera,
@@ -393,7 +393,7 @@ fn generate_event_artifacts(
             output_dir,
             &["dm_key_events.h", "dm_key_events.c"],
         )?;
-        log::info!("Generated dm_key_events.h/.c (UDM-compat send_dm_key_event alias)");
+        log::info!("Generated dm_key_events.h/.c (DM-compat send_dm_key_event alias)");
     }
     Ok(())
 }
@@ -443,17 +443,17 @@ fn generate_tinyfsm_events(
     Ok(true)
 }
 
-/// Emit the UDM-compat headers that only repoint a legacy UDM filename to
+/// Emit the DM-compat headers that only repoint a legacy DM filename to
 /// ingot's own header. `present` flags whether boolean, integer, string, and
 /// persistence storage were generated; each storage alias follows its header.
-fn generate_udm_compat_aliases(
+fn generate_dm_compat_aliases(
     tera: &Tera,
     version: &str,
     opts: &CodegenOptions,
     present: [bool; 4],
     output_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if !opts.udm_compat {
+    if !opts.dm_compat {
         return Ok(());
     }
     let storage_aliases = [
@@ -471,7 +471,7 @@ fn generate_udm_compat_aliases(
         )
         .collect();
     render_files(tera, &version_context(version), output_dir, &names)?;
-    log::info!("Generated UDM-compat header aliases: {}", names.join(", "));
+    log::info!("Generated DM-compat header aliases: {}", names.join(", "));
     Ok(())
 }
 
@@ -479,7 +479,7 @@ fn generate_udm_compat_aliases(
 /// the `event = true` keys.
 ///
 /// The FSM event struct name mirrors the key #define with the `DM_KEY_`
-/// prefix swapped for `FSM_EVENT_`, matching the UDM generator's naming so
+/// prefix swapped for `FSM_EVENT_`, matching the DM generator's naming so
 /// ingot is a drop-in replacement.
 fn collect_event_keys(
     key_defs: &[KeyDefRenderable],
@@ -615,7 +615,7 @@ struct HelperEntry {
     /// Helper function suffix, uppercased path (e.g. "BATTERY_STATUS_VOLTAGE")
     helper_name: String,
     /// Original-case path (e.g. "battery_status_voltage" / "local_config_deviceName"),
-    /// used for the `--udm-compat` lowercase `DataModel_{Get,Set}<path>` symbol alias.
+    /// used for the `--dm-compat` lowercase `DataModel_{Get,Set}<path>` symbol alias.
     orig_path: String,
     /// C type for the value (e.g. "uint16_t", "bool")
     c_type: String,
@@ -630,17 +630,17 @@ struct HelperEntry {
     is_enum: bool,
     /// Raw integer C type backing an enum-typed key (unused otherwise).
     storage_c_type: String,
-    /// `Some("<PATH>_ENUM_T")` for an enum-typed key. Under `--udm-compat`,
+    /// `Some("<PATH>_ENUM_T")` for an enum-typed key. Under `--dm-compat`,
     /// `DATAMODEL_GET_<PATH>` is then a `static inline` wrapper returning that
     /// per-key typedef, because C++ will not implicitly convert between enum
     /// types. Must match the names `collect_enum_types` emits.
     enum_type_name: Option<String>,
 }
 
-/// Original-case `<ns>_<class>_<key>` path for the UDM-compat lowercase
+/// Original-case `<ns>_<class>_<key>` path for the DM-compat lowercase
 /// accessor alias.
 ///
-/// A UDM catalog authors a lowercase `id` plus a mixed-case display `name`;
+/// A DM catalog authors a lowercase `id` plus a mixed-case display `name`;
 /// the alias uses the display names, falling back to `id`, so camelCase
 /// segments survive (e.g. `DataModel_Getlocal_config_deviceName`). The
 /// uppercase C surface derives from `id` independently.
@@ -753,7 +753,7 @@ struct EnumTypeRenderable {
 }
 
 /// Map a key's storage type to the stdint `*_MAX` sentinel used for the
-/// generated enum's `_MAX_STORAGE_VALUE` guard (mirrors the UDM emitter).
+/// generated enum's `_MAX_STORAGE_VALUE` guard (mirrors the DM emitter).
 fn enum_max_macro(data_type: DataType) -> &'static str {
     match data_type {
         DataType::Bool | DataType::Uint8 => "UINT8_MAX",
@@ -767,9 +767,9 @@ fn enum_max_macro(data_type: DataType) -> &'static str {
     }
 }
 
-/// The per-key compat enum typedefs, or none unless `--udm-compat` is set.
+/// The per-key compat enum typedefs, or none unless `--dm-compat` is set.
 fn compat_enum_types(model: &DataModel, opts: &CodegenOptions) -> Vec<EnumTypeRenderable> {
-    if opts.udm_compat {
+    if opts.dm_compat {
         collect_enum_types(model)
     } else {
         Vec::new()
@@ -793,7 +793,7 @@ fn compat_enum_constants(prefix: &str, enum_def: &EnumDef) -> Vec<EnumConstRende
 /// Collect one `<PATH>_ENUM_T` typedef per enum-referencing key.
 ///
 /// The typedef and its constants are named after the *key's* path (not the
-/// enum domain), matching the UDM generator: the same `[enums.*]` domain
+/// enum domain), matching the DM generator: the same `[enums.*]` domain
 /// referenced by two keys yields two distinct typedefs. Constant values are
 /// emitted verbatim from the schema (Data Quality — they are wire-semantic).
 fn collect_enum_types(model: &DataModel) -> Vec<EnumTypeRenderable> {
@@ -829,7 +829,7 @@ fn collect_enum_types(model: &DataModel) -> Vec<EnumTypeRenderable> {
     out
 }
 
-/// Every C identifier the `--udm-compat` output declares, mapped to the
+/// Every C identifier the `--dm-compat` output declares, mapped to the
 /// schema element that produced it, so two elements that would emit the same
 /// name are reported instead of producing a header that fails to compile (or,
 /// for a macro, silently rewrites another declaration).
@@ -897,7 +897,7 @@ impl IdentRegistry {
     }
 }
 
-/// Fail when the `--udm-compat` surface would declare one C identifier twice.
+/// Fail when the `--dm-compat` surface would declare one C identifier twice.
 fn check_compat_identifiers(
     model: &DataModel,
     ns_id: u16,
@@ -912,7 +912,7 @@ fn check_compat_identifiers(
         return Ok(());
     }
     Err(format!(
-        "--udm-compat would declare the same C identifier twice; rename a key, \
+        "--dm-compat would declare the same C identifier twice; rename a key, \
          class, enum value or `name` so these differ:\n  {}",
         reg.clashes.join("\n  ")
     ))

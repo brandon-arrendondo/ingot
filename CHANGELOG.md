@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `--udm-compat` (C targets, opt-in, additive): emits the legacy UDM-shaped C
-  API as aliases over ingot's store, so code written against UDM compiles
+- `--dm-compat` (C targets, opt-in, additive): emits the legacy DM-shaped C
+  API as aliases over ingot's store, so code written against DM compiles
   unchanged. Adds `DATAMODEL_GET/SET_<PATH>` and lowercase
   `DataModel_{Get,Set}<path>` aliases, bare-key `#define <PATH>` constants,
   `DATA_MODEL_KEY_TYPE_*` aliases, per-key `<PATH>_ENUM_T` typedefs in
@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`dm_key_definitions.h`, `dm_*_storage.h`, and with `--emit-tinyfsm`
   `dm_key_events.h/.c`). Classes and keys accept an optional `name` for the
   lowercase alias spelling; a `name` may hold only letters, digits,
-  underscores and spaces. `--udm-enums-guard <MACRO>` defers the per-key
+  underscores and spaces. `--dm-enums-guard <MACRO>` defers the per-key
   typedefs to a legacy `dm_enums.h` with that include guard. Generation fails
   with an error naming both sources when two compat identifiers would be the
   same, and a per-key typedef aliases a named enum that already declares its
@@ -157,7 +157,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - dm_full.yaml manifest generation: YAML dump of resolved data model for downstream tools
 - Tera template infrastructure (14 templates: dm, dm_key, dm_namespace_definitions, dm_helpers, integer_storage, boolean_storage, string_storage, jenkins_hash, key_definitions)
-- Example data models: minimal.toml (5 keys), battery.toml (18 keys, port of UDM)
+- Example data models: minimal.toml (5 keys), battery.toml (18 keys)
 - 32-bit key encoding/decoding with bitfield layout
 - Target abstraction for STM32, ESP32 (Xtensa/RISC-V), 8-bit MCU, Linux64
 - CLI with --model, --output, --target, --verbose options

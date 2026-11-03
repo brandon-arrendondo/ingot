@@ -1,4 +1,4 @@
-//! Integration tests for `--udm-compat`, the UDM-shaped C compatibility API.
+//! Integration tests for `--dm-compat`, the DM-shaped C compatibility API.
 //!
 //! Over a two-namespace fixture with enums, assert that ingot emits every
 //! compat form: uppercase `DATAMODEL_{GET,SET}_<PATH>` aliases, lowercase
@@ -8,7 +8,7 @@
 //! header-name aliases. With the flag off, none of these appear (byte
 //! identity of the default output is covered by `codegen_determinism.rs`).
 //!
-//! Fixtures live in `tests/fixtures/udm_compat/`:
+//! Fixtures live in `tests/fixtures/dm_compat/`:
 //!
 //! - `alpha.toml`: uint8 enum `mode` with a camelCase value `wetAndDry`
 //!   (renders `WETANDDRY`) and a snake_case value `night_mode` (keeps its
@@ -25,11 +25,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const FIXTURES: &str = "tests/fixtures/udm_compat";
+const FIXTURES: &str = "tests/fixtures/dm_compat";
 
 /// Create a fresh, uniquely-named temp directory for one test.
 fn unique_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("ingot_udm_compat_{tag}_{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("ingot_dm_compat_{tag}_{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create temp dir");
     dir
@@ -101,9 +101,9 @@ fn assert_all(text: &str, needles: &[&str]) {
 }
 
 #[test]
-fn udm_compat_emits_uppercase_accessor_aliases() {
+fn dm_compat_emits_uppercase_accessor_aliases() {
     let dir = unique_dir("upper");
-    let out = generate(&dir, &["--udm-compat"]);
+    let out = generate(&dir, &["--dm-compat"]);
     let helpers = read(&out.join("dm_helpers.h"));
 
     // Plain bool/int keys get an object-like macro so a caller can take the
@@ -140,9 +140,9 @@ fn udm_compat_emits_uppercase_accessor_aliases() {
 }
 
 #[test]
-fn udm_compat_emits_lowercase_aliases_with_display_names() {
+fn dm_compat_emits_lowercase_aliases_with_display_names() {
     let dir = unique_dir("lower");
-    let out = generate(&dir, &["--udm-compat"]);
+    let out = generate(&dir, &["--dm-compat"]);
     let helpers = read(&out.join("dm_helpers.h"));
 
     assert_all(
@@ -166,9 +166,9 @@ DATAMODEL_GET_ALPHA_DEVICECFG_VERSIONNUMBER",
 }
 
 #[test]
-fn udm_compat_emits_bare_keys_and_enum_typedefs() {
+fn dm_compat_emits_bare_keys_and_enum_typedefs() {
     let dir = unique_dir("keys_enums");
-    let out = generate(&dir, &["--udm-compat"]);
+    let out = generate(&dir, &["--dm-compat"]);
 
     assert_all(
         &read(&out.join("key_definitions.h")),
@@ -203,16 +203,16 @@ fn udm_compat_emits_bare_keys_and_enum_typedefs() {
     assert_eq!(
         enums.matches("#ifndef").count(),
         1,
-        "no extra guard without --udm-enums-guard:\n{enums}"
+        "no extra guard without --dm-enums-guard:\n{enums}"
     );
 
     let _ = fs::remove_dir_all(&dir);
 }
 
 #[test]
-fn udm_compat_emits_header_aliases_and_persistent_dump() {
+fn dm_compat_emits_header_aliases_and_persistent_dump() {
     let dir = unique_dir("aliases");
-    let out = generate(&dir, &["--udm-compat"]);
+    let out = generate(&dir, &["--dm-compat"]);
 
     for (alias, target) in [
         ("dm_key_definitions.h", "key_definitions.h"),
@@ -240,9 +240,9 @@ fn udm_compat_emits_header_aliases_and_persistent_dump() {
 }
 
 #[test]
-fn udm_compat_surface_compiles_as_c_and_cpp() {
+fn dm_compat_surface_compiles_as_c_and_cpp() {
     let dir = unique_dir("compile");
-    let out = generate(&dir, &["--udm-compat"]);
+    let out = generate(&dir, &["--dm-compat"]);
 
     let source = r#"
 #include "dm_helpers.h"
@@ -268,11 +268,11 @@ int compat_check(void)
 }
 
 #[test]
-fn udm_enums_guard_wraps_only_the_compat_typedefs() {
+fn dm_enums_guard_wraps_only_the_compat_typedefs() {
     let dir = unique_dir("guard");
     let out = generate(
         &dir,
-        &["--udm-compat", "--udm-enums-guard", "LEGACY_DM_ENUMS_H"],
+        &["--dm-compat", "--dm-enums-guard", "LEGACY_DM_ENUMS_H"],
     );
 
     let enums = read(&out.join("dm_enums.h"));
@@ -291,12 +291,12 @@ fn udm_enums_guard_wraps_only_the_compat_typedefs() {
 }
 
 #[test]
-fn udm_enums_guard_requires_udm_compat() {
+fn dm_enums_guard_requires_dm_compat() {
     let status = Command::new(env!("CARGO_BIN_EXE_ingot"))
         .args([
             "--model",
             "examples/battery.toml",
-            "--udm-enums-guard",
+            "--dm-enums-guard",
             "X_H",
         ])
         .output()
@@ -305,9 +305,9 @@ fn udm_enums_guard_requires_udm_compat() {
 }
 
 #[test]
-fn udm_compat_with_tinyfsm_emits_send_dm_key_event() {
+fn dm_compat_with_tinyfsm_emits_send_dm_key_event() {
     let dir = unique_dir("events");
-    let out = generate(&dir, &["--udm-compat", "--emit-tinyfsm"]);
+    let out = generate(&dir, &["--dm-compat", "--emit-tinyfsm"]);
 
     assert_all(
         &read(&out.join("dm_key_events.h")),
@@ -358,7 +358,7 @@ int check(void)
 }
 
 #[test]
-fn without_flag_no_udm_compat_surface_is_emitted() {
+fn without_flag_no_dm_compat_surface_is_emitted() {
     let dir = unique_dir("off");
     let out = generate(&dir, &[]);
 
@@ -366,7 +366,7 @@ fn without_flag_no_udm_compat_surface_is_emitted() {
     for needle in ["DATAMODEL_GET_", "DATAMODEL_SET_", "DataModel_Getalpha_"] {
         assert!(
             !helpers.contains(needle),
-            "`{needle}` must not appear without --udm-compat"
+            "`{needle}` must not appear without --dm-compat"
         );
     }
 
@@ -392,7 +392,7 @@ fn without_flag_no_udm_compat_surface_is_emitted() {
     ] {
         assert!(
             !out.join(alias).exists(),
-            "{alias} must not be emitted without --udm-compat"
+            "{alias} must not be emitted without --dm-compat"
         );
     }
 
@@ -401,9 +401,9 @@ fn without_flag_no_udm_compat_surface_is_emitted() {
 
 /// Storage aliases follow their canonical header: no bool keys, no alias.
 #[test]
-fn udm_compat_skips_boolean_storage_alias_when_no_bool_keys() {
+fn dm_compat_skips_boolean_storage_alias_when_no_bool_keys() {
     let dir = unique_dir("no_bool");
-    let out = generate_models(&dir, &["no_bool"], &["--udm-compat"]);
+    let out = generate_models(&dir, &["no_bool"], &["--dm-compat"]);
 
     assert!(!out.join("boolean_storage.h").exists());
     assert!(!out.join("dm_boolean_storage.h").exists());
@@ -415,9 +415,9 @@ fn udm_compat_skips_boolean_storage_alias_when_no_bool_keys() {
 }
 
 #[test]
-fn udm_compat_emits_data_model_key_type_aliases_in_dm_key_h() {
+fn dm_compat_emits_data_model_key_type_aliases_in_dm_key_h() {
     let dir = unique_dir("keytype_on");
-    let out = generate(&dir, &["--udm-compat"]);
+    let out = generate(&dir, &["--dm-compat"]);
 
     let dm_key = read(&out.join("dm_key.h"));
     for (alias, target) in [
@@ -446,7 +446,7 @@ fn udm_compat_emits_data_model_key_type_aliases_in_dm_key_h() {
 #[test]
 fn print_persistent_keys_bounds_strings_and_hex_dumps_binary() {
     let dir = unique_dir("print_binary");
-    let out = generate_models(&dir, &["binary"], &["--udm-compat"]);
+    let out = generate_models(&dir, &["binary"], &["--dm-compat"]);
 
     assert_all(
         &read(&out.join("persistence_storage.c")),
@@ -473,13 +473,13 @@ fn run_ingot_failing(args: &[&str]) -> String {
 /// A named enum called `<class>_<key>` already declares the per-key compat
 /// constants, so the compat type must alias it rather than redeclare them.
 #[test]
-fn udm_compat_full_example_compiles_as_c_and_cpp() {
+fn dm_compat_full_example_compiles_as_c_and_cpp() {
     let dir = unique_dir("full");
     let out = dir.join("gen");
     run_ingot(&[
         "--model",
         "examples/full.toml",
-        "--udm-compat",
+        "--dm-compat",
         "--output",
         out.to_str().unwrap(),
     ]);
@@ -505,12 +505,12 @@ int compat_check(void)
 }
 
 #[test]
-fn udm_compat_rejects_bare_key_clashing_with_enum_constant() {
+fn dm_compat_rejects_bare_key_clashing_with_enum_constant() {
     let dir = unique_dir("clash_bare");
     let stderr = run_ingot_failing(&[
         "--model",
         &format!("{FIXTURES}/clash_bare_key.toml"),
-        "--udm-compat",
+        "--dm-compat",
         "--output",
         dir.join("gen").to_str().unwrap(),
     ]);
@@ -520,12 +520,12 @@ fn udm_compat_rejects_bare_key_clashing_with_enum_constant() {
 }
 
 #[test]
-fn udm_compat_rejects_duplicate_accessor_alias() {
+fn dm_compat_rejects_duplicate_accessor_alias() {
     let dir = unique_dir("clash_name");
     let stderr = run_ingot_failing(&[
         "--model",
         &format!("{FIXTURES}/clash_name.toml"),
-        "--udm-compat",
+        "--dm-compat",
         "--output",
         dir.join("gen").to_str().unwrap(),
     ]);
@@ -544,12 +544,12 @@ fn udm_compat_rejects_duplicate_accessor_alias() {
 }
 
 #[test]
-fn udm_enums_guard_must_be_a_c_identifier() {
+fn dm_enums_guard_must_be_a_c_identifier() {
     let stderr = run_ingot_failing(&[
         "--model",
         "examples/battery.toml",
-        "--udm-compat",
-        "--udm-enums-guard",
+        "--dm-compat",
+        "--dm-enums-guard",
         "NOT A-MACRO",
     ]);
     assert!(stderr.contains("not a C identifier"), "{stderr}");

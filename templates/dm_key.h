@@ -33,8 +33,8 @@ typedef enum {
     DM_KEY_TYPE_MAX
 } DM_KEY_TYPE;
 
-{% if udm_compat -%}
-/* UDM-compat aliases: the legacy UDM dm_key.h declared a DATA_MODEL_KEY_TYPE
+{% if dm_compat -%}
+/* DM-compat aliases: the legacy DM dm_key.h declared a DATA_MODEL_KEY_TYPE
  * enum with the same values as the shared DM_KEY_TYPE members above. Callers
  * use these as compile-time constants (array indices in static initializers),
  * so they alias the enumerators rather than runtime values. */

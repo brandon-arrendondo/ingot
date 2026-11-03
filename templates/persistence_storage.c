@@ -135,9 +135,9 @@ DM_RETURN_CODE DataModel_SavePersistentKeys(const char *filepath)
 
     return DM_RETURN_CODE_SUCCESS;
 }
-{% if udm_compat %}
+{% if dm_compat %}
 
-/* ---- Diagnostic dump (UDM-compat) ---- */
+/* ---- Diagnostic dump (DM-compat) ---- */
 
 void DataModel_PrintPersistentKeys(void)
 {

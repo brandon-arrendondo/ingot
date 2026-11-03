@@ -16,7 +16,7 @@ typedef enum {
 {% endfor %}} {{ e.type_name }};
 {% endfor %}
 {%- if compat_enums %}
-/* UDM-compat: one <PATH>_ENUM_T typedef per enum-typed key. */
+/* DM-compat: one <PATH>_ENUM_T typedef per enum-typed key. */
 {%- if compat_guard %}
 #ifndef {{ compat_guard }}
 {%- endif %}

@@ -1,6 +1,6 @@
 # Ingot Data Model — Battery Namespace
 #
-# Ported from the Bissell Unified Data Model battery_001.yaml.
+# An example battery namespace.
 # Demonstrates: per-variant defaults, per-variant enums, units,
 # persistence, events, and all integer/bool/string types.
 

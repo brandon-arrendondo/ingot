@@ -40,10 +40,10 @@ DM_RETURN_CODE DataModel_LoadPersistentKeys(const char *filepath);
  * @return DM_RETURN_CODE_SUCCESS on success.
  */
 DM_RETURN_CODE DataModel_SavePersistentKeys(const char *filepath);
-{% if udm_compat %}
+{% if dm_compat %}
 /**
  * Print every persistent key's name and current value to stdout.
- * UDM-compat diagnostic; not on any production code path.
+ * DM-compat diagnostic; not on any production code path.
  */
 void DataModel_PrintPersistentKeys(void);
 {% endif %}

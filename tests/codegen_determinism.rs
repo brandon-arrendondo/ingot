@@ -121,10 +121,10 @@ fn full_rust_target_is_byte_identical_across_runs() {
 }
 
 #[test]
-fn full_with_udm_compat_is_byte_identical_across_runs() {
+fn full_with_dm_compat_is_byte_identical_across_runs() {
     assert_byte_identical(
-        "full_udm_compat",
+        "full_dm_compat",
         "examples/full.toml",
-        &["--udm-compat", "--emit-tinyfsm"],
+        &["--dm-compat", "--emit-tinyfsm"],
     );
 }

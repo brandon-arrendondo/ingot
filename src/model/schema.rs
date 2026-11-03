@@ -64,8 +64,8 @@ pub struct Class {
     pub doc: Option<String>,
     /// Optional original-case display name (e.g. "deviceConfig").
     ///
-    /// A UDM catalog pairs a lowercase `id` (which drives key encoding and the
-    /// uppercase C surface) with a mixed-case display name. `--udm-compat`
+    /// A DM catalog pairs a lowercase `id` (which drives key encoding and the
+    /// uppercase C surface) with a mixed-case display name. `--dm-compat`
     /// uses this spelling for the class segment of the lowercase
     /// `DataModel_{Get,Set}<path>` aliases. Falls back to `id` when absent.
     pub name: Option<String>,
@@ -89,7 +89,7 @@ pub struct KeyDef {
     pub id: String,
     /// Optional original-case display name (e.g. "versionNumber").
     ///
-    /// Parallels `Class::name`: `--udm-compat` uses this spelling for the key
+    /// Parallels `Class::name`: `--dm-compat` uses this spelling for the key
     /// segment of the lowercase `DataModel_{Get,Set}<path>` aliases. Falls
     /// back to `id` when absent.
     pub name: Option<String>,
@@ -147,7 +147,7 @@ pub enum DataType {
 impl DataType {
     /// Type code used in the 4-bit key encoding field.
     ///
-    /// Ordering matches gen_udm_code: unsigned widths first, then signed.
+    /// Ordering matches gen_dm_code: unsigned widths first, then signed.
     pub fn type_code(self) -> u8 {
         match self {
             DataType::Bool => 0,

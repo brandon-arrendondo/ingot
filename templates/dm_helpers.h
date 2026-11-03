@@ -35,8 +35,8 @@ static inline DM_RETURN_CODE DataModel_Set_{{ h.helper_name }}({{ h.c_type }} x)
 }
 {% endif %}
 {% endif %}
-{%- if udm_compat %}
-{#- UDM-compat surface. Non-enum GET/SET are object-like macros, not
+{%- if dm_compat %}
+{#- DM-compat surface. Non-enum GET/SET are object-like macros, not
    function-like ones, so the name still resolves when a caller takes its
    address (`&DATAMODEL_GET_X`) instead of calling it. Enum-typed keys get real
    static inline wrappers instead: the getter returns the per-key <PATH>_ENUM_T

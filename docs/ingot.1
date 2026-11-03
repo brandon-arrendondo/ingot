@@ -23,8 +23,8 @@ ingot \- embedded database code generator with compile-time perfect hashing
 .RB [ \-\-variant
 .IR name ]
 .RB [ \-\-emit\-tinyfsm ]
-.RB [ \-\-udm\-compat ]
-.RB [ \-\-udm\-enums\-guard
+.RB [ \-\-dm\-compat ]
+.RB [ \-\-dm\-enums\-guard
 .IR macro ]
 .RB [ \-\-templates
 .IR dir ]
@@ -112,16 +112,16 @@ is fired after successful set operations.
 Emit C++ tinyfsm event types and a dispatch wrapper for event keys, plus
 \fBdm_key_has_event()\fR and \fBdm_key_namespace()\fR predicates. C targets only.
 .TP
-.B \-\-udm\-compat
-Emit the UDM-shaped C compatibility surface: \fBDATAMODEL_GET_\fR/\fBSET_\fR
+.B \-\-dm\-compat
+Emit the DM-shaped C compatibility surface: \fBDATAMODEL_GET_\fR/\fBSET_\fR
 and lowercase \fBDataModel_Get\fR/\fBSet\fR aliases, bare-key constants,
 per-key \fB_ENUM_T\fR typedefs, \fBDATA_MODEL_KEY_TYPE_*\fR aliases,
 \fBDataModel_PrintPersistentKeys()\fR, and legacy header-name aliases.
 Additive; C targets only. Fails if two of these names, or a name and an
 existing key or enum identifier, would be the same.
 .TP
-.BI \-\-udm\-enums\-guard " " macro
-With \fB\-\-udm\-compat\fR, skip the per-key enum typedefs in any
+.BI \-\-dm\-enums\-guard " " macro
+With \fB\-\-dm\-compat\fR, skip the per-key enum typedefs in any
 translation unit that has already defined \fImacro\fR, the include guard of
 a legacy \fBdm_enums.h\fR declaring the same types. \fImacro\fR must be a
 C identifier.
@@ -251,7 +251,7 @@ Merge a directory of namespace TOML files:
 .PP
 .RS
 .nf
-ingot -m models/ -o gen/udm -t linux64
+ingot -m models/ -o gen/dm -t linux64
 .fi
 .RE
 .PP
