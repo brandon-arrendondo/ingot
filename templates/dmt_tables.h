@@ -25,6 +25,11 @@
 #define DMT_STAGING_TOTAL_BYTES   {{ staging_total }}u
 #define DMT_INPROC_QUEUE_BYTES    {{ inproc_queue }}u
 #define DMT_INPROC_SNAPSHOT_BYTES {{ inproc_snapshot }}u
+#define DMT_NUM_LOG_STREAMS       {{ num_log_streams }}
+#define DMT_LOG_RAM_BUDGET_BYTES  {{ log_ram_budget }}u
+#define DMT_LOG_RAM_DEFAULT_BUDGET_BYTES {{ log_ram_default_budget }}u
+#define DMT_LOG_FLASH_BYTES       {{ log_flash }}u
+#define DMT_LOG_FLASH_BYTES_PER_DAY {{ log_flash_per_day }}u
 
 extern const dmt_key_t       dmt_keys[DMT_NUM_KEYS];
 extern const uint8_t         dmt_default_blob[];
@@ -36,6 +41,8 @@ extern const uint8_t         dmt_rights[DMT_NUM_PRINCIPALS][DMT_RIGHTS_STRIDE];
 extern const dmt_command_t   dmt_commands[DMT_NUM_COMMANDS];
 extern const uint32_t        dmt_wk[DMT_WK_COUNT];
 extern const uint8_t         dmt_digest[DMT_NUM_PRINCIPALS][DMT_CONTRACT_MINOR + 1][DMT_DIGEST_BYTES];
+extern const dmt_log_stream_t dmt_log_streams[];          /* runtime only; in no digest */
+extern const char *const     dmt_log_stream_names[];
 extern const uint8_t         dmt_tiv_major_1;
 
 #endif /* DMT_TABLES_H */

@@ -1,6 +1,7 @@
 //! Contract-mode input: `contract.toml` and the namespace files it names (see
 //! docs/contract-mode.rst). Unknown fields are errors; every index is explicit.
 
+pub use super::schema_log::*;
 pub use super::schema_shadow::*;
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -78,6 +79,14 @@ pub struct Bounds {
     pub inproc_queue_bytes: u32,
     #[serde(default)]
     pub inproc_snapshot_bytes: u32,
+    /// Upper bound of the log RAM with every stream enabled; required with any log stream.
+    pub log_ram_budget_bytes: Option<u32>,
+    /// Upper bound of the log RAM of the streams enabled at boot.
+    pub log_ram_default_budget_bytes: Option<u32>,
+    /// Upper bound of the flash segments of the streams that may write flash.
+    pub log_flash_bytes: Option<u32>,
+    /// Upper bound of their flash byte rates per day.
+    pub log_flash_bytes_per_day: Option<u32>,
 }
 
 /// One `[[reserved]]` key ID.
@@ -162,6 +171,8 @@ pub struct PrincipalDef {
     pub introduced_in: String,
     #[serde(default)]
     pub grants: Vec<Grant>,
+    /// The principal's log stream, when it has one.
+    pub log: Option<LogDef>,
 }
 
 /// One `[[uid_caps]]` entry: totals for a UNIX uid.

@@ -286,7 +286,7 @@ fn contract_json_carries_every_header_and_key_field() {
     let gen = dir.join("gen");
     generate_ok("v1_0", &gen, &[]);
     let json = contract_json(&gen);
-    assert_eq!(json["tiv"], "1.0");
+    assert_eq!(json["tiv"], "1.1");
     assert_eq!(
         json["contract"],
         serde_json::json!({"name": "generic", "major": 1, "minor": 0, "patch": 0})

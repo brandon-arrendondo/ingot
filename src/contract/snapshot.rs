@@ -46,6 +46,10 @@ pub struct Snapshot {
     /// The shadow wire mapping's rows and sizes; absent when the model maps nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<serde_json::Value>,
+    /// The log streams as the variant resolves them (runtime configuration, never compared);
+    /// absent when the model declares none, and in older snapshots.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub log_streams: Vec<super::log_streams::LogStreamJson>,
 }
 
 /// The contract-level rows of contract.json's `shadow` section, read back typed for the
@@ -288,7 +292,11 @@ fn access_name(bits: u8) -> Option<String> {
 /// v4: the error groups.
 /// v5: the shadow wire mapping.
 /// v6: the codes of the enums topic vars name.
-/// @version 6
+/// v7: the table interface version from types::TIV; the log streams.
+/// @version 7
+/// @return the snapshot.
+/// @req REQ-ING-LOG-005
+/// @req REQ-ING-TIV-001
 /// @req REQ-ING-TOP-008
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-ERR-001
@@ -297,7 +305,7 @@ fn access_name(bits: u8) -> Option<String> {
 /// @req REQ-ING-TIV-009
 pub fn snapshot(tables: &Tables, commit: &str) -> Snapshot {
     Snapshot {
-        tiv: "1.0".to_string(),
+        tiv: super::types::TIV.to_string(),
         contract: contract_json(tables),
         variant: tables.variant.clone(),
         variants: tables.variants.clone(),
@@ -315,6 +323,7 @@ pub fn snapshot(tables: &Tables, commit: &str) -> Snapshot {
         commands: commands_json(tables),
         var_enums: var_enums_json(tables),
         shadow: super::shadow::json(tables),
+        log_streams: super::log_streams::json(tables),
     }
 }
 

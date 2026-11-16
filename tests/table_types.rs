@@ -1,4 +1,4 @@
-//! Integration tests for `--table-types`, which writes `dmt_types.h`, the fixed TIV 1.0
+//! Integration tests for `--table-types`, which writes `dmt_types.h`, the fixed TIV 1.1
 //! table-interface header.
 //!
 //! The header's frozen content is pinned in C: `tests/fixtures/dmt/check_types.c` asserts every

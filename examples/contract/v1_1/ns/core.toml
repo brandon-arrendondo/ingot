@@ -57,6 +57,39 @@ max_size = 512
 introduced_in = "1.0"
 wk = "DIAG_SUBSCRIBERS"
 
+# -- new in 1.1: the lines each log stream dropped whole (the core counts them) ----------------
+[[classes.keys]]
+id = "log_integrator_drops"
+key_index = 6
+type = "uint32"
+introduced_in = "1.1"
+
+[[classes.keys]]
+id = "log_app_cloud_drops"
+key_index = 7
+type = "uint32"
+introduced_in = "1.1"
+
+# -- new in 1.1: each log stream's runtime switch, written by the integrator -------------------
+[[classes]]
+id = "log"
+class_index = 3
+role = "config"
+
+[[classes.keys]]
+id = "integrator_cfg"
+key_index = 0
+type = "uint32"
+introduced_in = "1.1"
+write_rate = "1/min"
+
+[[classes.keys]]
+id = "app_cloud_cfg"
+key_index = 1
+type = "uint32"
+introduced_in = "1.1"
+write_rate = "1/min"
+
 [[classes]]
 id = "config"
 class_index = 1

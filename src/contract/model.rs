@@ -95,7 +95,10 @@ struct Loaded {
 /// v10: the enum constants are checked.
 /// v11: the internal row constants are checked.
 /// v12: the struct value header names are checked, every check through check_resolved.
-/// @version 12
+/// v13: the log streams' per-variant entries are checked too.
+/// @version 13
+/// @return the tables and their refusals, or why the model could not be read.
+/// @req REQ-ING-LOG-004
 /// @req REQ-ING-HDR-002
 /// @req REQ-ING-TIV-017
 /// @req REQ-ING-DSH-008
@@ -110,13 +113,7 @@ struct Loaded {
 pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Errors), String> {
     let loaded = load(contract_path, variant)?;
     let mut errors = Errors::new();
-    let declared = &loaded.contract.contract.variants;
-    variants::check_entries(
-        declared,
-        &loaded.namespaces,
-        &loaded.shadow.variant_uses,
-        &mut errors,
-    );
+    check_variant_entries(&loaded, &mut errors);
     let (keys, commands, enums) = collect_keys(&loaded, variant, &mut errors);
     let known = declared_paths(&loaded);
     let (principals, rights) =
@@ -148,6 +145,20 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
     };
     check_resolved(&tables, &mut errors);
     Ok((tables, errors))
+}
+
+/// Refuse a per-variant entry for an undeclared variant: in the namespace files, the
+/// contract-level shadow rows and the log streams.
+///
+/// @version 1
+/// @req REQ-ING-TIV-015
+/// @req REQ-ING-LOG-004
+fn check_variant_entries(loaded: &Loaded, errors: &mut Errors) {
+    let principals = &loaded.contract.principals;
+    let mut uses = loaded.shadow.variant_uses.clone();
+    uses.extend(super::log_streams::variant_uses(principals));
+    let declared = &loaded.contract.contract.variants;
+    variants::check_entries(declared, &loaded.namespaces, &uses, errors);
 }
 
 /// The checks of the resolved tables: the shadow mapping and every generated name (enum

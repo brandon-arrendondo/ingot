@@ -8,7 +8,7 @@ use super::render_template;
 
 /// The fixed interface headers and their interface versions; their bytes depend only on those.
 pub const TYPES_HEADERS: [(&str, &str); 2] =
-    [("dmt_types.h", "TIV 1.0"), ("dsh_types.h", "DSH 1.10")];
+    [("dmt_types.h", "TIV 1.1"), ("dsh_types.h", "DSH 1.10")];
 
 /// Write the fixed interface headers into `output_dir`, creating the directory.
 ///

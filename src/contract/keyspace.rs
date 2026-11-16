@@ -80,8 +80,11 @@ fn presence(variants: &[Tables], path: &str) -> Value {
 
 /// The fields every keyspace file starts with.
 ///
-/// @version 1
+/// v2: the table interface version from types::TIV.
+/// @version 2
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-TIV-001
+/// @return the fields.
 fn header(tables: &Tables, commit: &str) -> Map<String, Value> {
     let units: Vec<Value> = tables
         .units
@@ -95,7 +98,7 @@ fn header(tables: &Tables, commit: &str) -> Map<String, Value> {
     let contract =
         json!({"name": tables.name, "major": major, "minor": minor, "patch": tables.patch});
     doc.insert("contract".into(), contract);
-    doc.insert("tiv".into(), json!("1.0"));
+    doc.insert("tiv".into(), json!(super::types::TIV));
     let ingot = json!({"version": env!("CARGO_PKG_VERSION"), "commit": commit});
     doc.insert("ingot".into(), ingot);
     doc.insert("variants".into(), json!(tables.variants));

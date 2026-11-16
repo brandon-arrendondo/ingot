@@ -2,6 +2,7 @@
 
 use super::bounds::queue_bound;
 use super::digest::digests;
+use super::log_streams;
 use super::model::Tables;
 use super::rights::pack;
 use super::schema::Kind;
@@ -153,14 +154,18 @@ fn uid_cap_rows(tables: &Tables) -> Vec<String> {
 
 /// The rendering context of the two table files.
 ///
-/// @version 1
+/// v2: the log streams.
+/// @version 2
 /// @req REQ-ING-TIV-009
+/// @req REQ-ING-LOG-001
+/// @return the context.
 pub fn context(tables: &Tables, commit: &str) -> Context {
     let mut ctx = Context::new();
     insert_header(&mut ctx, tables, commit);
     insert_keys(&mut ctx, tables);
     insert_principals(&mut ctx, tables);
     insert_bounds(&mut ctx, tables);
+    insert_logs(&mut ctx, tables);
     ctx
 }
 
@@ -238,6 +243,23 @@ fn insert_bounds(ctx: &mut Context, tables: &Tables) {
         "inproc_snapshot",
         &only_inproc(tables.bounds.inproc_snapshot_bytes),
     );
+}
+
+/// The log streams, their names and the `[bounds]` log budgets (0 when undeclared). The table
+/// is runtime configuration and enters no digest.
+///
+/// @version 1
+/// @req REQ-ING-LOG-001
+fn insert_logs(ctx: &mut Context, tables: &Tables) {
+    let b = &tables.bounds;
+    ctx.insert("num_log_streams", &log_streams::streams(tables).count());
+    ctx.insert("log_streams", &log_streams::rows(tables));
+    ctx.insert("log_stream_names", &log_streams::names(tables));
+    ctx.insert("log_ram_budget", &b.log_ram_budget_bytes.unwrap_or(0));
+    let default_budget = b.log_ram_default_budget_bytes.unwrap_or(0);
+    ctx.insert("log_ram_default_budget", &default_budget);
+    ctx.insert("log_flash", &b.log_flash_bytes.unwrap_or(0));
+    ctx.insert("log_flash_per_day", &b.log_flash_bytes_per_day.unwrap_or(0));
 }
 
 /// `dmt_digest` rows: per principal, one 32-byte initialiser per minor.

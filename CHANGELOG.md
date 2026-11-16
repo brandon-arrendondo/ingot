@@ -37,10 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dm_event_count`. The consumer supplies both templates, so the list names
   no consumer type and can drive compile-time registration or dispatch
   tables.
-- `--table-types` writes `dmt_types.h`, the table-interface (TIV 1.0)
+- `--table-types` writes `dmt_types.h`, the table-interface (TIV 1.1)
   header for an external key-value store core: type codes, persistence
-  classes, roles, flags, sizing constants and the key, principal, uid-cap
-  and command table layouts. Its bytes depend only on the TIV.
+  classes, roles, flags, sizing constants and the key, principal, uid-cap,
+  command and log stream table layouts. Its bytes depend only on the TIV.
   `DMT_OWNER_CORE` marks commands the store core answers itself.
 - Contract mode (`--contract`): generates the store tables of a keyed
   model (`dmt_tables.h/.c`: keys, defaults, reserved IDs, principals,
@@ -81,6 +81,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Contract mode, SDKs: `--sdk-binding <DIR>` renders a per-principal SDK
   through consumer-supplied templates (typed accessors, command submits,
   struct value headers and one event view per readable struct key).
+- Contract mode, log streams: a principal may declare one log stream
+  (`log = { ... }`: backing off, ring, flash_on_trigger or flash_group,
+  allowed backings per variant, RAM cap, line cap, level masks, flash
+  segments, byte rate and flush triggers, a runtime switch key and a
+  drop-counter key). They are emitted as `dmt_log_streams` (TIV 1.1, outside
+  every digest and keyspace file) and listed in `contract.json`;
+  `[bounds] log_ram_budget_bytes` is an upper bound on the RAM of every
+  stream enabled at once, and `log_ram_default_budget_bytes`,
+  `log_flash_bytes` and `log_flash_bytes_per_day` bound the boot RAM and the
+  flash sums.
 
 ### Changed
 - `ingot --version` also prints the commit the binary was built from.

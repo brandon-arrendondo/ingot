@@ -1,7 +1,10 @@
-//! The frozen TIV 1.0 codes (`dmt_types.h`) for the schema's enums, contract versions, and the
+//! The TIV codes (`dmt_types.h`) for the schema's enums, contract versions, and the
 //! well-known role table (R-WK).
 
 use super::schema::{KeyType, Kind, Persist, PrincipalFlag, Role};
+
+/// The table interface version `dmt_types.h` states (contract.json and the keyspace files too).
+pub const TIV: &str = "1.1";
 
 /// `DMT_KF_*` key flags.
 pub const KF_SECRET: u16 = 0x0001;

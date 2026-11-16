@@ -1,6 +1,7 @@
 //! Principals and their resolved rights on every key.
 
 use super::keys::{Errors, Key};
+use super::log_streams::{resolve as resolve_log, LogStream};
 use super::schema::{Access, Caps, Grant, Kind, PrincipalDef};
 use super::types::Version;
 use std::collections::BTreeSet;
@@ -26,6 +27,8 @@ pub struct Principal {
     pub resync_t_ms: u32,
     pub staging_bound_bytes: u32,
     pub introduced: Version,
+    /// The principal's log stream, when it declares one.
+    pub log: Option<LogStream>,
 }
 
 /// Resolve the principal declarations, sorted by (kind, uid, token).
@@ -44,9 +47,13 @@ pub fn principals(
 
 /// Resolve one principal declaration.
 ///
-/// @version 1
+/// v2: and its log stream.
+/// @version 2
 /// @req REQ-ING-TIV-006
+/// @req REQ-ING-LOG-001
+/// @return the principal and its grants.
 fn principal(def: PrincipalDef, errors: &mut Errors) -> (Principal, Vec<Grant>) {
+    let log = def.log.map(|l| resolve_log(&def.name, l, errors));
     let introduced = Version::parse(&def.introduced_in).unwrap_or_else(|e| {
         errors.push(format!("principal {}: introduced_in {e}", def.name));
         Version { major: 0, minor: 0 }
@@ -66,6 +73,7 @@ fn principal(def: PrincipalDef, errors: &mut Errors) -> (Principal, Vec<Grant>) 
         resync_t_ms: def.resync_t_ms,
         staging_bound_bytes: def.staging_bound_bytes,
         introduced,
+        log,
     };
     (p, def.grants)
 }

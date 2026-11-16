@@ -127,19 +127,65 @@ static int struct_cap_violations(void)
 }
 
 /**
+ * @brief   Count violations of one log stream row: a known principal and keys, OFF and the
+ *          boot backing allowed, file levels within RAM levels, a line within the ring.
+ * @version 1
+ * @return  the number of violations.
+ */
+static int log_row_violations(const dmt_log_stream_t *s, const char *name)
+{
+    int bad = 0;
+    const uint8_t off = 1u << DMT_LB_OFF;
+    bad += s->principal >= DMT_NUM_PRINCIPALS || name == NULL || name[0] == '\0';
+    bad += !has_key(s->ctl_key) || !has_key(s->drop_counter_key);
+    bad += !(s->allowed_backings & off) || !(s->allowed_backings & (1u << s->backing));
+    bad += (s->level_file & ~s->level_ram) != 0u || s->reserved0 != 0u || s->max_line_bytes == 0u;
+    bad += s->allowed_backings != off && s->max_line_bytes > s->ram_cap_bytes;
+    return bad;
+}
+
+/**
+ * @brief   Count log table violations, and RAM sums above the budgets a store re-checks at
+ *          startup: every stream that may be enabled, and every stream enabled at boot.
+ * @version 1
+ * @return  the number of violations.
+ */
+static int log_violations(void)
+{
+    const size_t rows = DMT_NUM_LOG_STREAMS;   /* a variable: 0 rows is no constant comparison */
+    const uint8_t off = 1u << DMT_LB_OFF;
+    uint64_t worst = 0u;
+    uint64_t boot = 0u;
+    int bad = 0;
+    size_t i;
+    for (i = 0u; i < rows; i++) {
+        const dmt_log_stream_t *s = &dmt_log_streams[i];
+        bad += log_row_violations(s, dmt_log_stream_names[i]);
+        worst += s->allowed_backings != off ? s->ram_cap_bytes : 0u;
+        boot += s->backing != DMT_LB_OFF ? s->ram_cap_bytes : 0u;
+    }
+    bad += worst > DMT_LOG_RAM_BUDGET_BYTES;
+    bad += DMT_LOG_RAM_DEFAULT_BUDGET_BYTES != 0u && boot > DMT_LOG_RAM_DEFAULT_BUDGET_BYTES;
+    return bad;
+}
+
+/**
  * @brief   Walk the tables; the link itself proves every declared table is defined.
  *          v2: struct readers take a struct's largest value in flight.
- * @version 2
+ *          v3: the log streams.
+ * @version 3
  * @return  process exit status: 0 when consistent.
  */
 int main(void)
 {
-    const void *const tables[] = { dmt_digest, dmt_rights, dmt_uid_caps, dmt_default_blob };
+    const void *const tables[] = { dmt_digest, dmt_rights, dmt_uid_caps, dmt_default_blob,
+                                   dmt_log_streams, dmt_log_stream_names };
     size_t i;
     int missing = 0;
     for (i = 0u; i < sizeof tables / sizeof tables[0]; i++) {
         missing += tables[i] == NULL;
     }
     missing += struct_cap_violations();
+    missing += log_violations();
     return (violations() == 0 && missing == 0 && dmt_tiv_major_1 == 1u) ? 0 : 1;
 }

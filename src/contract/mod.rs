@@ -1,4 +1,4 @@
-//! Contract mode: generate the table-interface (TIV 1.0) store tables of a keyed model.
+//! Contract mode: generate the table-interface (TIV 1.1) store tables of a keyed model.
 //!
 //! The input is `contract.toml` plus its namespace files (docs/contract-mode.rst); the outputs
 //! are `dmt_types.h`, `dmt_tables.h`, `dmt_tables.c`, `contract.json` and, against a previous
@@ -16,17 +16,20 @@ pub mod internal_ids;
 pub mod keys;
 pub mod keyspace;
 pub mod keyspace_out;
+pub mod log_streams;
 pub mod model;
 pub mod payload;
 pub mod previous;
 pub mod previous_shadow;
 pub mod ranges;
 pub mod refuse_commands;
+pub mod refuse_log;
 pub mod refuse_model;
 pub mod refuse_rights;
 pub mod refuse_shadow;
 pub mod rights;
 pub mod schema;
+pub mod schema_log;
 pub mod schema_shadow;
 pub mod sdk;
 pub mod shadow;
@@ -80,7 +83,10 @@ pub fn provenance(commit: &str, allow_dirty: bool) -> Result<String, String> {
 /// resolved for the all-variants keyspace.
 /// v3: error groups checked.
 /// v4: the keyspace body's hash goes to the shadow tables.
-/// @version 4
+/// v5: the log streams checked.
+/// @version 5
+/// @return Ok when the outputs were written.
+/// @req REQ-ING-LOG-004
 /// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-010
@@ -95,6 +101,7 @@ pub fn generate(opts: &Options, tera: &Tera) -> Result<(), Box<dyn std::error::E
     let all = keyspace_out::build_all(opts.contract, &tables.variants, &mut errors)?;
     refuse_model::check(&tables, &mut errors);
     refuse_rights::check(&tables, &mut errors);
+    refuse_log::check(&tables, &mut errors);
     bounds::check(&tables, &mut errors);
     error_groups::check(&tables, &mut errors);
     let snapshot = snapshot::snapshot(&tables, &commit);

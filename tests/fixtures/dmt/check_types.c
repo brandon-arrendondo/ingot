@@ -1,4 +1,4 @@
-/* Pins the frozen TIV 1.0 content of the generated dmt_types.h: every value, struct size and
+/* Pins the TIV 1.1 content of the generated dmt_types.h: every value, struct size and
  * field offset the table interface fixes. Compiled as C11 by
  * tests/table_types.rs; a mismatch is a compile error. main() exercises DMT_RIGHTS. */
 #include <stddef.h>
@@ -9,7 +9,7 @@
 #define PIN(expr) _Static_assert(expr, #expr)
 
 PIN(DMT_TIV_MAJOR == 1);
-PIN(DMT_TIV_MINOR == 0);
+PIN(DMT_TIV_MINOR == 1);
 
 PIN(DMT_T_BOOL == 0); PIN(DMT_T_U8 == 1); PIN(DMT_T_U16 == 2); PIN(DMT_T_U32 == 3);
 PIN(DMT_T_I8 == 4); PIN(DMT_T_I16 == 5); PIN(DMT_T_I32 == 6); PIN(DMT_T_F32 == 7);
@@ -87,6 +87,30 @@ PIN(DMT_WK_DIAG_TORN_TAILS == 21); PIN(DMT_WK_DIAG_ALLOC_GAPS == 22);
 PIN(DMT_WK_DIAG_CONNECTED == 23); PIN(DMT_WK_DIAG_SUBSCRIBERS == 24);
 PIN(DMT_WK_DIAG_TRACE_REFUSALS == 25); PIN(DMT_WK_COUNT == 26);
 PIN(DMT_WK_REQUIRED_COUNT == 9u);
+
+/* TIV 1.1: log streams. */
+PIN(DMT_LB_OFF == 0); PIN(DMT_LB_RING == 1); PIN(DMT_LB_FLASH_ON_TRIGGER == 2);
+PIN(DMT_LB_FLASH_GROUP == 3);
+PIN(DMT_LL_ERROR == 0); PIN(DMT_LL_WARNING == 1); PIN(DMT_LL_INFO == 2); PIN(DMT_LL_DEBUG == 3);
+PIN(DMT_LT_FAULT == 0x0001u); PIN(DMT_LT_WATCHDOG == 0x0002u); PIN(DMT_LT_SHUTDOWN == 0x0004u);
+PIN(DMT_LT_REBOOT == 0x0008u); PIN(DMT_LT_ERROR_LINE == 0x0010u); PIN(DMT_LT_REQUEST == 0x0020u);
+PIN(DMT_LT_RESTART_STORM == 0x0040u); PIN(DMT_LT_HIGH_WATER == 0x0080u);
+
+PIN(sizeof(dmt_log_stream_t) == 44);
+PIN(offsetof(dmt_log_stream_t, ram_cap_bytes) == 0);
+PIN(offsetof(dmt_log_stream_t, max_line_bytes) == 4);
+PIN(offsetof(dmt_log_stream_t, flash_seg_bytes) == 8);
+PIN(offsetof(dmt_log_stream_t, flash_seg_count) == 12);
+PIN(offsetof(dmt_log_stream_t, flash_rate_bytes_per_day) == 16);
+PIN(offsetof(dmt_log_stream_t, flash_rate_burst_bytes) == 20);
+PIN(offsetof(dmt_log_stream_t, ctl_key) == 24);
+PIN(offsetof(dmt_log_stream_t, drop_counter_key) == 28);
+PIN(offsetof(dmt_log_stream_t, principal) == 32); PIN(offsetof(dmt_log_stream_t, flush) == 34);
+PIN(offsetof(dmt_log_stream_t, introduced_in) == 36);
+PIN(offsetof(dmt_log_stream_t, backing) == 38);
+PIN(offsetof(dmt_log_stream_t, allowed_backings) == 39);
+PIN(offsetof(dmt_log_stream_t, level_ram) == 40); PIN(offsetof(dmt_log_stream_t, level_file) == 41);
+PIN(offsetof(dmt_log_stream_t, reserved0) == 42);
 
 /**
  * @brief   Check DMT_RIGHTS against the bit layout: key i in byte i/4, read bit 2*(i%4).

@@ -13,9 +13,9 @@ Inputs
 
 ``contract.toml``
    The contract (``[contract]``: ``name``, ``major``, ``minor``, ``patch``, ``namespace_dir``,
-   optional ``variants`` and ``units``), the queue and staging ``[bounds]``, ``[[reserved]]`` IDs,
-   ``[[principals]]`` with their ``grants``, ``[[uid_caps]]``, ``[[error_groups]]``, and the
-   contract-level shadow rows: ``[[apply_groups]]``, ``[[shadow_echo]]``,
+   optional ``variants`` and ``units``), the queue, staging and log ``[bounds]``,
+   ``[[reserved]]`` IDs, ``[[principals]]`` with their ``grants`` and ``log`` stream,
+   ``[[uid_caps]]``, ``[[error_groups]]``, and the contract-level shadow rows: ``[[apply_groups]]``, ``[[shadow_echo]]``,
    ``[[shadow_constant]]``, ``[shadow_rejected]``, ``[[topics]]``, ``[[topic_payload]]`` and
    ``[[placeholders]]``.
 
@@ -115,6 +115,51 @@ A principal has a name, ``uid``, ``token`` (0 for the uid itself), ``kind`` (``u
 table, per-principal handshake digests (KSET v1, one per contract minor) and queue bounds follow.
 ``dmt_principal_names`` holds every principal's declared name, in table order, never ``NULL``.
 
+Log streams
+-----------
+
+A principal may declare one log stream, as an inline table ``log = { ... }`` or as a
+``[principals.log]`` table after the principal's other fields. The stream is runtime
+configuration of the store's log service: it enters no KSET digest, no keyspace file and no
+``--previous-contract`` check, so a minor or a patch may change it freely.
+
+.. code-block:: toml
+
+   [principals.log]
+   name = "integrator"                   # absent: the principal's name, dots as underscores
+   backing = "ring"                      # at boot: off (default), ring, flash_on_trigger, flash_group
+   allowed_backings = ["ring", "flash_on_trigger"]      # absent: the backing; off is always allowed
+   allowed_backings_by_variant = { sku_b = ["ring"] }   # backing_by_variant likewise
+   ram_cap_bytes = 8192                  # RAM while enabled with any backing but off
+   max_line_bytes = 256                  # a longer line is dropped whole and counted, never cut
+   default_level_ram = ["error", "warning", "info"]     # error, warning, info, debug
+   default_level_file = ["error", "warning"]            # within default_level_ram
+   flash_seg_bytes = 16384               # one flash segment; with flash_seg_count segments
+   flash_seg_count = 4
+   flash_rate_bytes_per_day = 262144     # flash token bucket, in bytes
+   flash_rate_burst_bytes = 16384
+   flush = ["fault", "watchdog", "shutdown", "error_line"]
+   ctl_key = "core.log.integrator_cfg"   # the runtime switch; some principal must write it
+   drop_counter_key = "core.diag.log_integrator_drops"  # an unsigned integer key
+   introduced_in = "1.1"
+
+The flush triggers are ``fault``, ``watchdog``, ``shutdown``, ``reboot``, ``error_line``,
+``request``, ``restart_storm`` and ``high_water``. ``[bounds]`` bounds the streams from above, on
+each variant's run:
+
+``log_ram_budget_bytes``
+   The worst case with every stream enabled at once: the sum of ``ram_cap_bytes`` over the
+   streams the variant allows a backing other than ``off``. Required with any stream.
+``log_ram_default_budget_bytes`` (optional)
+   The same sum over the streams whose boot backing on the variant is not ``off``.
+``log_flash_bytes``, ``log_flash_bytes_per_day``
+   Over the streams the variant allows a flash backing: the sum of ``flash_seg_bytes`` times
+   ``flash_seg_count``, and the sum of ``flash_rate_bytes_per_day``. Required when any stream
+   may write flash.
+
+Ingot checks the structure and these sums only. Erase-block alignment and the wear figures of a
+target are the model's own checks; ingot fixes none.
+
 Error groups
 ------------
 
@@ -208,11 +253,19 @@ Outputs
 -------
 
 ``dmt_types.h``
-   The fixed table interface (TIV) of the store tables.
+   The fixed table interface (TIV) of the store tables. TIV 1.1 appends the log stream codes
+   (``DMT_LB_*`` backings, ``DMT_LL_*`` levels, ``DMT_LT_*`` flush triggers) and
+   ``dmt_log_stream_t``.
 
 ``dmt_tables.h``, ``dmt_tables.c``
    Keys, defaults, reserved IDs, principals, rights, caps, commands, well-known roles and
-   digests of the selected variant.
+   digests of the selected variant; and ``dmt_log_streams`` with ``dmt_log_stream_names``
+   (``DMT_NUM_LOG_STREAMS`` rows in principal table order; one zero row, and ``NULL``, when there
+   are none), each row with the variant's boot backing, its allowed-backing mask (``1u <<
+   DMT_LB_*`` each, ``off`` always set), the level masks, the flush mask, the key IDs of its
+   switch and drop counter and its principal's index, and the ``[bounds]`` log budgets as
+   ``DMT_LOG_RAM_BUDGET_BYTES``, ``DMT_LOG_RAM_DEFAULT_BUDGET_BYTES``, ``DMT_LOG_FLASH_BYTES`` and
+   ``DMT_LOG_FLASH_BYTES_PER_DAY`` (0 when undeclared), for the store to re-check at startup.
 
 ``dmt_constants.h``
    The code of every value of every enum key as ``#define DMT_E_<KEY PATH>_<VALUE> <code>`` for the
@@ -252,6 +305,8 @@ Outputs
    var that names an enum carries it as ``shadow.topics[].vars[].enum`` (and so does the
    keyspace, whose body hash ``DSH_CONTRACT_HASH`` then moves), and ``var_enums`` maps each such
    ``<namespace>::<enum>`` to its names and codes; without one, neither appears.
+   ``log_streams`` lists each log stream as the variant resolves it, for tooling to read; it is
+   never compared, and absent without a stream.
 
 ``keyspace.json``, ``keyspace.<variant>.json`` (with ``.json.gz`` and ``.head.json``), ``keyspace.schema.json``
    The declaration for tooling: all variants with per-variant overrides, the resolved variant,
@@ -353,4 +408,12 @@ Every rule above has a refusal, grouped as follows:
   outside the command's class that is not a STATE key, an argument value outside its key's enum
   or type, a misplaced encoding, an ``answer`` or ``internal`` with a command or args, ``also``
   without a command, and a command of the variant neither on the wire nor internal.
+* **Log streams:** a stream name used twice or not a lower-case identifier; file levels outside
+  the RAM levels; a ``ctl_key`` that is not a key of the variant or that no principal may write;
+  a ``drop_counter_key`` that is not an unsigned integer key; a boot backing outside the
+  variant's allowed backings, or a per-variant entry for an undeclared variant; a
+  ``max_line_bytes`` of 0, above ``ram_cap_bytes`` when the stream may be enabled, or above
+  ``flash_seg_bytes`` or ``flash_rate_burst_bytes`` when it may write flash; a flash stream with
+  a segment size, segment count or byte rate of 0; an ``introduced_in`` later than the contract;
+  a sum above its ``[bounds]`` log budget, or a missing budget the streams need.
 * **Versions:** anything a minor may not change (see Versions).

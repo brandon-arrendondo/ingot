@@ -51,4 +51,16 @@ const uint8_t dmt_digest[DMT_NUM_PRINCIPALS][DMT_CONTRACT_MINOR + 1][DMT_DIGEST_
 {%- endfor %}
 };
 
+const dmt_log_stream_t dmt_log_streams[] = {
+{%- for row in log_streams %}
+    {{ row }},
+{%- endfor %}
+};
+
+const char *const dmt_log_stream_names[] = {
+{%- for name in log_stream_names %}
+    {{ name }},
+{%- endfor %}
+};
+
 const uint8_t dmt_tiv_major_1 = 1u;

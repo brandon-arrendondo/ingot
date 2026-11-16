@@ -1,9 +1,10 @@
 //! Queue bounds per principal and the staging and in-process budget checks.
 
 use super::keys::Errors;
+use super::log_streams::streams;
 use super::model::Tables;
 use super::rights::READ;
-use super::schema::Kind;
+use super::schema::{Backing, Kind};
 
 /// Milliseconds in a day: rates are writes per day, latency budgets are milliseconds.
 const MS_PER_DAY: u64 = 86_400_000;
@@ -79,15 +80,20 @@ fn default_burst(tables: &Tables, errors: &mut Errors) {
     }
 }
 
-/// Refuse budgets below their lower bounds, and a default burst of 0.
+/// Refuse budgets below their lower bounds, log sums above their upper bounds, and a default
+/// burst of 0.
 ///
 /// v2: the default burst checked.
-/// @version 2
+/// v3: the log budgets checked.
+/// @version 3
+/// @req REQ-ING-LOG-002
+/// @req REQ-ING-LOG-003
 /// @req REQ-ING-TIV-007
 /// @req REQ-ING-TIV-010
 /// @req REQ-ING-TIV-019
 pub fn check(tables: &Tables, errors: &mut Errors) {
     default_burst(tables, errors);
+    log_budgets(tables, errors);
     let staging = tables
         .principals
         .iter()
@@ -119,5 +125,110 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
                 "bounds.{name} {have} is below its lower bound {need}"
             ));
         }
+    }
+}
+
+/// The log stream sums of the tables' variant, which the `[bounds]` log budgets bound from above.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct LogSums {
+    /// Whether the variant has any log stream.
+    pub any: bool,
+    /// Whether any stream may write flash on the variant.
+    pub any_flash: bool,
+    /// RAM with every stream enabled: `ram_cap_bytes` of each stream that may be enabled.
+    pub worst_ram: u64,
+    /// RAM of the streams enabled at boot (boot backing not off).
+    pub boot_ram: u64,
+    /// Flash segments of the streams that may write flash: `flash_seg_bytes * flash_seg_count`.
+    pub flash: u64,
+    /// Their flash byte rates per day.
+    pub flash_per_day: u64,
+}
+
+/// The log stream sums of the tables' variant (upper-bounded, unlike the in-process floors).
+///
+/// @version 1
+/// @req REQ-ING-LOG-002
+/// @req REQ-ING-LOG-003
+/// @return the sums.
+pub fn log_sums(tables: &Tables) -> LogSums {
+    let v = tables.variant.as_str();
+    let mut sums = LogSums::default();
+    for (_, s) in streams(tables) {
+        let (d, ram) = (&s.def, u64::from(s.def.ram_cap_bytes));
+        sums.any = true;
+        sums.worst_ram += if s.may_enable(v) { ram } else { 0 };
+        sums.boot_ram += if s.backing(v) == Backing::Off { 0 } else { ram };
+        if s.may_flash(v) {
+            sums.any_flash = true;
+            sums.flash += u64::from(d.flash_seg_bytes) * u64::from(d.flash_seg_count);
+            sums.flash_per_day += u64::from(d.flash_rate_bytes_per_day);
+        }
+    }
+    sums
+}
+
+/// Why `sum` breaks the upper bound `bounds.<name>` (`have`), if it does; `required`: a missing
+/// bound is refused.
+///
+/// @version 1
+/// @req REQ-ING-LOG-002
+/// @req REQ-ING-LOG-003
+/// @return the refusal, or None.
+fn above(
+    name: &str,
+    have: Option<u32>,
+    (sum, what): (u64, &str),
+    required: bool,
+) -> Option<String> {
+    match have {
+        None if required => Some(format!("log streams need bounds.{name}")),
+        Some(b) if sum > u64::from(b) => {
+            Some(format!("log streams: {what} is above bounds.{name} {b}"))
+        }
+        _ => None,
+    }
+}
+
+/// Refuse log sums above their `[bounds]` upper bounds, and a missing bound the streams need.
+///
+/// @version 1
+/// @req REQ-ING-LOG-002
+/// @req REQ-ING-LOG-003
+fn log_budgets(tables: &Tables, errors: &mut Errors) {
+    let s = log_sums(tables);
+    let b = &tables.bounds;
+    let checks = [
+        (
+            "log_ram_budget_bytes",
+            b.log_ram_budget_bytes,
+            s.worst_ram,
+            format!("worst-case RAM {} (every stream enabled)", s.worst_ram),
+            s.any,
+        ),
+        (
+            "log_ram_default_budget_bytes",
+            b.log_ram_default_budget_bytes,
+            s.boot_ram,
+            format!("boot RAM {} (streams enabled at boot)", s.boot_ram),
+            false,
+        ),
+        (
+            "log_flash_bytes",
+            b.log_flash_bytes,
+            s.flash,
+            format!("flash {}", s.flash),
+            s.any_flash,
+        ),
+        (
+            "log_flash_bytes_per_day",
+            b.log_flash_bytes_per_day,
+            s.flash_per_day,
+            format!("flash {} per day", s.flash_per_day),
+            s.any_flash,
+        ),
+    ];
+    for (name, have, sum, what, required) in checks {
+        errors.extend(above(name, have, (sum, &what), required));
     }
 }
