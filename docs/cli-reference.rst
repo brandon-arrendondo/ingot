@@ -36,10 +36,24 @@ Output & Target
 | ``--dm-enums-guard``  | none           | Legacy ``dm_enums.h`` guard to defer to          |
 | ``<MACRO>``            |                | (requires ``--dm-compat``)                      |
 +------------------------+----------------+--------------------------------------------------+
-| ``--templates <DIR>``  | auto           | Override template directory                      |
+| ``--templates <DIR>``  | search, built  | Replace the searched and built-in templates with |
+|                        | in             | a directory                                      |
++------------------------+----------------+--------------------------------------------------+
+| ``--table-types``      | off            | Write only the fixed table headers (no model)    |
 +------------------------+----------------+--------------------------------------------------+
 
-``--templates`` also accepts the ``INGOT_TEMPLATES_DIR`` environment variable.
+The templates are compiled into the binary. ``--templates`` (or the
+``INGOT_TEMPLATES_DIR`` environment variable) replaces them with a directory, the
+whole set. Without either, model mode uses the first ``templates/`` directory it
+finds next to the executable, in ``<exe>/../share/ingot/templates``, in
+``<exe>/../../templates`` (a ``target/<profile>/`` build), in the working directory,
+or in ``/usr/share/ingot/templates``, and the built-in templates when there is none.
+A template the found directory lacks (it may come from an older ingot) is taken from the
+built-in set, with a warning naming the template and the directory.
+Contract mode and ``--table-types`` do not search: they use the built-in templates
+(``--table-types`` also accepts ``--templates``).
+``--table-types`` writes ``dmt_types.h`` and ``dsh_types.h``, the table-interface headers, which do
+not depend on any model.
 ``--emit-tinyfsm`` applies only to C targets. It emits additive C++ headers and
 source for consumers using tinyfsm, plus ``dm_key_has_event.hpp``:
 ``dm_key_has_event(key)`` reports whether a key was declared ``event = true``,
@@ -78,6 +92,71 @@ lowercase alias. Rename one of them.
 If a translation unit may also include a legacy ``dm_enums.h`` that declares
 the same per-key typedefs, pass that header's include guard with
 ``--dm-enums-guard`` and ingot skips its copies when the guard is defined.
+
+Contract Mode
+-------------
+
++--------------------------------+---------+--------------------------------------------------+
+| Option                         | Default | Description                                      |
++================================+=========+==================================================+
+| ``--contract <FILE>``          | —       | Generate the table-interface store tables from a |
+|                                |         | ``contract.toml`` and its namespace files        |
++--------------------------------+---------+--------------------------------------------------+
+| ``--previous-contract <FILE>`` | —       | The previous release's ``contract.json``; checks |
+|                                |         | that a minor is additive and a major reserves    |
+|                                |         | removed IDs, and writes ``release-review.txt``   |
++--------------------------------+---------+--------------------------------------------------+
+| ``--allow-dirty-ingot``        | off     | Accept an ingot built from a dirty tree (for     |
+|                                |         | ingot's own tests); the output says ``-dirty``   |
++--------------------------------+---------+--------------------------------------------------+
+| ``--shadow-buffer <BYTES>``    | —       | Warn when the full shadow document can exceed    |
+|                                |         | the shadow composer's buffer                     |
++--------------------------------+---------+--------------------------------------------------+
+| ``--sdk-binding <DIR>``        | —       | Templates rendering a per-principal SDK against  |
+|                                |         | the consumer's store runtime                     |
++--------------------------------+---------+--------------------------------------------------+
+
+Contract mode writes ``dmt_types.h``, ``dmt_tables.h``, ``dmt_tables.c``,
+``dmt_constants.h`` (the enum value constants of every enum key, and of every command that names
+its result codes with ``outcome = "<enum>"``, once per enum that a topic var names with
+``enum = "<namespace>::<enum>"`` as ``DMT_E_<NAMESPACE>_<ENUM>_<VALUE>``, and for every struct key with a ``header`` its
+``DMT_<KEY>_HEADER_BYTES``, ``_<FIELD>_OFFSET`` and ``_PAYLOAD_MAX`` constants, its
+``dmt_<key>_header_t`` and its inline byte-shift ``dmt_<key>_header_encode`` /
+``dmt_<key>_header_decode``) and ``contract.json`` for the selected ``--variant``, or nothing at all if the model
+breaks any rule; every refusal is logged. It always uses the built-in templates.
+Each ``dmt_keys`` row and each ``contract.json`` key carries ``rate_per_day`` and ``rate_burst``
+from its ``write_rate`` and ``rate_burst`` (else ``[bounds] default_rate_burst``); a command
+type's pair applies to its command, result and dedupe keys alike, and a ``rate_burst`` without a
+``write_rate``, or of 0 (it would switch the rate limit off; omit ``write_rate`` for no limit),
+is refused, as is a ``[bounds] default_rate_burst`` of 0. ``--previous-contract`` lets a minor
+change either.
+A model that maps keys to the shadow also gets ``dsh_types.h`` (the fixed shadow
+table interface) and ``dsh_tables.h`` / ``dsh_tables.c``: the binder, reporter,
+command-router, error-group and topic tables of the variant, and the bounds a shadow consumer
+sizes its buffers with (interface 1.9: rejected-list members, the longest desired path and
+desired value text, published error ids and the largest error id; see Contract Mode), and
+(interface 1.10) a ``DSH_INTERNAL_<VERB>`` constant for each internal row's ``internal_id``. With ``--sdk-binding <DIR>``, every
+principal gets an SDK in ``sdk/<principal>/`` (dots in the name become underscores): each file of
+the binding directory is a template rendered once per principal, under its file name with a
+trailing ``.tera`` removed (``x_PRINCIPAL.c.tera`` and ``x_PRINCIPAL.c`` both render to
+``x_<principal>.c``) and ``PRINCIPAL`` replaced by the principal's identifier; two templates with
+one output name, or an empty one, are refused. The context carries the principal's
+identity (``principal``, ``p``, ``kind``, ``uid``, ``token``, ``keyset_ids``, ``keyset_types``,
+``digest``), the contract (``name``, ``major``, ``minor``, ``patch``, ``variant``,
+``model_hash``), the typed ``accessors`` and command ``submits`` its rights give, helper
+flags, and ``value_headers``: the struct value headers of the keys it may read or write, each with
+``path``, ``prefix`` (``DMT_<KEY>``), ``ctype``, ``encode``, ``decode``, ``bytes``,
+``payload_max`` and ``fields`` (``name``, ``offset_name``, ``ctype``, ``offset``, ``size``,
+``kind``), named as in ``dmt_constants.h``; and ``views``: one per struct key it may read
+(read-only or read-write, command keys included), in key ID order, each with ``name``
+(``namespace_class_key``), ``path`` and ``key`` (the key ID as ``0x%08XU``). A struct value
+reaches a reader only as a delivered event and has no getter, so the binding renders each view as
+a function of an event, for example ``<p>_view_<name>(ev, &data, &len)``, that gives the event's
+whole value (a declared header included; decoding it stays the consumer's) when the event is that
+key and carries a buffer, and the runtime's type mismatch otherwise: the consumer tells which key
+an event carries without writing a key ID. A principal without such a key has an empty
+``views``. The binding names the consumer's store runtime; ingot names none.
+``examples/contract/`` holds a generic model at contract 1.0, 1.1 and 2.0.
 
 Key Filtering
 -------------

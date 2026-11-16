@@ -1,16 +1,22 @@
 pub mod enums;
 pub mod rust_kvp;
 pub mod storage;
+pub mod tables;
 pub mod target;
+pub mod templates;
 pub mod yaml_manifest;
 
-use crate::model::key::KeyEncoding;
+use crate::model::key::{define_stem, key_id};
 use crate::model::schema::{Class, DataModel, DataType, EnumDef, KeyDef};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
 use tera::{Context, Tera};
 
+/// Write generated text to `path`, normalised to end in exactly one newline.
+///
+/// @version 1
+/// @req REQ-ING-GEN-001
 pub(crate) fn write_generated(path: impl AsRef<Path>, content: String) -> std::io::Result<()> {
     let normalized = format!("{}\n", content.trim_end_matches('\n'));
     std::fs::write(path, normalized)
@@ -32,6 +38,21 @@ pub struct CodegenOptions {
     /// per-key enum typedefs. When set, the DM-compat enum block is skipped
     /// in any translation unit that has already included that header.
     pub dm_enums_guard: Option<String>,
+}
+
+/// Join values as `a, b, c`, the element list of a generated C or Rust array initialiser.
+///
+/// @version 1
+/// @req REQ-ING-GEN-004
+/// @req REQ-ING-GEN-005
+/// @req REQ-ING-GEN-006
+/// @req REQ-ING-RST-002
+pub(crate) fn join_list<T: std::fmt::Display>(values: &[T]) -> String {
+    values
+        .iter()
+        .map(|v| v.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// A key definition ready for template rendering.
@@ -83,6 +104,8 @@ struct DmIntTypeInfo {
 }
 
 /// Map integer storage suffix to API dispatch info.
+/// @version 1
+/// @req REQ-ING-GEN-011
 fn int_type_info(suffix: &str) -> DmIntTypeInfo {
     let (type_enum, c_type, val_field, wrapper) = match suffix {
         "UINT8" => ("DM_KEY_TYPE_UINT8", "uint8_t", "u8val", "UInt8"),
@@ -104,6 +127,10 @@ fn int_type_info(suffix: &str) -> DmIntTypeInfo {
 }
 
 /// Render each named template with `ctx` into a same-named file in `output_dir`.
+///
+/// @version 1
+/// @req REQ-ING-GEN-001
+/// @return Ok once every file is written, else the first render or write error
 fn render_files(
     tera: &Tera,
     ctx: &Context,
@@ -117,6 +144,10 @@ fn render_files(
 }
 
 /// A context holding only the generator version, shared by every template.
+///
+/// @version 1
+/// @req REQ-ING-GEN-001
+/// @return a Tera context with `version` set
 fn version_context(version: &str) -> Context {
     let mut ctx = Context::new();
     ctx.insert("version", version);
@@ -124,22 +155,21 @@ fn version_context(version: &str) -> Context {
 }
 
 /// Generate all C code from a parsed data model.
+///
+/// v2: the Unity test collectors no longer take the namespace ID they did not use.
+/// v3: neither does the helper collector.
+/// v4: renders with the templates the caller loaded (embedded unless --templates).
+/// @version 4
+/// @req REQ-ING-GEN-001
 pub fn generate(
     model: &DataModel,
     ns_id: u16,
     output_dir: &Path,
-    template_dir: &Path,
+    tera: &Tera,
     target: &target::TargetConfig,
     opts: CodegenOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
-
-    let tera = Tera::new(
-        template_dir
-            .join("*")
-            .to_str()
-            .ok_or("invalid template path")?,
-    )?;
 
     let version = env!("CARGO_PKG_VERSION");
 
@@ -149,7 +179,7 @@ pub fn generate(
     // The compat surface adds bare-key macros and per-key enum constants to
     // the C namespace; refuse to emit headers whose names would clash.
     if opts.dm_compat {
-        check_compat_identifiers(model, ns_id, &key_defs)?;
+        check_compat_identifiers(model, &key_defs)?;
     }
 
     // Generate key_definitions.h
@@ -157,19 +187,19 @@ pub fn generate(
         let mut ctx = version_context(version);
         ctx.insert("keys", &key_defs);
         ctx.insert("dm_compat", &opts.dm_compat);
-        render_files(&tera, &ctx, output_dir, &["key_definitions.h"])?;
+        render_files(tera, &ctx, output_dir, &["key_definitions.h"])?;
         log::info!("Generated key_definitions.h ({} keys)", key_defs.len());
     }
 
     // Generate C++/tinyfsm event artifacts (opt-in, additive — see --emit-tinyfsm).
     // Off by default so C99-only consumers and their output are untouched.
-    generate_event_artifacts(&tera, version, &key_defs, ns_id, &opts, output_dir)?;
+    generate_event_artifacts(tera, version, &key_defs, ns_id, &opts, output_dir)?;
 
     // Generate jenkins_hash.h and jenkins_hash.c
     {
         let ctx = version_context(version);
         render_files(
-            &tera,
+            tera,
             &ctx,
             output_dir,
             &["jenkins_hash.h", "jenkins_hash.c"],
@@ -182,7 +212,7 @@ pub fn generate(
     {
         let mut ctx = version_context(version);
         ctx.insert("dm_compat", &opts.dm_compat);
-        render_files(&tera, &ctx, output_dir, &["dm_key.h"])?;
+        render_files(tera, &ctx, output_dir, &["dm_key.h"])?;
         log::info!("Generated dm_key.h");
     }
 
@@ -191,7 +221,7 @@ pub fn generate(
         let namespaces = collect_namespaces(model, ns_id);
         let mut ctx = version_context(version);
         ctx.insert("namespaces", &namespaces);
-        render_files(&tera, &ctx, output_dir, &["dm_namespace_definitions.h"])?;
+        render_files(tera, &ctx, output_dir, &["dm_namespace_definitions.h"])?;
         log::info!("Generated dm_namespace_definitions.h");
     }
 
@@ -205,7 +235,7 @@ pub fn generate(
         ctx.insert("enums", &enum_defs);
         ctx.insert("compat_enums", &compat_enum_types(model, &opts));
         ctx.insert("compat_guard", &opts.dm_enums_guard);
-        render_files(&tera, &ctx, output_dir, &["dm_enums.h"])?;
+        render_files(tera, &ctx, output_dir, &["dm_enums.h"])?;
         log::info!("Generated dm_enums.h ({} enum(s))", enum_defs.len());
     }
 
@@ -216,14 +246,14 @@ pub fn generate(
     let bool_storage = storage::boolean::collect_boolean_storage(model, ns_id)?;
     let int_storages = storage::integer::collect_integer_storage(model, ns_id)?;
     let str_storage = storage::string::collect_string_storage(model, ns_id)?;
-    let persist_storage = storage::persistence::collect_persistence_storage(model, ns_id);
+    let persist_storage = storage::persistence::collect_persistence_storage(model);
 
     // Generate boolean_storage.h/.c
     if let Some(ref bs) = bool_storage {
         let mut ctx = version_context(version);
         ctx.insert("bool", bs);
         render_files(
-            &tera,
+            tera,
             &ctx,
             output_dir,
             &["boolean_storage.h", "boolean_storage.c"],
@@ -240,7 +270,7 @@ pub fn generate(
         let mut ctx = version_context(version);
         ctx.insert("types", &int_storages);
         render_files(
-            &tera,
+            tera,
             &ctx,
             output_dir,
             &["integer_storage.h", "integer_storage.c"],
@@ -258,7 +288,7 @@ pub fn generate(
         ctx.insert("ro", &ss.ro);
         ctx.insert("rw", &ss.rw);
         render_files(
-            &tera,
+            tera,
             &ctx,
             output_dir,
             &["string_storage.h", "string_storage.c"],
@@ -277,7 +307,7 @@ pub fn generate(
         ctx.insert("persistence", ps);
         ctx.insert("dm_compat", &opts.dm_compat);
         let names = ["persistence_storage.h", "persistence_storage.c"];
-        render_files(&tera, &ctx, output_dir, &names)?;
+        render_files(tera, &ctx, output_dir, &names)?;
         log::info!("Generated persistence_storage.h/.c ({} keys)", ps.num_keys);
     }
 
@@ -288,7 +318,7 @@ pub fn generate(
         str_storage.is_some(),
         persist_storage.is_some(),
     ];
-    generate_dm_compat_aliases(&tera, version, &opts, present, output_dir)?;
+    generate_dm_compat_aliases(tera, version, &opts, present, output_dir)?;
 
     // --- Generate dm.h / dm.c (main API layer) ---
     {
@@ -314,7 +344,7 @@ pub fn generate(
         ctx.insert("target", target);
         ctx.insert("no_events", &opts.no_events);
 
-        render_files(&tera, &ctx, output_dir, &["dm.h", "dm.c"])?;
+        render_files(tera, &ctx, output_dir, &["dm.h", "dm.c"])?;
         log::info!(
             "Generated dm.h/.c (bool={}, int_types={}, ro_str={}, rw_str={})",
             has_bool,
@@ -326,7 +356,7 @@ pub fn generate(
 
     // --- Generate dm_helpers.h / dm_helpers.c ---
     {
-        let helpers = collect_helpers(model, ns_id);
+        let helpers = collect_helpers(model);
         if !helpers.is_empty() {
             let has_string_helpers = helpers.iter().any(|h| h.is_string);
             let has_enum_helpers = helpers.iter().any(|h| h.is_enum);
@@ -340,7 +370,7 @@ pub fn generate(
             } else {
                 &["dm_helpers.h"]
             };
-            render_files(&tera, &ctx, output_dir, names)?;
+            render_files(tera, &ctx, output_dir, names)?;
             log::info!(
                 "Generated dm_helpers.h{} ({} helpers)",
                 if has_string_helpers { "/.c" } else { "" },
@@ -350,9 +380,8 @@ pub fn generate(
     }
 
     render_unity_tests(
-        &tera,
+        tera,
         model,
-        ns_id,
         output_dir,
         opts.no_events,
         persist_storage.as_ref(),
@@ -360,16 +389,19 @@ pub fn generate(
 }
 
 /// Render the Unity test file and its CMakeLists.txt.
+///
+/// @version 1
+/// @req REQ-ING-GEN-009
+/// @return Ok once both files are written, else the first render or write error
 fn render_unity_tests(
     tera: &Tera,
     model: &DataModel,
-    ns_id: u16,
     output_dir: &Path,
     no_events: bool,
     persist_storage: Option<&storage::persistence::PersistenceStorage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let test_keys = collect_test_keys(model, ns_id);
-    let persist_test_entries = collect_persistence_test_entries(model, ns_id);
+    let test_keys = collect_test_keys(model);
+    let persist_test_entries = collect_persistence_test_entries(model);
     let mut ctx = version_context(env!("CARGO_PKG_VERSION"));
     ctx.insert("keys", &test_keys);
     ctx.insert("namespace", &model.meta.id);
@@ -394,6 +426,10 @@ fn render_unity_tests(
 /// Emit the opt-in event artifacts: the tinyfsm headers under
 /// `--emit-tinyfsm`, plus the DM-compat `dm_key_events.h/.c` alias when
 /// `--dm-compat` is also set and there is a dispatch table to forward to.
+///
+/// @version 1
+/// @req REQ-ING-EVT-001
+/// @return Ok once the selected files are written, else the first render or write error
 fn generate_event_artifacts(
     tera: &Tera,
     version: &str,
@@ -419,12 +455,46 @@ fn generate_event_artifacts(
     Ok(())
 }
 
-/// Render the C++/tinyfsm event header + dispatch-by-key wrapper.
+/// Templates rendered from the flat list of event keys, each written under its own name.
+///
+/// They share one context, so every file lists exactly the same keys in the same order.
+const EVENT_KEY_TEMPLATES: [&str; 4] = [
+    "dm_key_events_wrapper.hpp",
+    "dm_key_events_wrapper.cpp",
+    "dm_key_has_event.hpp",
+    "dm_key_event_list.hpp",
+];
+
+/// Render the template `name` and write the result to `output_dir/name`.
+///
+/// v2: crate-visible, so the table-interface outputs render through it too.
+/// @version 2
+/// @req REQ-ING-GEN-001
+/// @req REQ-ING-TIV-001
+pub(crate) fn render_template(
+    tera: &Tera,
+    name: &str,
+    ctx: &Context,
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let rendered = tera.render(name, ctx)?;
+    write_generated(output_dir.join(name), rendered)?;
+    Ok(())
+}
+
+/// Render the C++/tinyfsm event header, the dispatch-by-key wrapper, the
+/// has-event predicate and the (key id, event) typelist.
 ///
 /// Emits nothing when no key carries `event = true` — a consumer with no
 /// event keys gets no C++ artifacts even with the flag on. Returns `true`
 /// when the dispatch table was emitted, so a caller emitting something that
 /// forwards to it knows whether there is anything to forward to.
+///
+/// v2: renders EVENT_KEY_TEMPLATES from one context, with the model's namespace id.
+/// @version 2
+/// @req REQ-ING-EVT-001
+/// @req REQ-ING-EVT-002
+/// @req REQ-ING-EVT-003
 fn generate_tinyfsm_events(
     tera: &Tera,
     version: &str,
@@ -442,23 +512,14 @@ fn generate_tinyfsm_events(
     hpp_ctx.insert("groups", &groups);
     render_files(tera, &hpp_ctx, output_dir, &["dm_key_events.hpp"])?;
 
-    // dm_key_has_event.hpp lets a consumer's value-change callback ask, cheaply,
-    // whether a changed key is one anything can react to. Without it `event =
-    // false` is true of the generated types (no FSM_EVENT_ struct) but not of
-    // the runtime traffic: the callback fires per changed key and has to
-    // enqueue every one of them.
-    let mut wrap_ctx = version_context(version);
-    wrap_ctx.insert("events", &events);
-    wrap_ctx.insert("ns_id", &ns_id);
-    let names = [
-        "dm_key_events_wrapper.hpp",
-        "dm_key_events_wrapper.cpp",
-        "dm_key_has_event.hpp",
-    ];
-    render_files(tera, &wrap_ctx, output_dir, &names)?;
+    let mut events_ctx = version_context(version);
+    events_ctx.insert("events", &events);
+    events_ctx.insert("ns_id", &ns_id);
+    render_files(tera, &events_ctx, output_dir, &EVENT_KEY_TEMPLATES)?;
 
     log::info!(
-        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp + dm_key_has_event.hpp ({} event keys)",
+        "Generated dm_key_events.hpp + {} ({} event keys)",
+        EVENT_KEY_TEMPLATES.join(" + "),
         events.len()
     );
     Ok(true)
@@ -467,6 +528,10 @@ fn generate_tinyfsm_events(
 /// Emit the DM-compat headers that only repoint a legacy DM filename to
 /// ingot's own header. `present` flags whether boolean, integer, string, and
 /// persistence storage were generated; each storage alias follows its header.
+///
+/// @version 1
+/// @req REQ-ING-CMP-001
+/// @return Ok once the aliases are written (none without --dm-compat), else the first error
 fn generate_dm_compat_aliases(
     tera: &Tera,
     version: &str,
@@ -502,6 +567,8 @@ fn generate_dm_compat_aliases(
 /// The FSM event struct name mirrors the key #define with the `DM_KEY_`
 /// prefix swapped for `FSM_EVENT_`, matching the DM generator's naming so
 /// ingot is a drop-in replacement.
+/// @version 1
+/// @req REQ-ING-EVT-001
 fn collect_event_keys(
     key_defs: &[KeyDefRenderable],
 ) -> (Vec<EventKeyRenderable>, Vec<EventGroupRenderable>) {
@@ -540,6 +607,8 @@ struct NamespaceDefRenderable {
 }
 
 /// Collect unique namespaces from the model (deduplicated, ordered).
+/// @version 1
+/// @req REQ-ING-GEN-003
 fn collect_namespaces(model: &DataModel, fallback_ns_id: u16) -> Vec<NamespaceDefRenderable> {
     let mut seen = std::collections::BTreeMap::new();
     for class in &model.classes {
@@ -563,12 +632,9 @@ fn collect_namespaces(model: &DataModel, fallback_ns_id: u16) -> Vec<NamespaceDe
         .collect()
 }
 
-/// Resolve the namespace ID for a class, using per-class override or model-level fallback.
-pub(crate) fn resolve_ns_id(class: &crate::model::schema::Class, fallback: u16) -> u16 {
-    class.namespace_id.unwrap_or(fallback)
-}
-
 /// Resolve the namespace name for a class, using per-class override or model-level fallback.
+/// @version 1
+/// @req REQ-ING-KEY-002
 pub(crate) fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataModel) -> String {
     class
         .namespace_name
@@ -577,36 +643,58 @@ pub(crate) fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataM
         .to_string()
 }
 
-/// Resolve the class index, using explicit class_index or positional fallback.
-pub(crate) fn resolve_class_idx(class: &crate::model::schema::Class, position: usize) -> u8 {
-    class.class_index.unwrap_or(position as u8)
+/// `<NAMESPACE>_<CLASS>_<KEY>` of `key` in `class`; the key's define is `DM_KEY_` + this.
+///
+/// @version 1
+/// @req REQ-ING-GEN-002
+pub(crate) fn key_stem(
+    class: &crate::model::schema::Class,
+    model: &DataModel,
+    key: &KeyDef,
+) -> String {
+    define_stem(&resolve_ns_name(class, model), &class.id, &key.id)
+}
+
+/// Keys paired with their encoded 32-bit IDs.
+pub(crate) type EncodedKeys<'m> = Vec<(u32, &'m KeyDef)>;
+
+/// Every key of the model that `wanted` accepts, with its encoded ID, in declaration order.
+///
+/// v2: IDs from the shared model::key::key_id (positions stamped at parse time).
+/// @version 2
+/// @req REQ-ING-KEY-002
+/// @req REQ-ING-GEN-004
+/// @req REQ-ING-GEN-005
+/// @req REQ-ING-GEN-006
+pub(crate) fn encoded_keys(
+    model: &DataModel,
+    ns_id: u16,
+    wanted: impl Fn(&KeyDef) -> bool,
+) -> EncodedKeys<'_> {
+    let mut keys = Vec::new();
+    for class in &model.classes {
+        for key in class.keys.iter().filter(|k| wanted(k)) {
+            keys.push((key_id(class, ns_id, key), key));
+        }
+    }
+    keys
 }
 
 /// Build renderable key definitions from the model.
+///
+/// v2: the key ID comes from the shared encode_key.
+/// v3: the define name comes from the shared key_stem.
+/// v4: the key ID comes from model::key::key_id.
+/// v5: carries the bare `<PATH>` name for the --dm-compat bare-key alias.
+/// @version 5
+/// @req REQ-ING-GEN-002
 fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderable> {
     let mut defs = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let c_idx = resolve_class_idx(class, pos);
-        let class_name = class.id.to_uppercase();
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            let type_code = key.data_type.type_code();
-
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-
-            let encoded = encoding.encode();
-            let key_name = key.id.to_uppercase().replace(' ', "_");
-            let bare_name = format!("{c_ns_name}_{class_name}_{key_name}");
+    for class in &model.classes {
+        for key in &class.keys {
+            let encoded = key_id(class, ns_id, key);
+            let bare_name = key_stem(class, model, key);
 
             defs.push(KeyDefRenderable {
                 namespace: resolve_ns_name(class, model),
@@ -665,60 +753,38 @@ struct HelperEntry {
 /// the alias uses the display names, falling back to `id`, so camelCase
 /// segments survive (e.g. `DataModel_Getlocal_config_deviceName`). The
 /// uppercase C surface derives from `id` independently.
+///
+/// @version 1
+/// @req REQ-ING-CMP-001
+/// @return the `<ns>_<class name>_<key name>` path, spaces as underscores
 fn display_path(model: &DataModel, class: &Class, key: &KeyDef) -> String {
     let class_name = class.name.as_deref().unwrap_or(&class.id).replace(' ', "_");
     let key_name = key.name.as_deref().unwrap_or(&key.id).replace(' ', "_");
     format!("{}_{class_name}_{key_name}", resolve_ns_name(class, model))
 }
 
-/// Helper value C type, `dm_val_t` field, and string flag for a key type.
-fn helper_c_types(data_type: DataType) -> (String, String, bool) {
-    match data_type {
-        DataType::Bool => ("bool".to_string(), "bval".to_string(), false),
-        DataType::Uint8 => ("uint8_t".to_string(), "u8val".to_string(), false),
-        DataType::Int8 => ("int8_t".to_string(), "s8val".to_string(), false),
-        DataType::Uint16 => ("uint16_t".to_string(), "u16val".to_string(), false),
-        DataType::Int16 => ("int16_t".to_string(), "s16val".to_string(), false),
-        DataType::Uint32 => ("uint32_t".to_string(), "u32val".to_string(), false),
-        DataType::Int32 => ("int32_t".to_string(), "s32val".to_string(), false),
-        DataType::String => ("const char *".to_string(), String::new(), true),
-        DataType::Binary => ("const uint8_t *".to_string(), String::new(), true),
-    }
-}
-
 /// Collect helper entries for keys with helpers=true.
-fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
+///
+/// v2: an unused KeyEncoding (and the namespace ID it needed) is no longer built.
+/// v3: C type, dm_val_t field and buffer flag come from DataType.
+/// v4: the define and helper names come from the shared key_stem.
+/// v5: carries the display path and the per-key enum type for the --dm-compat aliases.
+/// @version 5
+/// @req REQ-ING-GEN-008
+fn collect_helpers(model: &DataModel) -> Vec<HelperEntry> {
     let mut helpers = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let c_idx = resolve_class_idx(class, pos);
-        let class_name = class.id.to_uppercase();
-
-        for (key_pos, key) in class.keys.iter().enumerate() {
+    for class in &model.classes {
+        for key in &class.keys {
             if !key.helpers {
                 continue;
             }
 
-            let type_code = key.data_type.type_code();
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-            // Ensure encoding is used (validate key is encodable)
-            let _ = encoding.encode();
+            let helper_name = key_stem(class, model, key);
+            let define_name = format!("DM_KEY_{helper_name}");
 
-            let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
-            let helper_name = format!("{c_ns_name}_{class_name}_{key_name}");
-
-            let (raw_c_type, val_field, is_string) = helper_c_types(key.data_type);
+            let raw_c_type = key.data_type.c_value_type().to_string();
+            let is_string = key.data_type.is_buffer();
 
             let is_enum = !is_string && key.enum_ref.is_some();
             let c_type = match (&key.enum_ref, is_enum) {
@@ -732,7 +798,7 @@ fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
                 orig_path: display_path(model, class, key),
                 helper_name,
                 c_type,
-                val_field,
+                val_field: key.data_type.val_field().to_string(),
                 is_string,
                 is_read_only: key.read_only,
                 is_enum,
@@ -775,6 +841,10 @@ struct EnumTypeRenderable {
 
 /// Map a key's storage type to the stdint `*_MAX` sentinel used for the
 /// generated enum's `_MAX_STORAGE_VALUE` guard (mirrors the DM emitter).
+///
+/// @version 1
+/// @req REQ-ING-CMP-001
+/// @return the stdint `*_MAX` macro name
 fn enum_max_macro(data_type: DataType) -> &'static str {
     match data_type {
         DataType::Bool | DataType::Uint8 => "UINT8_MAX",
@@ -789,6 +859,10 @@ fn enum_max_macro(data_type: DataType) -> &'static str {
 }
 
 /// The per-key compat enum typedefs, or none unless `--dm-compat` is set.
+///
+/// @version 1
+/// @req REQ-ING-CMP-001
+/// @return the typedefs to render into dm_enums.h
 fn compat_enum_types(model: &DataModel, opts: &CodegenOptions) -> Vec<EnumTypeRenderable> {
     if opts.dm_compat {
         collect_enum_types(model)
@@ -798,6 +872,10 @@ fn compat_enum_types(model: &DataModel, opts: &CodegenOptions) -> Vec<EnumTypeRe
 }
 
 /// One key's `<PATH>_<VALUE>` constants, ordered by value then name.
+///
+/// @version 1
+/// @req REQ-ING-CMP-001
+/// @return the constants in value-then-name order
 fn compat_enum_constants(prefix: &str, enum_def: &EnumDef) -> Vec<EnumConstRenderable> {
     let mut values: Vec<EnumConstRenderable> = enum_def
         .values
@@ -817,6 +895,10 @@ fn compat_enum_constants(prefix: &str, enum_def: &EnumDef) -> Vec<EnumConstRende
 /// enum domain), matching the DM generator: the same `[enums.*]` domain
 /// referenced by two keys yields two distinct typedefs. Constant values are
 /// emitted verbatim from the schema (Data Quality — they are wire-semantic).
+///
+/// @version 1
+/// @req REQ-ING-CMP-001
+/// @return one typedef per enum-referencing key, in model order
 fn collect_enum_types(model: &DataModel) -> Vec<EnumTypeRenderable> {
     let mut out = Vec::new();
 
@@ -861,6 +943,10 @@ struct IdentRegistry {
 }
 
 impl IdentRegistry {
+    /// Record `ident` from `origin`, or a clash when another element already declared it.
+    ///
+    /// @version 1
+    /// @req REQ-ING-CMP-002
     fn add(&mut self, ident: String, origin: &str) {
         if let Some(first) = self.seen.get(&ident) {
             self.clashes
@@ -870,6 +956,10 @@ impl IdentRegistry {
         }
     }
 
+    /// Record every key's `DM_KEY_` define and its bare-key alias.
+    ///
+    /// @version 1
+    /// @req REQ-ING-CMP-002
     fn add_keys(&mut self, key_defs: &[KeyDefRenderable]) {
         for k in key_defs {
             let path = format!("key {}.{}.{}", k.namespace, k.class, k.name);
@@ -878,6 +968,10 @@ impl IdentRegistry {
         }
     }
 
+    /// Record every named enum's typedef and members.
+    ///
+    /// @version 1
+    /// @req REQ-ING-CMP-002
     fn add_named_enums(&mut self, model: &DataModel) {
         for e in enums::collect_enums(model) {
             let origin = format!("enum {}", e.type_name);
@@ -888,6 +982,10 @@ impl IdentRegistry {
         }
     }
 
+    /// Record every per-key compat typedef, its storage sentinel and its own constants.
+    ///
+    /// @version 1
+    /// @req REQ-ING-CMP-002
     fn add_compat_enums(&mut self, model: &DataModel) {
         for e in collect_enum_types(model) {
             let origin = format!("compat enum {}", e.type_name);
@@ -901,8 +999,13 @@ impl IdentRegistry {
         }
     }
 
-    fn add_helpers(&mut self, model: &DataModel, ns_id: u16) {
-        for h in collect_helpers(model, ns_id) {
+    /// Record every helper's upper- and lower-case accessor aliases.
+    ///
+    /// v2: the helpers are collected without the namespace ID.
+    /// @version 2
+    /// @req REQ-ING-CMP-002
+    fn add_helpers(&mut self, model: &DataModel) {
+        for h in collect_helpers(model) {
             let origin = format!("accessors of {}", h.define_name);
             let mut verbs = vec!["Get"];
             if !h.is_read_only {
@@ -919,16 +1022,20 @@ impl IdentRegistry {
 }
 
 /// Fail when the `--dm-compat` surface would declare one C identifier twice.
+///
+/// v2: the helper names no longer take the namespace ID.
+/// @version 2
+/// @req REQ-ING-CMP-002
+/// @return Ok when every identifier is unique, else an error listing each clash
 fn check_compat_identifiers(
     model: &DataModel,
-    ns_id: u16,
     key_defs: &[KeyDefRenderable],
 ) -> Result<(), String> {
     let mut reg = IdentRegistry::default();
     reg.add_keys(key_defs);
     reg.add_named_enums(model);
     reg.add_compat_enums(model);
-    reg.add_helpers(model, ns_id);
+    reg.add_helpers(model);
     if reg.clashes.is_empty() {
         return Ok(());
     }
@@ -967,51 +1074,28 @@ struct TestKeyEntry {
 }
 
 /// Collect test entries for every key in the model.
-fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
+///
+/// v2: defaults come from the shared c_default_literal; an unused KeyEncoding is no longer built.
+/// v3: C type, dm_val_t field and buffer flag come from DataType.
+/// v4: the define name comes from the shared key_stem.
+/// @version 4
+/// @req REQ-ING-GEN-009
+fn collect_test_keys(model: &DataModel) -> Vec<TestKeyEntry> {
     let mut entries = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let c_idx = resolve_class_idx(class, pos);
-        let class_name = class.id.to_uppercase();
+    for class in &model.classes {
+        for key in &class.keys {
+            let define_name = format!("DM_KEY_{}", key_stem(class, model, key));
 
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
-
-            let (c_type, val_field, is_string, is_bool) = match key.data_type {
-                DataType::Bool => ("bool", "bval", false, true),
-                DataType::Uint8 => ("uint8_t", "u8val", false, false),
-                DataType::Int8 => ("int8_t", "s8val", false, false),
-                DataType::Uint16 => ("uint16_t", "u16val", false, false),
-                DataType::Int16 => ("int16_t", "s16val", false, false),
-                DataType::Uint32 => ("uint32_t", "u32val", false, false),
-                DataType::Int32 => ("int32_t", "s32val", false, false),
-                DataType::String => ("const char *", "", true, false),
-                DataType::Binary => ("const uint8_t *", "", true, false),
-            };
-
-            let default_c = format_test_default(&key.default, key.data_type);
+            let default_c = c_default_literal(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
-
-            let type_code = key.data_type.type_code();
-            let _encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
 
             entries.push(TestKeyEntry {
                 define_name,
-                c_type: c_type.to_string(),
-                val_field: val_field.to_string(),
-                is_string,
-                is_bool,
+                c_type: key.data_type.c_value_type().to_string(),
+                val_field: key.data_type.val_field().to_string(),
+                is_string: key.data_type.is_buffer(),
+                is_bool: key.data_type == DataType::Bool,
                 read_only: key.read_only,
                 default_c,
                 test_c,
@@ -1023,55 +1107,32 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
 }
 
 /// Collect persistence test entries for persistent keys in the model.
-fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<PersistenceTestEntry> {
+///
+/// v2: defaults come from the shared c_default_literal; an unused KeyEncoding is no longer built.
+/// v3: C type, dm_val_t field and buffer flag come from DataType.
+/// v4: the define name comes from the shared key_stem.
+/// @version 4
+/// @req REQ-ING-GEN-009
+fn collect_persistence_test_entries(model: &DataModel) -> Vec<PersistenceTestEntry> {
     let mut entries = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let c_idx = resolve_class_idx(class, pos);
-        let class_name = class.id.to_uppercase();
-
-        for (key_pos, key) in class.keys.iter().enumerate() {
+    for class in &model.classes {
+        for key in &class.keys {
             if !key.persistent {
                 continue;
             }
 
-            let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
+            let define_name = format!("DM_KEY_{}", key_stem(class, model, key));
 
-            let (c_type, val_field, is_string, is_bool) = match key.data_type {
-                DataType::Bool => ("bool", "bval", false, true),
-                DataType::Uint8 => ("uint8_t", "u8val", false, false),
-                DataType::Int8 => ("int8_t", "s8val", false, false),
-                DataType::Uint16 => ("uint16_t", "u16val", false, false),
-                DataType::Int16 => ("int16_t", "s16val", false, false),
-                DataType::Uint32 => ("uint32_t", "u32val", false, false),
-                DataType::Int32 => ("int32_t", "s32val", false, false),
-                DataType::String => ("const char *", "", true, false),
-                DataType::Binary => ("const uint8_t *", "", true, false),
-            };
-
-            let type_code = key.data_type.type_code();
-            let _encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-
-            let default_c = format_test_default(&key.default, key.data_type);
+            let default_c = c_default_literal(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
 
             entries.push(PersistenceTestEntry {
                 define_name,
-                c_type: c_type.to_string(),
-                val_field: val_field.to_string(),
-                is_string,
-                is_bool,
+                c_type: key.data_type.c_value_type().to_string(),
+                val_field: key.data_type.val_field().to_string(),
+                is_string: key.data_type.is_buffer(),
+                is_bool: key.data_type == DataType::Bool,
                 default_c,
                 test_c,
             });
@@ -1081,7 +1142,15 @@ fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<Persis
     entries
 }
 
-fn format_test_default(default: &Option<toml::Value>, data_type: DataType) -> String {
+/// C literal of a key's default: `true`/`false`, an integer, an escaped string, or the
+/// type's zero value when the key has no default.
+///
+/// Shared by the persistence struct initialiser and the generated Unity tests.
+///
+/// @version 1
+/// @req REQ-ING-GEN-007
+/// @req REQ-ING-GEN-009
+pub(crate) fn c_default_literal(default: &Option<toml::Value>, data_type: DataType) -> String {
     match default {
         Some(toml::Value::Boolean(b)) => if *b { "true" } else { "false" }.to_string(),
         Some(toml::Value::Integer(i)) => i.to_string(),
@@ -1095,6 +1164,8 @@ fn format_test_default(default: &Option<toml::Value>, data_type: DataType) -> St
 }
 
 /// Generate a test value that's different from the default.
+/// @version 1
+/// @req REQ-ING-GEN-009
 fn format_test_value(data_type: DataType, default_c: &str) -> String {
     match data_type {
         DataType::Bool => {
@@ -1120,5 +1191,101 @@ fn format_test_value(data_type: DataType, default_c: &str) -> String {
                 "-7".to_string()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn join_list_separates_with_comma_space() {
+        assert_eq!(join_list(&[0, -1, 127]), "0, -1, 127");
+    }
+
+    #[test]
+    fn join_list_of_one_and_of_none() {
+        assert_eq!(join_list(&[42]), "42");
+        assert_eq!(join_list::<i32>(&[]), "");
+    }
+
+    #[test]
+    fn c_default_literal_of_declared_defaults() {
+        use toml::Value;
+        assert_eq!(
+            c_default_literal(&Some(Value::Boolean(true)), DataType::Bool),
+            "true"
+        );
+        assert_eq!(
+            c_default_literal(&Some(Value::Integer(-7)), DataType::Int8),
+            "-7"
+        );
+        assert_eq!(
+            c_default_literal(&Some(Value::String("a\"b".into())), DataType::String),
+            "\"a\\\"b\""
+        );
+    }
+
+    #[test]
+    fn c_default_literal_without_default_is_the_zero_value() {
+        assert_eq!(c_default_literal(&None, DataType::Bool), "false");
+        assert_eq!(c_default_literal(&None, DataType::Uint32), "0");
+        assert_eq!(c_default_literal(&None, DataType::String), "\"\"");
+        assert_eq!(c_default_literal(&None, DataType::Binary), "\"\"");
+    }
+
+    fn two_class_model() -> DataModel {
+        DataModel::from_toml(
+            r#"
+[meta]
+id = "rig"
+version = "1.0.0"
+namespace_id = 3
+
+[[classes]]
+id = "motor"
+[[classes.keys]]
+id = "speed"
+type = "uint16"
+[[classes.keys]]
+id = "fault"
+type = "bool"
+key_index = 9
+read_only = true
+
+[[classes]]
+id = "door"
+class_index = 4
+[[classes.keys]]
+id = "open"
+type = "bool"
+thread_safe = true
+"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn key_id_uses_explicit_index_or_stamped_position() {
+        let mut model = two_class_model();
+        let motor = &model.classes[0];
+        // 3<<22 | 0<<17 | position 0<<7 | uint16 (2)<<3
+        assert_eq!(key_id(motor, 3, &motor.keys[0]), 0x00C0_0010);
+        // explicit key_index 9 wins over position 1; bool type 0; read-only bit 0
+        assert_eq!(key_id(motor, 3, &motor.keys[1]), 0x00C0_0481);
+        // a merged file's class carries its own namespace ID over the model fallback
+        model.classes[1].namespace_id = Some(7);
+        let door = &model.classes[1];
+        assert_eq!(key_id(door, 3, &door.keys[0]) >> 22, 7);
+    }
+
+    #[test]
+    fn encoded_keys_filters_in_declaration_order() {
+        let model = two_class_model();
+        let bools = encoded_keys(&model, 3, |k| k.data_type == DataType::Bool);
+        let ids: Vec<u32> = bools.iter().map(|(id, _)| *id).collect();
+        // motor.fault (class 0, index 9, read-only), door.open (class_index 4, thread-safe)
+        assert_eq!(ids, vec![0x00C0_0481, 0x00C8_0004]);
+        assert_eq!(bools[1].1.id, "open");
     }
 }

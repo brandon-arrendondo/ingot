@@ -99,6 +99,7 @@ With `--emit-tinyfsm`, ingot additionally emits (for `event = true` keys):
 | `dm_key_events.hpp` | One empty `tinyfsm::Event` struct per event key |
 | `dm_key_events_wrapper.hpp/.cpp` | `send_tinyfsm_event_by_key(key_id)` dispatch switch (calls a consumer-provided `send_tinyfsm_event` seam) |
 | `dm_key_has_event.hpp` | `dm_key_has_event(key)` and `dm_key_namespace(key)` predicates for filtering value-change traffic |
+| `dm_key_event_list.hpp` | `dm_event_list<KE, L>`: the same keys as a (key id, event struct) type list, plus `dm_event_count` |
 
 With `--dm-compat`, ingot adds DM-shaped aliases to `dm_helpers.h`,
 `key_definitions.h`, `dm_key.h`, `dm_enums.h`, and `persistence_storage.*`, and

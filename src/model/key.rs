@@ -1,3 +1,5 @@
+use super::schema::{Class, KeyDef, STAMPED};
+
 /// 32-bit key encoding for the data model.
 ///
 /// Bit layout:
@@ -18,6 +20,10 @@ pub struct KeyEncoding {
 }
 
 impl KeyEncoding {
+    /// Pack the fields into the 32-bit key ID.
+    ///
+    /// @version 1
+    /// @req REQ-ING-KEY-001
     pub fn encode(&self) -> u32 {
         let mut val: u32 = 0;
         val |= (self.namespace as u32 & 0x3FF) << 22;
@@ -35,18 +41,41 @@ impl KeyEncoding {
         }
         val
     }
+}
 
-    pub fn decode(val: u32) -> Self {
-        Self {
-            namespace: ((val >> 22) & 0x3FF) as u16,
-            class: ((val >> 17) & 0x1F) as u8,
-            id: ((val >> 7) & 0x3FF) as u16,
-            data_type: ((val >> 3) & 0xF) as u8,
-            thread_safe: (val >> 2) & 1 == 1,
-            derived: (val >> 1) & 1 == 1,
-            read_only: val & 1 == 1,
-        }
+/// Encoded 32-bit ID of `key` in `class`: the class's namespace ID (or `fallback_ns` for a
+/// single-file model), its class index, the key's index, type code and thread-safe and
+/// read-only flags. Indices are the explicit ones or the positions DataModel::from_toml stamped.
+///
+/// @version 1
+/// @req REQ-ING-KEY-001
+/// @req REQ-ING-KEY-002
+pub fn key_id(class: &Class, fallback_ns: u16, key: &KeyDef) -> u32 {
+    KeyEncoding {
+        namespace: class.namespace_id.unwrap_or(fallback_ns),
+        class: class.class_index.expect(STAMPED),
+        id: key.key_index.expect(STAMPED),
+        data_type: key.data_type.type_code(),
+        thread_safe: key.thread_safe,
+        derived: false,
+        read_only: key.read_only,
     }
+    .encode()
+}
+
+/// `<NAMESPACE>_<CLASS>_<KEY>`, upper-case with spaces as underscores: the stem of a key's
+/// `DM_KEY_` define, its helper names and its manifest and key-list name.
+///
+/// @version 1
+/// @req REQ-ING-GEN-002
+/// @req REQ-ING-FLT-001
+pub fn define_stem(namespace: &str, class: &str, key: &str) -> String {
+    format!(
+        "{}_{}_{}",
+        namespace.to_uppercase(),
+        class.to_uppercase().replace(' ', "_"),
+        key.to_uppercase().replace(' ', "_"),
+    )
 }
 
 #[cfg(test)]
@@ -54,7 +83,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn roundtrip_encoding() {
+    fn define_stem_upper_cases_and_joins() {
+        assert_eq!(
+            define_stem("battery", "status", "state of charge"),
+            "BATTERY_STATUS_STATE_OF_CHARGE"
+        );
+        assert_eq!(define_stem("rig", "my class", "x"), "RIG_MY_CLASS_X");
+    }
+
+    #[test]
+    fn fields_land_in_their_bits() {
         let key = KeyEncoding {
             namespace: 5,
             class: 3,
@@ -64,9 +102,8 @@ mod tests {
             derived: false,
             read_only: true,
         };
-        let encoded = key.encode();
-        let decoded = KeyEncoding::decode(encoded);
-        assert_eq!(key, decoded);
+        // 5<<22 | 3<<17 | 42<<7 | 2<<3 | thread-safe (bit 2) | read-only (bit 0)
+        assert_eq!(key.encode(), 0x0146_1515);
     }
 
     #[test]
@@ -82,8 +119,6 @@ mod tests {
         };
         let encoded = key.encode();
         assert_eq!(encoded, 0xFFFFFFFF);
-        let decoded = KeyEncoding::decode(encoded);
-        assert_eq!(key, decoded);
     }
 
     #[test]

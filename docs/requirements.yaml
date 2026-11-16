@@ -1,0 +1,1333 @@
+# Requirements catalog of ingot (clew-guard).
+# Every `@req REQ-ING-...` tag in source resolves to an entry here (cross_reference: true).
+# Id pattern: ^REQ-ING-[A-Z]+-[0-9]{3}$ (.clew.yaml). HAND-EDITED: add the entry before the code.
+# Schema is clew-guard's: a mapping keyed by id; `name` is required.
+
+requirements:
+  # -- command line -----------------------------------------------------------------------------
+  REQ-ING-CLI-001:
+    name: Command-line generation run
+    subsystem: CLI
+    description: >-
+      ingot parses its command line, sets the log level from -v, loads, filters, validates and
+      generates the named model for the selected target, and exits with status 1 after logging
+      the error when any step fails.
+    acceptance_criteria: >-
+      A valid model generates and exits 0; an invalid model logs each validation error and exits 1;
+      --include-list with --exclude-list is refused.
+  REQ-ING-CLI-002:
+    name: Embedded templates and the template search path
+    subsystem: CLI
+    description: >-
+      Every template is compiled into the binary. --templates or INGOT_TEMPLATES_DIR replaces
+      them with a directory (the whole set); a directory that does not exist is an error. In
+      model mode without either, the template directories upstream ingot searched are still
+      used, in its order (templates/ next to the executable, <exe>/../share/ingot/templates,
+      <exe>/../../templates, templates/ in the working directory, /usr/share/ingot/templates),
+      and the embedded templates are the fallback when none exists, so an installed or local
+      templates/ keeps working. A template that a searched directory lacks (one from an older
+      ingot, say) is taken from the embedded set, with a warning naming the template and the
+      directory, so a stale directory cannot break generation; an explicit directory is still
+      the whole set. Contract mode and --table-types never search, so their output depends
+      only on the ingot commit: they use the embedded templates (--table-types also accepts
+      --templates).
+    acceptance_criteria: >-
+      Generation works from a directory with no templates/ anywhere on the search path; every
+      file in templates/ is embedded; an explicit missing path is a clear error; an explicit
+      or environment path is used instead of the embedded set; in model mode a templates/
+      directory in the working directory is used before the embedded set, and contract mode
+      ignores it; a searched directory without dm_key_event_list.hpp still generates it under
+      --emit-tinyfsm, from the embedded copy, and the warning names the template and the
+      directory.
+  REQ-ING-TIV-001:
+    name: Fixed table-interface header
+    subsystem: Table interface
+    description: >-
+      ingot emits dmt_types.h, the frozen TIV 1.0 table-interface header
+      (type codes, persistence classes, roles, principal kinds, flags, sizing
+      constants, the rights macro, the dmt_key_t, dmt_principal_t, dmt_uid_caps_t and
+      dmt_command_t layouts and the well-known role list). Its bytes depend only on the TIV, never
+      on a model; --table-types writes it with no model.
+    acceptance_criteria: >-
+      The header compiles as C99 with -Wall -Wextra -pedantic -Werror; a C check pins every
+      frozen value, struct size and field offset; two runs give identical bytes.
+  REQ-ING-CLI-003:
+    name: Multi-file model loading
+    subsystem: CLI
+    description: >-
+      --model accepts files and directories (a directory contributes its .toml files in sorted
+      order); several files are validated individually and merged into one model in which every
+      class keeps its file's namespace name and ID and enum references are namespace-qualified.
+    acceptance_criteria: >-
+      A directory of namespace files generates keys under each file's namespace; an empty
+      directory is an error.
+  REQ-ING-CLI-004:
+    name: Per-variant resolution
+    subsystem: CLI
+    description: >-
+      --variant replaces each key's default with its per-variant default and merges per-variant
+      enum values over the base values before validation and generation.
+    acceptance_criteria: >-
+      A key with defaults.<variant> generates that value only when --variant names it.
+  REQ-ING-CLI-005:
+    name: Model statistics report
+    subsystem: CLI
+    description: >-
+      Every run prints the model's key count per storage type (bool, each integer width,
+      read-only and read-write strings) to stdout.
+    acceptance_criteria: >-
+      The printed counts equal the number of keys of each type in the model.
+
+  # -- model ------------------------------------------------------------------------------------
+  REQ-ING-MOD-001:
+    name: TOML model schema
+    subsystem: Model
+    description: >-
+      A model file is parsed from Kaitai-inspired TOML into meta, named enums with per-variant
+      values, and classes of keys with type, defaults, enum reference, max_size and the
+      read_only, thread_safe, persistent, event and helpers flags (helpers defaults to true).
+    acceptance_criteria: >-
+      The shipped examples parse with the documented field values.
+  REQ-ING-MOD-002:
+    name: Data types and their codes
+    subsystem: Model
+    description: >-
+      Each data type has a unique 4-bit type code (unsigned widths, then signed, string 8,
+      binary 9, 7 reserved for float) and a C and Rust type name for code generation.
+    acceptance_criteria: >-
+      Type codes are unique and below 16; the C and Rust names match the documented table.
+  REQ-ING-KEY-001:
+    name: 32-bit key encoding
+    subsystem: Model
+    description: >-
+      A key ID packs namespace (bits 31-22), class (21-17), index (16-7), type code (6-3),
+      thread-safe (2), derived (1) and read-only (0); decoding is the exact inverse.
+    acceptance_criteria: >-
+      Round trip is lossless; all-ones fields encode to 0xFFFFFFFF; all-zero fields to 0.
+  REQ-ING-KEY-002:
+    name: Key position resolution
+    subsystem: Model
+    description: >-
+      A key's namespace ID, class index and key index come from the explicit namespace_id,
+      class_index and key_index when set, otherwise from the model-level namespace ID and the
+      class's and key's declaration position in its file, assigned once when the file is parsed
+      (before any key-list filtering, so a filtered build keeps every key's ID).
+    acceptance_criteria: >-
+      Explicit indices appear in the encoded ID; omitted ones follow declaration order; a
+      filtered key keeps its unfiltered ID.
+  REQ-ING-VAL-001:
+    name: Model validation
+    subsystem: Model
+    description: >-
+      Before generation the model is checked for class and key count limits, duplicate class
+      and key ids and indices per namespace, index and namespace ID ranges, string and binary
+      keys without max_size, undefined enum references, and read-only persistent keys; every
+      violation is reported.
+    acceptance_criteria: >-
+      Each violation class produces its own error; the shipped examples validate.
+  REQ-ING-VAL-002:
+    name: Display names
+    subsystem: Model
+    description: >-
+      A class or key may declare a display `name` (falling back to its id) that --dm-compat
+      spells into C identifiers; a name holding anything but ASCII letters, digits, underscores
+      and spaces is a validation error naming the class or key.
+    acceptance_criteria: >-
+      A name with a hyphen or an empty name is refused with the class or key path; letters,
+      digits, underscores and spaces are accepted.
+  REQ-ING-FLT-001:
+    name: Include and exclude key lists
+    subsystem: Model
+    description: >-
+      --include-list keeps only the keys named in a YAML list and --exclude-list removes them;
+      entries match the bare or DM_KEY_-prefixed define name, the name with underscores
+      removed, or the key's encoded ID as a hex string or integer.
+    acceptance_criteria: >-
+      An include list of one key leaves one key; an exclude list removes exactly the named keys;
+      a hex-ID entry selects its key in the include, exclude and persistent lists.
+  REQ-ING-FLT-002:
+    name: Persistent key list
+    subsystem: Model
+    description: >-
+      --persistent-keys marks every key named in a YAML list as persistent.
+    acceptance_criteria: >-
+      Listed keys become persistent and no other key changes.
+  REQ-ING-FLT-003:
+    name: Property override list
+    subsystem: Model
+    description: >-
+      --property-override-list replaces the default of each key named in a YAML mapping with its
+      default_value, matching names with underscores removed.
+    acceptance_criteria: >-
+      Integer, string and boolean overrides apply and the applied count is reported.
+
+  # -- C generation -----------------------------------------------------------------------------
+  REQ-ING-GEN-001:
+    name: C output generation
+    subsystem: C target
+    description: >-
+      For a C target ingot renders every C output of the model into the output directory, each
+      file ending in exactly one newline, and logs what it generated.
+    acceptance_criteria: >-
+      Generating twice from the same input gives byte-identical output.
+  REQ-ING-GEN-002:
+    name: Key definitions header
+    subsystem: C target
+    description: >-
+      key_definitions.h defines DM_KEY_<NAMESPACE>_<CLASS>_<KEY> as the encoded ID of every key.
+    acceptance_criteria: >-
+      Each define equals the key's encoding.
+  REQ-ING-GEN-003:
+    name: Namespace definitions header
+    subsystem: C target
+    description: >-
+      dm_namespace_definitions.h lists every namespace of the model once with its namespace ID.
+    acceptance_criteria: >-
+      A multi-namespace model lists each namespace exactly once.
+  REQ-ING-GEN-004:
+    name: Boolean storage
+    subsystem: C target
+    description: >-
+      Boolean keys are stored as packed bits in uint32_t words at perfect-hash positions, with
+      their defaults set in the initial words and the smallest G-table type that fits.
+    acceptance_criteria: >-
+      The generated Unity tests read every boolean default back.
+  REQ-ING-GEN-005:
+    name: Integer storage
+    subsystem: C target
+    description: >-
+      Integer keys are stored per width and signedness in perfect-hash order with their defaults
+      and the smallest G-table type that fits.
+    acceptance_criteria: >-
+      The generated Unity tests read every integer default back and round-trip a set value.
+  REQ-ING-GEN-006:
+    name: String storage
+    subsystem: C target
+    description: >-
+      String keys are stored in read-only and read-write groups, each with its own perfect hash,
+      fixed-size buffers from max_size, and C-escaped defaults.
+    acceptance_criteria: >-
+      The generated Unity tests read every string default back, including escaped characters.
+  REQ-ING-GEN-007:
+    name: Persistence storage
+    subsystem: C target
+    description: >-
+      Persistent keys are collected into one persistence struct with typed fields and C literal
+      defaults, with load and save hooks; a loaded string field is bounded by its capacity, so a
+      stored image without a terminator never reads past the field.
+    acceptance_criteria: >-
+      The generated persistence tests save and restore every persistent key, and load an
+      unterminated stored string without reading past its field.
+  REQ-ING-GEN-008:
+    name: Typed helpers
+    subsystem: C target
+    description: >-
+      Keys with helpers = true get typed get and set helpers (getter only for read-only keys),
+      enum-typed when the key references an enum.
+    acceptance_criteria: >-
+      A helper exists for every helpers = true key and none for read-only setters.
+  REQ-ING-GEN-009:
+    name: Generated Unity tests
+    subsystem: C target
+    description: >-
+      ingot emits test_dm.c and a CMakeLists.txt that check every key's default, a set and get
+      with a value different from the default, read-only refusal and persistence round trips.
+    acceptance_criteria: >-
+      The generated tests pass for every example model, with and without events.
+  REQ-ING-GEN-010:
+    name: C enum types
+    subsystem: C target
+    description: >-
+      Every named enum generates one typedef enum in dm_enums.h, named from its namespace and
+      enum name, with members sorted by value, shared by every key that references it.
+    acceptance_criteria: >-
+      The battery example's enums generate with members in value order.
+  REQ-ING-GEN-011:
+    name: API dispatch per integer type
+    subsystem: C target
+    description: >-
+      dm.h and dm.c dispatch get and set by key type to the matching integer storage functions
+      and value fields.
+    acceptance_criteria: >-
+      Every integer width present in the model has a dispatch entry.
+  REQ-ING-TGT-001:
+    name: Target platform settings
+    subsystem: C target
+    description: >-
+      Each C target (STM32, ESP32 Xtensa and RISC-V, 8-bit MCU, 64-bit Linux) has fixed pointer
+      width, alignment, inline size and mutex settings used by the templates.
+    acceptance_criteria: >-
+      Linux64 uses a pthread mutex, ESP a FreeRTOS mutex, STM32 and 8-bit none.
+  REQ-ING-MAN-001:
+    name: dm_full.yaml manifest
+    subsystem: C target
+    description: >-
+      Every C generation writes dm_full.yaml listing namespaces, classes and keys with define
+      name, encoded ID, type, max size, default and enum values, for downstream tools.
+    acceptance_criteria: >-
+      Manifest key IDs equal the encoded IDs and defaults match the key types.
+  REQ-ING-EVT-001:
+    name: tinyfsm event structs and dispatch
+    subsystem: C target
+    description: >-
+      With --emit-tinyfsm, every event = true key gets an empty tinyfsm::Event struct grouped by
+      namespace and class, and send_tinyfsm_event_by_key() dispatches a key ID to its event
+      through a consumer-provided seam; nothing is emitted without the flag or without event keys.
+    acceptance_criteria: >-
+      The generated wrapper compiles, links and runs against real tinyfsm.
+  REQ-ING-EVT-002:
+    name: Has-event predicate
+    subsystem: C target
+    description: >-
+      With --emit-tinyfsm, dm_key_has_event(key) is true for exactly the keys that have an event
+      struct, generated from the same list as the dispatch switch; dm_key_namespace(key) and
+      DM_KEY_NS_SHIFT / DM_KEY_NS_MASK / DM_KEY_NS_LOCAL give a key's namespace and the model's
+      own, so a consumer can drop only its own namespace's non-event keys.
+    acceptance_criteria: >-
+      True for an event key, false for a non-event key and for a non-key ID; DM_KEY_NS_LOCAL is
+      the model's namespace ID and dm_key_namespace returns it for the model's keys.
+  REQ-ING-EVT-003:
+    name: Event type list
+    subsystem: C target
+    description: >-
+      With --emit-tinyfsm, dm_event_list<KE, L> pairs every event key with its event struct in
+      model order and dm_event_count gives its length; the consumer supplies both templates.
+    acceptance_criteria: >-
+      The list instantiates against tinyfsm with the right size and only tinyfsm events.
+
+  # -- DM-compat surface (upstream --dm-compat) ---------------------------------------------------
+  REQ-ING-CMP-001:
+    name: DM-compat C surface
+    subsystem: C target
+    description: >-
+      With --dm-compat (C targets, additive), ingot also emits DATAMODEL_GET/SET_<PATH> aliases,
+      lowercase DataModel_{Get,Set}<path> aliases spelled with the display names, bare-key
+      #define <PATH> DM_KEY_<PATH> constants and DATA_MODEL_KEY_TYPE_* aliases, per-key
+      <PATH>_ENUM_T typedefs in dm_enums.h, DataModel_PrintPersistentKeys(), the header-name
+      aliases dm_key_definitions.h and dm_{boolean,integer,string,persistence}_storage.h for the
+      storage that exists, and with --emit-tinyfsm dm_key_events.h/.c (send_dm_key_event).
+      Without the flag the output is unchanged; with --target rust the flag is warned about.
+    acceptance_criteria: >-
+      The compat surface compiles as C and C++ for the fixtures and examples/full.toml; no
+      boolean storage alias without boolean keys; output without the flag is byte-identical.
+  REQ-ING-CMP-002:
+    name: DM-compat identifier clashes
+    subsystem: C target
+    description: >-
+      The compat aliases share one C namespace with the key defines and enum constants; when two
+      sources would declare the same identifier, generation stops with an error naming both.
+    acceptance_criteria: >-
+      A key mode_off beside an enum key mode with value off, and two keys whose names resolve to
+      one alias, are refused with both sources named.
+  REQ-ING-CMP-003:
+    name: Legacy enums header guard
+    subsystem: CLI
+    description: >-
+      --dm-enums-guard <MACRO> (requires --dm-compat, must be a C identifier) wraps only the
+      compat per-key typedefs in #ifndef MACRO, so a translation unit that already included a
+      legacy dm_enums.h does not declare them twice.
+    acceptance_criteria: >-
+      The typedef block is guarded by the macro; a value that is not a C identifier is refused.
+
+  # -- Rust target ------------------------------------------------------------------------------
+  REQ-ING-RST-001:
+    name: no_std Rust module
+    subsystem: Rust target
+    description: >-
+      --target rust renders a single no_std Rust module with static storage and encoded-key
+      access instead of C output.
+    acceptance_criteria: >-
+      The generated module compiles and its tests pass for every example model.
+  REQ-ING-RST-002:
+    name: Rust static storage
+    subsystem: Rust target
+    description: >-
+      Rust storage holds each scalar type in a perfect-hash-ordered array with its defaults, and
+      strings and binaries as fixed-size byte arrays, with by-key accessors that reject writes to
+      read-only keys.
+    acceptance_criteria: >-
+      Defaults read back and by-key writes to read-only keys are refused.
+  REQ-ING-RST-003:
+    name: Rust enum types
+    subsystem: Rust target
+    description: >-
+      Each named enum generates one Rust enum with the smallest repr that holds its values,
+      named in PascalCase from its namespace, and enum-typed accessors for keys that use it.
+    acceptance_criteria: >-
+      The battery example's enums generate with the smallest fitting repr.
+
+  # -- perfect hash -----------------------------------------------------------------------------
+  REQ-ING-HSH-001:
+    name: Jenkins hash
+    subsystem: Hash
+    description: >-
+      Key IDs hash with the final() mix of Jenkins lookup3, matching the reference implementation
+      the generated C uses.
+    acceptance_criteria: >-
+      Outputs match the reference values; different keys or seeds give different hashes.
+  REQ-ING-HSH-002:
+    name: Perfect hash construction
+    subsystem: Hash
+    description: >-
+      A minimal perfect hash (CHM, two seeds) maps every key of a set to a distinct slot, and
+      lookup and verify use the same two hashes.
+    acceptance_criteria: >-
+      Generated hashes verify for small, medium and large key sets, deduplicating input.
+  REQ-ING-HSH-003:
+    name: Deterministic seeds
+    subsystem: Hash
+    description: >-
+      Perfect-hash seeds derive from the key set (FNV-1a), so the same keys always give the same
+      tables.
+    acceptance_criteria: >-
+      Two runs on the same key set give identical seeds and tables.
+
+  # -- repository tooling -----------------------------------------------------------------------
+  REQ-ING-POL-001:
+    name: Commit message policy
+    subsystem: Tooling
+    description: >-
+      The commit-msg hook rejects a commit without a valid Signed-off-by trailer, or with a
+      parsed trailer naming an AI tool or vendor.
+    acceptance_criteria: >-
+      Signed commits pass; unsigned commits and AI trailers are rejected.
+  REQ-ING-POL-002:
+    name: Agent hook-bypass guard
+    subsystem: Tooling
+    description: >-
+      The agent PreToolUse guard denies shell commands that run git commit with --no-verify,
+      -n or a core.hooksPath override, through wrappers and nested shells.
+    acceptance_criteria: >-
+      Bypass forms are denied and ordinary commits are allowed.
+  REQ-ING-ROM-001:
+    name: ROM estimate of generated C
+    subsystem: Tooling
+    description: >-
+      scripts/estimate_rom.py compiles every generated .c file (except the test harness) and
+      reports .text, .rodata and .data sizes per file and in total.
+    acceptance_criteria: >-
+      A generated directory produces a per-file and total report; a missing directory exits 1.
+  REQ-ING-TSK-001:
+    name: Development tasks
+    subsystem: Tooling
+    description: >-
+      invoke tasks run the checks, build, tests (Rust, generated C in both event modes, and the
+      C++ tinyfsm fixture), coverage, clean and example generation.
+    acceptance_criteria: >-
+      invoke test runs every suite and fails when any fails.
+  REQ-ING-TSK-002:
+    name: Version bump
+    subsystem: Tooling
+    description: >-
+      invoke bump-version rewrites the crate version in every file that embeds it, and with no
+      version prints a dry run.
+    acceptance_criteria: >-
+      A bump changes Cargo.toml and the man page version and date only.
+  REQ-ING-TIV-002:
+    name: Contract-mode model input
+    subsystem: Table interface
+    description: >-
+      --contract reads contract.toml (contract version, bounds, reserved IDs, principals, per-uid
+      caps) and the namespace files in its namespace_dir, in the schema documented in
+      docs/contract-mode.rst. Unknown fields are errors, and every namespace_id, class_index
+      and key_index is explicit (no positional IDs). Every grant names either one existing key,
+      or a namespace with an optional class that covers at least one key.
+    acceptance_criteria: >-
+      The generic test model loads; a missing index or an unknown field is an error naming the
+      file; a class-only grant, or a grant on a key, namespace or class that does not exist, is
+      refused.
+  REQ-ING-TIV-003:
+    name: Resolved key table
+    subsystem: Table interface
+    description: >-
+      Each key resolves to its encoded ID (flag bits zero), type code, size, persistence class
+      and interval from the class default or its override, survives-reset (always in an MFG
+      namespace), secret and alias flags, transport mask derived from type and secrecy, role,
+      write rate and introduced-in minor; dmt_keys is sorted by ID.
+    acceptance_criteria: >-
+      The generic model's keys appear sorted with the documented field values.
+  REQ-ING-TIV-004:
+    name: Variant-resolved default values
+    subsystem: Table interface
+    description: >-
+      A key's default for the selected variant (defaults.<variant>, else default) is encoded into
+      dmt_default_blob in the table interface's value encoding (little-endian scalars, one-byte
+      bool, IEEE-754 float32, string and binary bytes); struct keys have none.
+    acceptance_criteria: >-
+      Two variants give different blobs for keys with per-variant defaults and equal ones otherwise.
+  REQ-ING-TIV-005:
+    name: Command-type expansion
+    subsystem: Table interface
+    description: >-
+      Each command declares its keys' indices, persistence class, owner, payload, result,
+      edit and dedupe sizes once; ingot generates the command, result and dedupe keys in that one
+      class and a dmt_commands row for it.
+    acceptance_criteria: >-
+      A command yields three keys sharing one persistence class and a row naming them.
+  REQ-ING-TIV-006:
+    name: Principals and resolved rights
+    subsystem: Table interface
+    description: >-
+      Principals (uid or token sub-consumer, kind, flags, heartbeat, caps, resync limits) are
+      sorted by (kind, uid, token); rights per key come from (namespace, class) grants overridden
+      by key grants, read on a secret only for its readers, packed in the table interface's bitmap
+      layout; every principal's declared name is emitted (a sub-consumer's and a UART or
+      in-process principal's as well as a UNIX uid's), never NULL.
+    acceptance_criteria: >-
+      The generic model's rights rows match its grants bit for bit, and each principal's name
+      is its declared name.
+  REQ-ING-TIV-007:
+    name: Rates, queue bounds and budgets
+    subsystem: Table interface
+    description: >-
+      Write rates "<n>/s|min|h|day" become writes per day with a token-bucket burst; each
+      principal's queue bound is computed in integer arithmetic from its readable keys' rates and
+      its latency budget; staging and in-process budgets are checked against their lower bounds.
+    acceptance_criteria: >-
+      Hand-computed queue bounds match; a budget below its lower bound is refused.
+  REQ-ING-TIV-008:
+    name: KSET v1 handshake digests
+    subsystem: Table interface
+    description: >-
+      For every principal and every minor 0..contract minor, the SHA-256 KSET v1 digest of the
+      (key ID, type) pairs it may read or write as of that minor, per docs/handshake-digest.md of
+      the store core.
+    acceptance_criteria: >-
+      Golden vectors V0-V5 reproduce; the generic model's 1.0 digests reappear unchanged in 1.1.
+  REQ-ING-TIV-009:
+    name: Generated store tables
+    subsystem: Table interface
+    description: >-
+      Contract mode writes dmt_types.h, dmt_tables.h and dmt_tables.c (constant data, no heap,
+      sorted arrays, version and provenance defines, the dmt_tiv_major_1 link symbol) and
+      contract.json, deterministically for the same input, variant and ingot commit.
+    acceptance_criteria: >-
+      The tables compile as strict C99 and link with a check that walks them; two runs are
+      byte-identical.
+  REQ-ING-TIV-010:
+    name: Model refusals
+    subsystem: Table interface
+    description: >-
+      Contract mode refuses, as errors, these structural refusals:
+      duplicate namespace IDs, namespace names or encoded IDs, ID 0, read_only or thread_safe
+      keys, live keys on reserved IDs, persistent keys without a rate, deferred keys without an
+      interval, struct keys without max_size, bad aliases, introduced-in later than the
+      contract, bad defaults, well-known role errors, duplicate or unheartbeated principals,
+      and budget violations; and
+      the sizes the store core reads well-known keys with: DIAG_SUBSCRIBERS max_size at least
+      4 + 20 per principal, DIAG_KEYSTORE_VERSION at least 30, DIAG_CONTRACT_VERSION at least 17,
+      and the TRACE_ENABLE command's payload_max at least 118 (its signed envelope).
+    acceptance_criteria: >-
+      Each refusal has a model that triggers it and the generic model triggers none.
+  REQ-ING-TIV-011:
+    name: Rights refusals
+    subsystem: Table interface
+    description: >-
+      Contract mode refuses secrets reachable over UART or granted to non-readers, struct keys in
+      UART or in-process subsets, aliases whose rights differ from their target's, UART writes to
+      reset, MFG or trace-enable keys, heartbeat keys writable by another principal or shared,
+      writes to core-written well-known keys, a trace-enable command without exactly one writer,
+      RESET_REQUEST or TRACE_ENABLE not owned by the core (and core ownership anywhere else), a
+      principal owner without read on its command and write on its result, and any write on a
+      dedupe key or on the result of a core-answered command.
+    acceptance_criteria: >-
+      Each refusal has a model that triggers it.
+  REQ-ING-TIV-012:
+    name: Previous-contract checks and release review
+    subsystem: Table interface
+    description: >-
+      With --previous-contract, a minor must be additive (no key removed or changed, no rights,
+      persistence, secret, survives-reset, size, interval, alias or enum change, no principal
+      removed or changed, new keys at the new version) and a major must reserve every removed
+      ID and never reuse one; new principals with sensitive grants are listed in
+      release-review.txt.
+    acceptance_criteria: >-
+      1.1 passes against 1.0 and 2.0 against 1.1; the 2.0 change labelled 1.2 is refused.
+  REQ-ING-TIV-013:
+    name: Build provenance
+    subsystem: Table interface
+    description: >-
+      The tables state the ingot version and the commit it was built from, and the model hash;
+      contract mode refuses a build from a dirty tree or unknown commit unless
+      --allow-dirty-ingot is given, which marks the commit -dirty. `ingot --version` prints the
+      same commit, and the build re-runs on the real git dir (also in a submodule or worktree).
+    acceptance_criteria: >-
+      A dirty commit string is refused without the flag and accepted with it.
+  REQ-ING-TIV-014:
+    name: Generic test model
+    subsystem: Table interface
+    description: >-
+      examples/contract holds a product-neutral model at contract 1.0, 1.1 and 2.0 that
+      exercises every type, persistence class, principal kind and refusal-relevant feature, for
+      a store core's conformance and handshake suites. In every version one principal may write
+      a durable key, deferred keys at two distinct intervals and volatile keys (a batch that
+      mixes persistence classes), and an in-process principal may write a key and submit a
+      command.
+    acceptance_criteria: >-
+      All three versions generate; 1.1 passes against 1.0 and 2.0 against 1.1. The generated
+      tables of every version pin those keys' persistence and intervals and those rights.
+  REQ-ING-TIV-015:
+    name: Declared variants
+    subsystem: Table interface
+    description: >-
+      contract.toml may declare its variants ([contract] variants). When it does, --variant must
+      name one of them, and every per-variant default and per-variant enum names a declared
+      variant; contract.json lists the declared variants.
+    acceptance_criteria: >-
+      An undeclared --variant, a missing --variant, and a defaults or enum entry for an
+      undeclared variant are refused, the message listing the declared variants.
+  REQ-ING-TIV-016:
+    name: Per-variant enum values and wire strings
+    subsystem: Table interface
+    description: >-
+      Each enum value has a wire string (its name unless given). A variant may add a number,
+      rename the name and wire string of a base number, or remove a base name; the resolved enum
+      has unique numbers, names and wire strings. Keys, defaults and contract.json use the
+      resolved enum of the selected variant; the store tables and KSET digests do not depend on
+      enum maps. Against --previous-contract in a minor, every previous (number, wire string)
+      pair is kept.
+    acceptance_criteria: >-
+      A variant's add, rename and remove appear in contract.json; tables and digests are
+      unchanged by enum maps; a conflicting map or a changed wire string in a minor is refused.
+  REQ-ING-TIV-017:
+    name: Enum value constants
+    subsystem: Table interface
+    description: >-
+      Contract mode writes dmt_constants.h: for every key with an enum, every value of the enum
+      as the variant resolves it, as `#define DMT_E_<KEY PATH>_<VALUE> <code>` (upper case, each
+      dot an underscore), in key ID order and each key's values in code order. The header is per
+      model and outside the table interface (dmt_types.h is unchanged). A constant that is not a
+      C identifier, is longer than 63 characters, or is named by two (key, value) pairs is
+      refused. Constants are kept within a major because an enum value keeps its name and code.
+    acceptance_criteria: >-
+      The 1.1 model's sku_a header defines the mode, fan and fan_applied values with their codes
+      and sku_b's its own (saver, turbo, no sport), each once, and both compile as C11 and C++; a
+      long name, a name with a dash, and two pairs naming one constant are refused.
+  REQ-ING-TIV-018:
+    name: Command outcome constants
+    subsystem: Table interface
+    description: >-
+      A command type may name an enum of its namespace as its outcomes (`outcome = "<enum>"`),
+      the codes its result's outcome field carries. dmt_constants.h then defines every value of
+      that enum as the variant resolves it, as `#define DMT_E_<COMMAND PATH>_<VALUE> <code>`,
+      placed at the command key's ID and in code order, under the same refusals as key
+      constants (not a C identifier, longer than 63 characters, or named twice). An undefined
+      enum is refused. contract.json carries each command's outcome names and codes; against
+      --previous-contract in a minor every previous (name, code) pair of a command's outcomes is
+      kept. The store tables, digests and keyspace files do not depend on outcomes.
+    acceptance_criteria: >-
+      The generic model's drive command names its outcome enum and the header defines its
+      values at the command's place, compiling as C11 and C++; an undefined outcome enum, an
+      outcome constant longer than 63 characters, and a changed or removed outcome in a minor
+      are refused; the store tables are the same with and without the outcome.
+  REQ-ING-TIV-019:
+    name: Command write-rate burst
+    subsystem: Table interface
+    description: >-
+      A command type may declare `rate_burst` beside its `write_rate`; its command, result and
+      dedupe keys then carry that token-bucket burst in dmt_keys and contract.json, in place of
+      [bounds] default_rate_burst. A `rate_burst` without a `write_rate` is refused, on a command
+      type and on a key alike, once per declaration. A declared `rate_burst` is at least 1: a
+      burst of 0 beside a write_rate would switch the store's rate limit off, so it is refused on
+      a command type and on a key alike, once per declaration (a declaration that wants no rate
+      limit omits `write_rate`). For the same reason [bounds] default_rate_burst is at least 1:
+      a default of 0 would switch the limit off on every write_rate without its own burst, so it
+      is refused once per run, whether or not any declaration uses it. Write rates and bursts are
+      not frozen within
+      a major: against --previous-contract a minor may change the write_rate or rate_burst of a
+      released key or command, a rate-table change only: no KSET digest or release-review line
+      depends on either, and the keyspace files carry the rate but not the burst (a burst change
+      moves only the rate_burst column, contract.json and the model hash). A command without
+      `rate_burst` generates as before.
+    acceptance_criteria: >-
+      The generic model's map_edit command declares a burst from 1.1 on, the C value check reads
+      it on all three of its keys, and 1.1 generates against 1.0's contract with 1.0's digests;
+      a command or key with rate_burst and no write_rate, or with rate_burst = 0, is refused on
+      every variant's run; [bounds] default_rate_burst = 0 is refused once, and a default of 1
+      is accepted and given to every write_rate without its own burst; a
+      command declaring the default burst has the same store tables as one declaring none.
+  REQ-ING-RNG-001:
+    name: Units, ranges, discrete sets, sentinels and scale
+    subsystem: Contract mode
+    description: >-
+      contract.toml may name a unit vocabulary; every unit is then one of its tokens. An integer
+      key without an enum may declare an inclusive min/max/step range in wire units or an allowed
+      set, a sentinel default (unset) outside them, and a scale to its displayed unit (a scaled
+      key names its unit). Every default is accepted by the range or set unless it is the
+      sentinel. contract.json carries them and the vocabulary; against --previous-contract in a
+      minor a range or set may only widen and unit, scale, sentinel and vocabulary are kept.
+    acceptance_criteria: >-
+      The generic model declares them; each malformed form is refused; widening passes and
+      narrowing is refused against the previous contract.
+  REQ-ING-KSP-001:
+    name: Keyspace declaration files
+    subsystem: Contract mode
+    description: >-
+      Contract mode writes keyspace.json (every variant: base values plus per-variant enum
+      overrides and per-key presence), keyspace.<variant>.json (resolved for the variant), its
+      deterministic gzip and a head file (name, version, SKU, SHA-256 of the body, sizes), and
+      keyspace.schema.json. They declare keys only: identity, type, role, unit and limits, rate,
+      persistence, secrecy, enum, doc, commands and rights; no values, and no property naming a
+      UI, layout or endpoint. A body that one MQTT message cannot carry as base64 is refused.
+    acceptance_criteria: >-
+      The head's hash and sizes match the body; the gzip decompresses to it; two runs are
+      byte-identical; no property matches the trust pattern; the generic model's body is under
+      the 64 KB image budget.
+  REQ-ING-PRS-001:
+    name: Per-variant key presence
+    subsystem: Contract mode
+    description: >-
+      A key or command may list the variants it exists on; on any other variant it is not in the
+      tables, contract.json or the resolved keyspace, and the all-variants keyspace states its
+      presence per variant. Every listed variant is a declared one.
+    acceptance_criteria: >-
+      A key limited to one variant is generated for it only, and keyspace.json shows its presence.
+  REQ-ING-ERR-001:
+    name: Error groups
+    subsystem: Contract mode
+    description: >-
+      contract.toml declares error groups (width 8, 16, 32 or 64, a wire base with per-variant
+      overrides, a writer, reserved bits, the highest published bit, the shadow field). An error
+      key is a bool STATE key with a group and a bit below the width and not reserved, unique per
+      resolved variant, written by the group's writer alone; groups' wire-id ranges do not
+      overlap. contract.json and the keyspace carry them; in a minor a key's bit and a group's
+      width, wire base, writer and published range are kept and reserved bits only grow.
+    acceptance_criteria: >-
+      The generic model's groups resolve per variant; each malformed form is refused; a moved bit
+      or a changed group is refused against the previous contract.
+  REQ-ING-SHD-001:
+    name: Shadow wire mapping of keys and enums
+    subsystem: Contract mode
+    description: >-
+      A SETTINGS or STATE key may name the shadow paths it maps to (one or several). An enum value
+      may carry inbound accept aliases beside its wire string; within a resolved enum an inbound
+      string maps to one code. A shadowed enum key with a wire-string path has explicit wire
+      strings on every value; such a SETTINGS key declares inbound_unknown (an inbound string,
+      reject, or ignore: the unknown string is dropped and nothing is written) and such a STATE
+      key declares outbound_unknown (a wire string, or raw); index is refused.
+      Every shadowed SETTINGS key has exactly one applies STATE twin of its type and enum, itself
+      reported; on_reject (echo by default, or clear_desired) is for shadowed SETTINGS keys,
+      forced and render for shadowed STATE keys, telem names are unique. Paths are dotted
+      identifiers; no two rows share a reported or desired path and no path is both a value and
+      an object.
+    acceptance_criteria: >-
+      The generic model declares every form; each malformed form is refused; contract.json and
+      the keyspace files carry them; without them the store tables and every digest are
+      byte-identical.
+  REQ-ING-SHD-002:
+    name: Apply groups, echo-only paths and constant rows
+    subsystem: Contract mode
+    description: >-
+      contract.toml declares apply groups; a SETTINGS key may join one and declare implies writes
+      of other keys of its group, with values of their type. Echo-only desired paths have a type
+      and may name the SETTINGS key command bodies apply. Constant reported rows carry a literal
+      value or an image value (the contract version, or the contract hash the reporter fills),
+      optionally forced on every delta.
+    acceptance_criteria: >-
+      The generic model declares them; an undeclared group, an implies outside the group, a bad
+      value and a malformed row are refused; the outputs carry them.
+  REQ-ING-SHD-003:
+    name: Per-path wire form and document scope
+    subsystem: Contract mode
+    description: >-
+      Each shadow path of a key may be a table { path, as, scope }. `as` is for enum keys:
+      "enum" (the default) carries the wire string, "integer" carries the code as a JSON integer
+      inbound and outbound, so one key may be reported as a string at one path and as an integer
+      at another. `scope` is for reported paths of STATE keys: "full" (the full document only),
+      "delta" (the on-change delta only) or "both" (the default). A reported path is taken by at
+      most one row per document, so a path may take its value from one key in the full document
+      and from another key in the delta. A forced key has a path in the delta. The unknown rules
+      apply only where a wire-string path exists. The worst-case full size counts full-scope rows
+      at their form's longest text. contract.json and the keyspace carry the paths as before and
+      the forms (shadow_forms) only where one is declared.
+    acceptance_criteria: >-
+      A key at an integer path and an enum path, and one path with a full and a delta source,
+      generate; each misplaced form, a path taken twice in one document and a forced key without
+      a delta path are refused; the full size follows the forms and scopes; without forms the
+      outputs, store tables and digests are byte-identical.
+  REQ-ING-SHD-004:
+    name: Per-variant shadow paths and echo rows, and the delta's error list
+    subsystem: Contract mode
+    description: >-
+      A shadow path table and an echo row may carry `variants`, the declared variants they exist
+      on (absent: every variant); a variant's tables, contract.json and resolved keyspace hold only
+      its paths and echo rows, and an undeclared variant is refused. One key may list one path
+      once per variant (entries for disjoint variants share it, each with its own form and scope).
+      The all-variants view holds every variant's rows: rows of disjoint variants may share a path
+      there, and path conflicts, the document size and a variant-only command row's values are
+      checked in each variant's own pass. The error groups' shadow field is in the delta as well as
+      the full document (the error list is published on change).
+    acceptance_criteria: >-
+      A key reported at one path on one variant and another path on the other generates each
+      variant's own path; one path with a scope per variant generates, and the same path twice on
+      one variant is refused; an echo path on one variant beside a key path on the other generates;
+      a variant-only row's value names resolve in its variant; an undeclared variant on a path or
+      echo row is refused; a delta-only key at the error field is refused.
+  REQ-ING-SHD-005:
+    name: Declared outbound many-to-one (report_as)
+    subsystem: Contract mode
+    description: >-
+      An enum value may declare `report_as` (the name or wire string of another member) instead
+      of a wire string: its code reports that member's wire string outbound, and it has no
+      inbound string of its own besides its accept aliases. A value declares a wire string or
+      report_as, not both and not neither; the target exists and does not itself report as
+      another; an outbound wire string is used once except through report_as. The keyspace
+      shows report_as beside the reported wire string.
+    acceptance_criteria: >-
+      Two codes reporting one wire string generate when one declares report_as; an undeclared
+      duplicate, a missing or chained target, and both or neither of wire and report_as are
+      refused.
+  REQ-ING-SHD-006:
+    name: The shadow mapping only grows within a major
+    subsystem: Contract mode
+    description: >-
+      Against --previous-contract in a minor, contract.json's key mappings and shadow rows are
+      read back typed. A key that was mapped keeps every path entry (path, form, scope, variants)
+      and its wire attributes (applies, apply group, implies, on_reject, the unknown rules,
+      forced, render, telem); its paths and accept aliases may only grow. Every echo row, constant
+      row, topic and command row of the previous contract is still there unchanged. A key that
+      was not mapped may gain a mapping, and rows may be added.
+    acceptance_criteria: >-
+      A changed unknown rule, a removed path, a changed scope, a removed accept alias, a changed
+      echo row, constant, topic or command row are each refused in a minor; adding an alias, a
+      path and an echo row is accepted.
+  REQ-ING-SHD-007:
+    name: Scope of an echo row
+    subsystem: Contract mode
+    description: >-
+      An echo row may declare `scope` (full, delta or both; absent: both) like a STATE key's path:
+      it is reported in those documents only, so a delta-only echo may share its path with a key
+      reported in the full document only (an echo of a field whose full document reports
+      the setting). The shadow tables carry the echo row's scope. Rows taking one path in one
+      document are still refused.
+    acceptance_criteria: >-
+      A delta-only echo beside a full-only key at one path generates, each row with its scope in
+      dsh_reported; the same echo without a scope is refused.
+  REQ-ING-SHD-008:
+    name: Reported paths of CONFIG keys
+    subsystem: Contract mode
+    description: >-
+      A CONFIG key (a device's configured identity, such as its SKU) may carry shadow paths:
+      like a STATE key's they are reported, never desired, with the reported path forms, scopes and
+      the outbound unknown rule; the size count, the path trees and the shadow tables treat them
+      as reported rows.
+    acceptance_criteria: >-
+      A CONFIG key reported in the full document generates a reported key row and no desired row;
+      a shadow path on a DIAG key is still refused.
+  REQ-ING-SHD-009:
+    name: An echo row and a key share a delta member
+    subsystem: Contract mode
+    description: >-
+      One echo row may share its delta member with a reported key (STATE or CONFIG) that has a
+      delta path there and writes the same JSON value (bool, integer, float or string; an enum
+      key by its form): the echo fires on a desired update, the key on a change of its value.
+      Two echo rows, or an echo of another encoding, at a key's delta path are still refused.
+    acceptance_criteria: >-
+      A delta echo and a float key at one path generate; a bool echo there, or a second echo row,
+      is refused.
+  REQ-ING-SHD-010:
+    name: A bool reported as 0/1 in one document
+    subsystem: Contract mode
+    description: >-
+      A bool key's reported path (STATE or CONFIG) may declare as = "integer": the value is
+      reported as the JSON number 0 or 1 (DSH_FORM_BOOL_INTEGER, shadow table interface minor 2)
+      instead of true or false. A bool's inbound side stays a JSON bool: as on a bool SETTINGS
+      key's desired path, and as = "enum" on a bool key, are refused; as on any other non-enum
+      key is refused. One key may list a path once per variant and document, so entries of
+      disjoint scopes (full and delta) share a path, each with its own form; entries meeting in a
+      document are refused. Each document is sized at its own entries' text, and a bool echo
+      shares no delta member with a 0/1 path.
+    acceptance_criteria: >-
+      A bool STATE key listed at one path as integer in the full document and plain in the delta
+      generates a full row of DSH_FORM_BOOL_INTEGER and a forced delta row of DSH_FORM_PLAIN, the
+      tables compile, and the full document is 4 bytes shorter with the forced delta unchanged.
+      Full and both, or delta twice, at one path are refused; as on a bool SETTINGS key, as =
+      "enum" on a bool key, as on an integer key, and a bool echo at a 0/1 delta path are refused.
+  REQ-ING-SHD-011:
+    name: Where the binder lists rejected settings
+    subsystem: Contract mode
+    description: >-
+      contract.toml may declare `[shadow_rejected] path = "<dotted path>"`: the reported path where
+      the binder lists the desired members it rejected in the update it answers. It is a delta
+      row of kind DSH_RK_REJECTED (shadow table interface minor 3) with no key; the binder builds
+      the list from the rows it rejected. `variants` limits it to those variants: a variant not
+      listed has no row, and an undeclared variant is refused. contract.json and the keyspace
+      carry it as shadow.rejected only on a variant that has it, so a model without it
+      generates the same outputs. Each rule holds per variant: its path is a delta path like
+      any other (a malformed path, or one another delta row takes, is refused), a variant with
+      no desired path is refused (there is nothing to reject) and, once a variant has it, its
+      path is kept on that variant within a major (it may be added in a minor, on a new variant
+      too).
+    acceptance_criteria: >-
+      A declared path generates one delta reporter row of DSH_RK_REJECTED with no key or
+      constant, and the tables compile; a model without it has no such row and no
+      shadow.rejected; limited to sku_b, sku_b has the row and sku_a neither the row nor
+      shadow.rejected. The path of a reported key, a malformed path, an undeclared variant and a
+      model with no desired path are refused. Against a previous contract that has it, dropping
+      or moving it is refused and keeping it generates; adding it in a minor generates; adding
+      a variant generates, and moving it off the previous contract's variant is refused.
+  REQ-ING-CMD-001:
+    name: Shadow commands enumerate every command
+    subsystem: Contract mode
+    description: >-
+      Namespace files declare shadow_commands rows: topic, variants (with the build each is
+      grounded in), protocol (single, or command_array with element selectors), a selector (field
+      plus wire value, array element or object form), a body (fields, settings, or one object
+      holding a selected verb; a binary body is refused: no library accepts one), the command and
+      its arguments (key of the command's class, required with its result code, or optional with
+      an absent value or omitted when absent; base64 text into a string key). When any row exists,
+      every command of the variant has a row or is marked internal with a reason. The keyspace
+      lists every command with its id, name, result and dedupe keys, owner and wire rows.
+    acceptance_criteria: >-
+      The generic model enumerates every command and form; each malformed row, a duplicate
+      selector on overlapping variants and an unenumerated command are refused; the keyspace
+      files list every command with its rows.
+  REQ-ING-CMD-002:
+    name: Argument forms of shadow command rows
+    subsystem: Contract mode
+    description: >-
+      An argument takes a request field, or is a constant (`value`, no field) written into its
+      key when the row is selected. Its key is a plain key of the command's class or a STATE key.
+      An enum key's absent or constant value may be a value name of the key's enum. `element = N`
+      takes the Nth element of an array field; `encoding = "decimal_text"` reads a JSON string
+      holding a decimal integer into an integer key. Base64 text goes into a string key (passed
+      through as text), a binary key (decoded: the key holds the bytes, max_size is the decoded
+      size) or a struct key (decoded into its buffer; a value too large for a binary key is a
+      struct key). A constant has no field, required rule, result code, absent rule, encoding
+      or element.
+    acceptance_criteria: >-
+      A constant argument, an enum value by name, a STATE-key argument, array-element arguments
+      and base64 into a binary or struct key generate; each misplaced form is refused.
+  REQ-ING-CMD-003:
+    name: Row outcomes without a command
+    subsystem: Contract mode
+    description: >-
+      A row without a command is a settings body; or `answer = <ec>`, a verb answered with that
+      result code and nothing else (no args); or `internal = "<reason>"`, a verb the library
+      handles itself (no args, no answer); or a row whose args all write STATE keys. A row with a
+      command declares neither answer nor internal.
+    acceptance_criteria: >-
+      Each form generates and is listed in the keyspace; an answer or internal with a command or
+      args, an empty internal reason, and a commandless row with a non-STATE argument are refused.
+  REQ-ING-CMD-004:
+    name: Further commands of a row
+    subsystem: Contract mode
+    description: >-
+      A shadow command row with a command may list `also`: further commands it submits after its
+      own, in order, each with its own arguments, which follow the argument rules against that
+      command's class. A further command counts as enumerated on the wire, its keyspace entry
+      lists the row, and the row's dsh_steps hold one step per command. `also` on a row without a
+      command, or naming no command of the variant, is refused. A verb that does nothing without
+      an argument is a required argument with result code 0.
+    acceptance_criteria: >-
+      A row submitting its command and two further ones generates three steps, enumerates each
+      command and lists the row under each; a further command on a commandless row, an unknown
+      one, and a further command's argument outside its class are refused.
+  REQ-ING-CMD-005:
+    name: Request fields are dotted identifiers
+    subsystem: Contract mode
+    description: >-
+      Every request field of a shadow command row (the selector's, a body object and its
+      selector's, each argument's, further commands' arguments too) is identifiers joined by dots,
+      each dot one nested JSON object; anything else is refused. The keyspace schema documents
+      the rule and settings_in_every_body.
+    acceptance_criteria: >-
+      The generic model's nested selector (net.factoryReset) generates; a malformed selector
+      field, body object, body selector field and argument field are each refused.
+  REQ-ING-CMD-006:
+    name: A stable id for internal rows
+    subsystem: Contract mode
+    description: >-
+      An internal shadow_commands row may declare `internal_id` (1..=65535), the model's stable
+      id of the action the library performs, so the library dispatches on the id rather than
+      the row's wire name. It is emitted as dsh_command_t.internal_id (0 on every other row;
+      shadow table interface minor 5) and carried in contract.json and the keyspace only where
+      declared. internal_id on a row that is not internal, or 0, is refused.
+    acceptance_criteria: >-
+      An internal row with internal_id 7 generates .internal_id = 7u and another row 0u, the
+      tables compile and walk, and contract.json carries the id on that row only; internal_id on
+      a command row and internal_id 0 are refused.
+  REQ-ING-TOP-001:
+    name: MQTT topic declarations and envelopes
+    subsystem: Contract mode
+    description: >-
+      contract.toml declares topics: id, template over the placeholders stage, duid, model, thing
+      and shadow_name (repeatable), direction, connection, subscribe order, local wrapper, ack
+      topic, settings_in_every_body and the command envelope (id and source fields, each required
+      or optional with a declared default; a source names an enum and its default is a member; a
+      topic without a source declares its default origin). Ids, templates, subscribe orders and
+      local wrappers are unique and an ack is a pub topic; a shadow name given as a placeholder on
+      one topic and a literal on another is refused unless the literal topic keeps it explicitly.
+    acceptance_criteria: >-
+      The generic model declares its topics and envelopes; each malformed form is refused; the
+      outputs carry them.
+  REQ-ING-TOP-003:
+    name: Topic payloads built from keys
+    subsystem: Contract mode
+    description: >-
+      contract.toml may list `[[topic_payload]]` members of a pub topic's payload: a dotted path
+      and one of a key (any key with a JSON value: CONFIG, SETTINGS, STATE), a literal value or an
+      image value; an enum key's member is its wire string (with a declared outbound_unknown, raw
+      or a wire string) or, with `as = "integer"`, its code; members may be limited to variants.
+      They are written into contract.json and the keyspace, frozen within a major, and emitted as
+      dtp_payload (reporter rows in emission order per topic, each topic's slice on its
+      dtp_topics row). Refused (T3): a topic that is not a pub topic, none or several of key,
+      value and image, an unknown or binary/struct key, `as` on a non-enum key, a missing or
+      misplaced or unknown outbound_unknown, a malformed path or two members on one path, an
+      undeclared variant.
+    acceptance_criteria: >-
+      A config topic whose payload is a constant, a CONFIG key, an enum SETTINGS key and an
+      integer form generates its dtp_payload rows and slice; each refusal has a triggering model.
+  REQ-ING-TOP-004:
+    name: Per-message topic placeholders
+    subsystem: Contract mode
+    description: >-
+      A topic may declare `vars = [{ name, max_len }]`: per-message placeholders, each used as
+      `{name}` in the template beside the per-device placeholders (on a pub topic the publisher
+      fills them; on a sub topic see REQ-ING-TOP-006). They are emitted as dtp_vars (name and
+      longest value in bytes) with each topic's slice in dtp_topics.vars_first / vars_count
+      (shadow table interface minor 4; DTP_VARS_MAX 8, DTP_VAR_LEN_MAX 128). Refused: a template
+      placeholder that is neither per-device nor declared, more than 8 vars, a name that is not
+      an identifier or is a per-device placeholder, a name declared twice, max_len outside
+      1..=128, and a var the template does not use. contract.json and the keyspace carry vars
+      only where declared.
+    acceptance_criteria: >-
+      A pub topic with two vars (one used twice) generates two dtp_vars rows in declaration
+      order and its slice, other topics an empty slice; the header names the interface version
+      it is written against and the tables compile and walk; a model without vars has
+      DTP_NUM_VARS 0 and no vars in contract.json. Each refusal above has a triggering model.
+  REQ-ING-TOP-005:
+    name: Topics limited to variants
+    subsystem: Contract mode
+    description: >-
+      A topic may declare `variants`: a variant not listed has no dtp_topics row and no entry in
+      contract.json or the keyspace, and rows that name the topic on that variant are refused as
+      naming an unknown topic. An undeclared variant is refused. Against a previous contract a
+      topic is compared on that contract's variant without its variants, so a minor may add
+      variants to a topic but may not drop it or change it there.
+    acceptance_criteria: >-
+      The telemetry topic limited to sku_b has its row on sku_b and none on sku_a, both
+      compiling; sku_c is refused; against a 1.0 with the topic on sku_a, widening it to sku_a and
+      sku_b generates and moving it to sku_b only is refused.
+  REQ-ING-TOP-006:
+    name: Per-message placeholders on sub topics
+    subsystem: Contract mode
+    description: >-
+      A sub topic may declare vars as a pub topic does; the consumer subscribes with each var as
+      a single-level wildcard and extracts its value from a received topic. So each var of a sub
+      topic is exactly one whole topic level, used once; anything else is refused (shadow table
+      interface minor 6: the meaning of a sub topic's vars).
+    acceptance_criteria: >-
+      A sub topic with a var as a whole level generates its dtp_vars row and slice and the
+      tables compile and walk; a var inside a level, and a var used twice, on a sub topic are
+      refused.
+  REQ-ING-TOP-007:
+    name: Declared topic placeholders
+    subsystem: Contract mode
+    description: >-
+      contract.toml may declare `[[placeholders]] name, max_len`: named values the consumer is
+      configured with (a build or device value), usable as `{name}` in any topic template. They
+      are emitted as dtp_placeholders (dtp_var_t rows; shadow table interface minor 7,
+      DTP_PLACEHOLDERS_MAX 8) and carried in contract.json and the keyspace only when declared.
+      Refused: more than 8, a name that is not an identifier or is a per-device placeholder, a
+      name declared twice, max_len outside 1..=128, a placeholder no topic uses, and a topic var
+      with a placeholder's name. They are kept unchanged within a major (one may be added in a
+      minor).
+    acceptance_criteria: >-
+      Two placeholders used by one template generate two dtp_placeholders rows in declaration
+      order and contract.json lists them, the tables compiling; a model without them has
+      DTP_NUM_PLACEHOLDERS 0 and none in contract.json. Each refusal has a triggering model;
+      against a previous contract that declares one, dropping or changing it is refused, keeping
+      it generates, and adding one in a minor generates.
+  REQ-ING-TOP-008:
+    name: Topic var enums
+    subsystem: Contract mode
+    description: >-
+      A topic var may name a model enum, `{ name, max_len, enum = "<namespace>::<enum>" }` (the
+      form an envelope source names an enum with), when the var carries that enum's code as its
+      decimal text. dmt_constants.h then defines every value of each enum named by a var of the
+      variant's topics once, named after the enum, as `#define DMT_E_<NAMESPACE>_<ENUM>_<VALUE>
+      <code>`, after the key and command constants, enums in name order and values in code order,
+      under the same refusals as key constants (not a C identifier, longer than 63 characters,
+      or named twice). Refused: an enum that is not defined, a negative code, a code whose decimal
+      text is longer than the var's max_len (each as the variant resolves the enum), and an enum
+      on a declared placeholder. contract.json carries the reference as topics[].vars[].enum
+      (in the shadow section, and so in the keyspace) and each named enum's codes as
+      var_enums.<namespace>::<enum>; against --previous-contract in a minor a var may name an
+      enum for the first time, a named enum stays named, and every previous (name, code) pair of
+      it is kept. The store tables, the KSET digests and the shadow tables do not depend on it,
+      apart from DSH_CONTRACT_HASH (the hash of the keyspace body, which carries the reference),
+      and a model whose vars name no enum generates unchanged.
+    acceptance_criteria: >-
+      A var naming an enum that a variant changes defines that variant's values once although
+      two vars name it, compiling as C11 and C++, and contract.json carries the reference and
+      the codes; the tables are those of the model without it apart from the model and contract
+      hashes. Each refusal has a triggering
+      model. Against a previous contract a first naming in a minor generates, and renaming the
+      enum, dropping it or changing one of its codes is refused.
+  REQ-ING-SIZ-001:
+    name: Worst-case shadow document size
+    subsystem: Contract mode
+    description: >-
+      For each variant ingot computes the compact byte length of the full reported document with
+      every row at its longest value (wire strings, type extremes, strings at six bytes per byte,
+      rendered lists, every error id, constants) and of the forced delta rows, records both in
+      contract.json and the keyspace, and refuses a full document above 8192 bytes (the AWS IoT
+      shadow document quota).
+    acceptance_criteria: >-
+      The generic model's sizes equal an independent count; a model whose full document exceeds
+      8192 bytes is refused.
+  REQ-ING-DSH-001:
+    name: Shadow table interface and binder tables
+    subsystem: Contract mode
+    description: >-
+      dsh_types.h is the fixed shadow table interface (DSH 1.0, bytes independent of any model,
+      written by --table-types and by contract mode). For a model that maps anything to the shadow,
+      contract mode writes dsh_tables.h/.c for the variant; every table has a count define and at
+      least one row (a zero row when empty). The binder tables: dsh_desired, one row per desired
+      path of a SETTINGS key sorted by path (key, type, size, wire form, enum, range and step,
+      sentinel, discrete set, apply group, coupled writes with their values in the store's value
+      encoding, reject rule, and the unknown inbound rule with its code resolved); dsh_echo, the
+      echo-only paths sorted by path with the key command bodies apply them to; dsh_enums with
+      outbound wire strings sorted by code and inbound strings sorted by text, where a member that
+      reports as another is inbound only through its aliases.
+    acceptance_criteria: >-
+      The generic model's tables compile as strict C11 and from C++, and a C walker finds them
+      sorted and in range on every variant; each binder attribute of the model appears in its row.
+  REQ-ING-DSH-002:
+    name: Reporter tables
+    subsystem: Contract mode
+    description: >-
+      dsh_reported holds every reported row in emission order: rows whose paths share an object
+      prefix are contiguous and siblings keep their first-declaration order (contract.toml's
+      constants, echo paths and error-group paths, then STATE keys by key ID). A row is a key
+      (wire form, enum, unknown outbound rule, applied SETTINGS key, telemetry name, rendered list
+      and its size), a constant as JSON text (an image constant filled with the contract version or
+      the keyspace body hash), an echo path or the error list; each says whether it is in the full
+      document, the delta, and forced.
+    acceptance_criteria: >-
+      The generic model's rows come in the stated order with their kinds, forms, scopes and forced
+      flags; a C walker finds every object prefix contiguous.
+  REQ-ING-DSH-003:
+    name: Command-router tables
+    subsystem: Contract mode
+    description: >-
+      dsh_commands holds the variant's command rows in declaration order: topic, selector (text,
+      true, false, array element or object), body (fields, settings or a named object with its own
+      selector), protocol, and the action (steps, answer with its code, internal with its reason, or
+      a settings body). A row's steps (dsh_steps) each submit a command (named with its key's type,
+      so a struct command goes through a buffer) or none (STATE writes) with
+      their arguments (dsh_args): field or constant, key, type, size, element, enum, encoding,
+      required with its result code, absent value or nothing; a constant or absent value of an enum
+      key given by value name is resolved to its number.
+    acceptance_criteria: >-
+      Every row and argument form of the generic model and its edited copies appears with its
+      values; a C walker finds every step and argument in range.
+  REQ-ING-DSH-004:
+    name: Error-group tables
+    subsystem: Contract mode
+    description: >-
+      dsh_error_groups holds each error group of the variant in declaration order with its reported
+      path, reserved-bit mask, variant wire base, width and highest published bit; its bits
+      (dsh_error_bits) are sorted by bit with their keys.
+    acceptance_criteria: >-
+      The generic model's groups carry the per-variant wire base and reserved bits, and bits come
+      in bit order whatever the key order.
+  REQ-ING-DSH-005:
+    name: Shadow table header constants and composer buffer
+    subsystem: Contract mode
+    description: >-
+      dsh_tables.h states the contract version, the SHA-256 of the variant's resolved keyspace body
+      (the head's hash, also the ETag of a contract request), the variant, the ingot commit, and the
+      worst-case full document and forced delta sizes. --shadow-buffer names the shadow composer's
+      buffer; a full document that can exceed it is warned about.
+    acceptance_criteria: >-
+      The header's hash equals the head file's and the cvHash constant's; the sizes equal the
+      keyspace's; a buffer one byte short warns and an exact one does not.
+  REQ-ING-DSH-006:
+    name: Shadow consumer bounds
+    subsystem: Contract mode
+    description: >-
+      dsh_tables.h states the variant's bounds a shadow consumer sizes its buffers with (shadow
+      table interface minor 8): DSH_REJECTED_MAX_ITEMS, the members one rejected-settings list can
+      hold (one per dsh_desired and dsh_echo row; 0 when the variant has no DSH_RK_REJECTED row);
+      DSH_DESIRED_PATH_MAX_BYTES, the longest dsh_desired or dsh_echo path with its terminator (0
+      with none); DSH_ERROR_IDS_PUBLISHED, the error ids the full error table publishes (every
+      group's bits 0..publish_max_bit that are not reserved); DSH_ERROR_ID_MAX, the largest wire
+      id an error payload can carry (wire_base plus the highest published or declared bit of any
+      group; 0 with none).
+    acceptance_criteria: >-
+      The generic model's bounds equal the values derived from its rows by hand and by a C walk of
+      the generated tables, per variant; adding a rejected-settings path, a longer desired path, a
+      reserved bit or a lower publish_max_bit changes the matching bound.
+  REQ-ING-DSH-007:
+    name: Shadow desired value bound
+    subsystem: Contract mode
+    description: >-
+      dsh_tables.h states DSH_DESIRED_VALUE_MAX_BYTES (shadow table interface minor 9): 1 plus the
+      longest JSON text of a value any dsh_desired or dsh_echo row of the variant accepts, 0 with
+      no row. Each value is counted at the longest text the shadow document size bound uses for
+      its type: a bool 5; an integer type the decimal text of its longer extreme; a float32 47
+      (printf %f of -FLT_MAX); a JSON string accepted as n bytes after unescaping 2 + 6n (every
+      byte as \u00XX). A string row accepts n up to max_size; an enum wire-string row accepts its
+      inbound strings (wire strings and accept aliases), an unknown string its inbound_unknown
+      rule maps not counted; an enum integer row is its key type. An echo row counts by its echo
+      type: bool, int as int32, float, string of its max_size.
+    acceptance_criteria: >-
+      The generic model's bound equals the value derived from its rows by hand and by a C walk of
+      the generated tables, per variant; a longer accept alias on one variant raises that
+      variant's bound only; a string echo counts six bytes per byte; a variant without desired or
+      echo rows states 0.
+  REQ-ING-DSH-008:
+    name: Named internal row ids
+    subsystem: Contract mode
+    description: >-
+      dsh_tables.h states DSH_INTERNAL_<VERB> <internal_id>u (shadow table interface minor 10)
+      for every shadow_commands row of the variant that declares an internal_id, so the library
+      dispatches on a name rather than repeating the number. <VERB> is the text that selects the
+      row, taken from its innermost selector (the body object's selector for an object body,
+      else the row's selector): the wire string, else the element, else the field; upper case,
+      each dot an underscore. Rows that share a name and an id give one constant; a name that is
+      not a C identifier or is longer than 63 characters, or one name for two ids on a shared
+      variant, is refused. A variant without such a row states none, and no other output changes.
+    acceptance_criteria: >-
+      An internal row with internal_id 7 selected by state=getlog states DSH_INTERNAL_GETLOG 7u
+      and a C walk recomputes every constant from dsh_commands; a row on one variant gives its
+      constant on that variant only, and one verb with different ids on disjoint variants gives
+      each variant its own; a verb that is not a C identifier, a name over 63 characters and one
+      name for two ids on one variant are each refused.
+  REQ-ING-TOP-002:
+    name: Topic table
+    subsystem: Contract mode
+    description: >-
+      dtp_topics holds every topic in declaration order: id, template, connection, local wrapper,
+      direction, subscribe order, the index of its ack topic, settings_in_every_body and literal
+      shadow name flags, and its envelope (id field, required, the JSON text of an absent id,
+      source field, source enum and the code of an absent source).
+    acceptance_criteria: >-
+      The generic model's topics, including the contract request and response topics, carry
+      their envelopes and acks; an optional id and a non-default absent source appear when declared.
+  REQ-ING-SDK-001:
+    name: Per-principal SDK identity
+    subsystem: Contract mode
+    description: >-
+      Contract mode resolves, per principal, its identity for an SDK: its name and identifier
+      (dots as underscores), kind (unix, inproc or uart), uid and token, the contract version,
+      model hash and variant, its KSET digest at the current minor, and its sorted keyset (key IDs
+      and type codes of the keys it may read or write).
+    acceptance_criteria: >-
+      Rendered through a binding, the generic model's identities carry the digest contract.json
+      lists and the keyset of the keys each principal may read or write.
+  REQ-ING-SDK-002:
+    name: Typed key accessors
+    subsystem: Contract mode
+    description: >-
+      Per principal, an accessor for each key it may read (get) or write (set): its name, path, key
+      ID, form (scalar, buffer or struct), C type and its unsigned twin, codec (int or float) and
+      size (a scalar's width or a buffer's max_size). A struct has no getter (struct values are read
+      by subscribing); a command key is written only through its submit helper; a key without a
+      right has no accessor. Helper flags say which codec helpers the accessors use.
+    acceptance_criteria: >-
+      Through the test binding, each scalar type round-trips with the store's wire bytes, a wrong
+      length is refused, a buffer keeps its bytes, a struct write allocates, fills and publishes,
+      and a principal without a right has no symbol for it.
+  REQ-ING-SDK-003:
+    name: Command submit helpers
+    subsystem: Contract mode
+    description: >-
+      Per principal, a submit helper for each command whose command key it may write: its name,
+      path, command key ID, payload_max and whether the command is a struct (through a buffer).
+    acceptance_criteria: >-
+      Through the test binding, a submit with an origin reaches the store's command submit with the
+      header and payload bytes and the origin, one without a plain write, an oversized payload is
+      refused, and a struct command goes allocate, fill, submit.
+  REQ-ING-SDK-004:
+    name: SDK runtime binding
+    subsystem: Contract mode
+    description: >-
+      Ingot names no store runtime: `--sdk-binding <dir>` names a directory of templates (files
+      only, at least one) the consumer supplies. Each is rendered once per principal with the
+      SDK context (identity, accessors, submit helpers, helper flags, provenance) into
+      sdk/<principal>/, under its file name with `PRINCIPAL` replaced by the principal's
+      identifier. Without a binding no SDK is written.
+    acceptance_criteria: >-
+      Without a binding there is no sdk directory; a binding with a sub-directory or no file is
+      refused; a template's file name and context render per principal.
+  REQ-ING-SDK-005:
+    name: Binding template names
+    subsystem: Contract mode
+    description: >-
+      A binding template may carry a trailing `.tera`, stripped from its output name, so a
+      binding directory need hold no source file; a template without it keeps its own name. A
+      template whose output name is empty, or the same as another template's, is refused.
+    acceptance_criteria: >-
+      The neutral test binding renders and drives the store with and without the suffix; a
+      suffixed and a plain template render side by side; `.tera` alone and a name collision are
+      refused.
+  REQ-ING-SDK-006:
+    name: Struct key event views
+    subsystem: Contract mode
+    description: >-
+      A struct value reaches a reader only as a delivered event, so per principal the SDK context
+      lists, in key ID order, a view for each struct key it may read (read-only or read-write,
+      command keys included): its name (namespace_class_key), path and key ID. The binding renders
+      from it an event view that names the key, so no consumer writes a key ID by hand: it
+      succeeds when the event is that key and carries a buffer, giving the whole value (a declared
+      header included; decoding it stays the consumer's), and returns the runtime's type mismatch
+      otherwise. A principal without a struct key it may read has no view, and every other part
+      of the context is unchanged.
+    acceptance_criteria: >-
+      Through the test binding, a read-only reader, a read-write writer and a principal reading
+      two struct keys each get one view per struct key, compiled as strict C11; a view of the
+      event's key gives its bytes, another key's event or an event without a buffer is a type
+      mismatch; a struct key on one variant has a view on that variant only; a principal without a
+      struct read right has none.
+  # -- struct value headers ---------------------------------------------------------------------
+  REQ-ING-HDR-001:
+    name: Struct value header declaration
+    subsystem: Contract mode
+    description: >-
+      A struct key may declare `header = [{ name, type }, ...]`: an ordered list of fields, each a
+      C identifier unique within the key, of type bool, uint8, int8, uint16, int16, uint32 or
+      int32. The value is the header fields in declaration order, each little-endian, packed with
+      no padding (bool one byte, 0 or 1), then the payload (the rest of the value, possibly empty).
+      Ingot resolves each field's offset and size and the header's byte count, and contract.json
+      carries them on the key as `header` ([{name, type, offset, size}]) and `header_bytes`. A
+      header on a key that is not a struct, an empty header, a field of another type, a name that
+      is not a C identifier or is repeated, and a header of max_size bytes or more are refused.
+      The store tables and KSET digests do not depend on a header (the store stays layout-blind),
+      and a key without a header changes no output.
+    acceptance_criteria: >-
+      A struct key with a uint32, an int32 and a bool field has offsets 0, 4 and 8 and 9 header
+      bytes in contract.json, and the store tables and digests equal those without the header; a
+      key without one has no header entry; each refusal is logged and nothing is generated.
+  REQ-ING-HDR-002:
+    name: Struct value header code
+    subsystem: Contract mode
+    description: >-
+      For every key of the variant with a header, dmt_constants.h defines
+      DMT_<KEY PATH>_HEADER_BYTES, DMT_<KEY PATH>_<FIELD>_OFFSET and DMT_<KEY PATH>_PAYLOAD_MAX
+      (max_size minus the header bytes), a struct dmt_<key path>_header_t of the fields' native C
+      types, and static inline dmt_<key path>_header_encode (the wire image into a buffer of the
+      header's bytes) and dmt_<key path>_header_decode (0, or -1 with the struct untouched when
+      the length is below the header's bytes or a bool byte is neither 0 nor 1), both by explicit
+      byte shifts (no packed struct, no host byte order or alignment). Names are in upper case
+      (constants) or lower case (type and functions), each dot an underscore; a name that is
+      longer than 63 characters or is produced twice in dmt_constants.h is refused. The SDK
+      binding context lists, per principal, the headers of the keys it has a right on, with the
+      same names. Without a header dmt_constants.h is unchanged.
+    acceptance_criteria: >-
+      The generated header compiles as strict C11 and C++, encodes a test vector to the expected
+      little-endian bytes, decodes them back, and refuses a short value and a bool byte of 2; a
+      key limited to one variant has its header code on that variant only; the binding renders a
+      principal's headers; a long name and a collision are refused.
+  REQ-ING-HDR-003:
+    name: Struct value header compatibility
+    subsystem: Contract mode
+    description: >-
+      A released key's header is part of its contract: against --previous-contract, adding,
+      removing, reordering, renaming or retyping a header field of an existing key is refused in a
+      minor, as a type change is; a major may change it. The header enters no KSET digest.
+    acceptance_criteria: >-
+      Against a previous contract of the same major, a key that gains a header, loses its header,
+      or has a field retyped is refused; the same changes at a new major are accepted.

@@ -1,4 +1,5 @@
-use crate::model::key::KeyEncoding;
+use crate::codegen::{key_stem, resolve_ns_name};
+use crate::model::key::key_id;
 use crate::model::schema::{DataModel, DataType};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -48,6 +49,13 @@ struct KeyTypeEntry {
 }
 
 /// Generate the dm_full.yaml manifest for downstream tool consumption.
+///
+/// v2: namespace, class index and key ID come from the shared resolve_* helpers and
+/// encode_key instead of inline copies.
+/// v3: the define name comes from the shared key_stem.
+/// v4: the key ID comes from model::key::key_id.
+/// @version 4
+/// @req REQ-ING-MAN-001
 pub fn generate_yaml_manifest(
     model: &DataModel,
     ns_id: u16,
@@ -56,38 +64,13 @@ pub fn generate_yaml_manifest(
     // Group classes by namespace
     let mut ns_classes: BTreeMap<String, Vec<ClassEntry>> = BTreeMap::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = class.namespace_id.unwrap_or(ns_id);
-        let c_ns_name = class
-            .namespace_name
-            .as_deref()
-            .unwrap_or(&model.meta.id)
-            .to_string();
-        let c_ns_upper = c_ns_name.to_uppercase();
-        let c_idx = class.class_index.unwrap_or(pos as u8);
-        let class_name = class.id.to_uppercase();
+    for class in &model.classes {
+        let c_ns_name = resolve_ns_name(class, model);
         let mut data = Vec::new();
 
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            let type_code = key.data_type.type_code();
-
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-            let encoded = encoding.encode();
-
-            let define_name = format!(
-                "{}_{}_{}",
-                c_ns_upper,
-                class_name,
-                key.id.to_uppercase().replace(' ', "_")
-            );
+        for key in &class.keys {
+            let encoded = key_id(class, ns_id, key);
+            let define_name = key_stem(class, model, key);
 
             // Inline enum values: DEFINE_NAME_VALUENAME
             let enum_values = key.enum_ref.as_ref().and_then(|enum_name| {
@@ -145,6 +128,10 @@ pub fn generate_yaml_manifest(
     Ok(())
 }
 
+/// YAML value of a key's default for dm_full.yaml.
+///
+/// @version 1
+/// @req REQ-ING-MAN-001
 fn convert_default(default: &Option<toml::Value>, data_type: DataType) -> serde_yaml::Value {
     match default {
         Some(toml::Value::Boolean(b)) => serde_yaml::Value::Bool(*b),
@@ -169,7 +156,7 @@ mod tests {
     #[test]
     fn generate_manifest_for_battery() {
         let toml_str = include_str!("../../examples/battery.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
 
         let dir = tempfile::tempdir().unwrap();
         generate_yaml_manifest(&model, 0, dir.path()).unwrap();
@@ -189,7 +176,7 @@ mod tests {
     #[test]
     fn generate_manifest_for_minimal() {
         let toml_str = include_str!("../../examples/minimal.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
 
         let dir = tempfile::tempdir().unwrap();
         generate_yaml_manifest(&model, 0, dir.path()).unwrap();
@@ -207,7 +194,7 @@ mod tests {
     #[test]
     fn manifest_key_ids_are_encoded() {
         let toml_str = include_str!("../../examples/minimal.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
 
         let dir = tempfile::tempdir().unwrap();
         generate_yaml_manifest(&model, 0, dir.path()).unwrap();

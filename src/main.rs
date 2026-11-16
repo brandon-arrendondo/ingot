@@ -1,12 +1,19 @@
-// TODO: remove once modules have consumers
-#![allow(dead_code)]
-
 use clap::Parser;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 mod codegen;
+mod contract;
 mod hash;
 mod model;
+
+/// `ingot --version`: the package version and the commit the binary was built from (the same
+/// INGOT_GIT_COMMIT contract mode stamps into its outputs).
+const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("INGOT_GIT_COMMIT"),
+    ")"
+);
 
 /// ingot - Embedded database code generator
 ///
@@ -17,11 +24,38 @@ mod model;
 /// Supported targets: STM32 (32-bit), ESP32 (Xtensa/RISC-V), 8-bit
 /// microcontrollers, 64-bit Linux systems, and no_std Rust.
 #[derive(Parser, Debug)]
-#[command(name = "ingot", version, about, long_about)]
+#[command(name = "ingot", version = VERSION, about, long_about)]
 struct Cli {
     /// Path to data model TOML file(s) or directory of TOML files (repeatable)
-    #[arg(short, long, required = true)]
+    #[arg(short, long, required_unless_present_any = ["table_types", "contract"])]
     model: Vec<PathBuf>,
+
+    /// Write only the model-independent table-interface headers (dmt_types.h, dsh_types.h)
+    /// to --output
+    #[arg(long, conflicts_with_all = ["model", "contract"])]
+    table_types: bool,
+
+    /// Contract mode: generate the table-interface store tables from this contract.toml
+    #[arg(long, conflicts_with = "model")]
+    contract: Option<PathBuf>,
+
+    /// Contract mode: the previous release's contract.json, for the minor/major checks
+    #[arg(long, requires = "contract")]
+    previous_contract: Option<PathBuf>,
+
+    /// Contract mode: accept an ingot built from a dirty tree (for ingot's own tests)
+    #[arg(long, requires = "contract")]
+    allow_dirty_ingot: bool,
+
+    /// Contract mode: the shadow composer's buffer in bytes; a full shadow document that can
+    /// exceed it is warned about
+    #[arg(long, requires = "contract")]
+    shadow_buffer: Option<u32>,
+
+    /// Contract mode: a directory of SDK templates binding the generated per-principal SDKs to
+    /// the consumer's store runtime (no SDK without it)
+    #[arg(long, requires = "contract")]
+    sdk_binding: Option<PathBuf>,
 
     /// Output directory for generated code
     #[arg(short, long, default_value = "generated")]
@@ -78,7 +112,8 @@ struct Cli {
     #[arg(long)]
     variant: Option<String>,
 
-    /// Templates directory (overrides INGOT_TEMPLATES_DIR and all auto-search paths)
+    /// Templates directory (overrides INGOT_TEMPLATES_DIR, the template search path and the
+    /// templates built into ingot)
     #[arg(long, env = "INGOT_TEMPLATES_DIR")]
     templates: Option<PathBuf>,
 
@@ -103,6 +138,11 @@ enum Target {
     Rust,
 }
 
+/// Parse the command line, set the log level and run generation, exiting 1 on error.
+///
+/// v2: runs through dispatch, which also handles --table-types.
+/// @version 2
+/// @req REQ-ING-CLI-001
 fn main() {
     let cli = Cli::parse();
 
@@ -121,82 +161,44 @@ fn main() {
     log::info!("Output: {}", cli.output.display());
     log::info!("Target: {:?}", cli.target);
 
-    if let Err(e) = run(&cli) {
+    if let Err(e) = dispatch(&cli) {
         log::error!("{e}");
         std::process::exit(1);
     }
 }
 
-/// Find the templates/ directory.
+/// Load the templates and run the mode the command line selects.
 ///
-/// Search order:
-///   1. Explicit path from `--templates` / `INGOT_TEMPLATES_DIR` (if provided)
-///   2. `<exe_dir>/templates/`
-///   3. `<exe_dir>/../share/ingot/templates/`  (FHS install: /usr/bin → /usr/share/ingot)
-///   4. `<exe_dir>/../../templates/`           (dev: target/debug/ingot → crate root)
-///   5. `<cwd>/templates/`
-///   6. `/usr/share/ingot/templates/`          (absolute fallback for non-FHS installs)
-fn resolve_template_dir(
-    explicit: Option<&std::path::Path>,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    if let Some(p) = explicit {
-        if p.is_dir() {
-            return Ok(p.to_path_buf());
-        }
-        return Err(format!(
-            "Specified templates directory does not exist: {}",
-            p.display()
-        )
-        .into());
+/// v2: contract mode, which only uses the built-in templates.
+/// v3: model mode searches upstream's template directories before the built-in templates.
+/// @version 3
+/// @req REQ-ING-CLI-001
+/// @req REQ-ING-CLI-002
+/// @req REQ-ING-TIV-001
+/// @req REQ-ING-TIV-009
+fn dispatch(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
+    if cli.contract.is_some() && cli.templates.is_some() {
+        return Err("contract mode uses the built-in templates; drop --templates".into());
     }
-
-    if let Ok(exe) = std::env::current_exe() {
-        let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
-
-        // 2. next to the executable
-        let c = exe_dir.join("templates");
-        if c.is_dir() {
-            return Ok(c);
+    let explicit = cli.templates.as_deref();
+    match (&cli.contract, cli.table_types) {
+        (Some(contract), _) => contract::generate(
+            &contract_options(cli, contract),
+            &codegen::templates::load(None)?,
+        ),
+        (None, true) => {
+            codegen::tables::write_table_types(&codegen::templates::load(explicit)?, &cli.output)
         }
-
-        // 3. FHS: <prefix>/bin/../share/ingot/templates → <prefix>/share/ingot/templates
-        let c = exe_dir.join("../share/ingot/templates");
-        if c.is_dir() {
-            return Ok(c.canonicalize().unwrap_or(c));
-        }
-
-        // 4. development layout: target/debug/ingot → ../../templates
-        if let Some(c) = exe_dir
-            .parent()
-            .and_then(|p| p.parent())
-            .map(|p| p.join("templates"))
-        {
-            if c.is_dir() {
-                return Ok(c);
-            }
-        }
+        (None, false) => run(cli, &codegen::templates::load_searching(explicit)?),
     }
-
-    // 5. CWD
-    let cwd = std::env::current_dir()?;
-    let c = cwd.join("templates");
-    if c.is_dir() {
-        return Ok(c);
-    }
-
-    // 6. absolute system fallback
-    let c = std::path::Path::new("/usr/share/ingot/templates");
-    if c.is_dir() {
-        return Ok(c.to_path_buf());
-    }
-
-    Err(
-        "Could not find templates/ directory. Use --templates <DIR> or set INGOT_TEMPLATES_DIR."
-            .into(),
-    )
 }
 
 /// The C code-generation toggles selected on the command line.
+///
+/// @version 1
+/// @req REQ-ING-CLI-001
+/// @req REQ-ING-CMP-001
+/// @return the options codegen::generate renders with
 fn codegen_options(cli: &Cli) -> codegen::CodegenOptions {
     codegen::CodegenOptions {
         no_events: cli.no_events,
@@ -207,6 +209,10 @@ fn codegen_options(cli: &Cli) -> codegen::CodegenOptions {
 }
 
 /// Accept only a C identifier, since the value is pasted into `#ifndef`.
+///
+/// @version 1
+/// @req REQ-ING-CMP-003
+/// @return the identifier, or an error naming the rejected value
 fn parse_c_identifier(raw: &str) -> Result<String, String> {
     let mut chars = raw.chars();
     let starts_ok = chars
@@ -220,19 +226,26 @@ fn parse_c_identifier(raw: &str) -> Result<String, String> {
 }
 
 /// Generate the no_std Rust module, warning about any C-only flags given.
+///
+/// @version 1
+/// @req REQ-ING-RST-001
+/// @return Ok once the module is written, else the generation error
 fn generate_rust(
     cli: &Cli,
     data_model: &model::schema::DataModel,
     ns_id: u16,
-    template_dir: &Path,
+    tera: &tera::Tera,
 ) -> Result<(), Box<dyn std::error::Error>> {
     warn_c_only_flags(cli);
-    codegen::rust_kvp::generate(data_model, ns_id, &cli.output, template_dir)?;
+    codegen::rust_kvp::generate(data_model, ns_id, &cli.output, tera)?;
     log::info!("Rust code generation complete → {}", cli.output.display());
     Ok(())
 }
 
 /// Warn about each C-only flag given with `--target rust`, where it has no effect.
+///
+/// @version 1
+/// @req REQ-ING-RST-001
 fn warn_c_only_flags(cli: &Cli) {
     let flags = [
         (cli.emit_tinyfsm, "--emit-tinyfsm"),
@@ -244,24 +257,39 @@ fn warn_c_only_flags(cli: &Cli) {
     }
 }
 
-fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
+/// The contract-mode options the command line gives.
+///
+/// v2: the shadow composer's buffer.
+/// v3: the SDK binding.
+/// @version 3
+/// @req REQ-ING-TIV-002
+/// @req REQ-ING-DSH-005
+/// @req REQ-ING-SDK-004
+fn contract_options<'a>(cli: &'a Cli, contract: &'a std::path::Path) -> contract::Options<'a> {
+    contract::Options {
+        contract,
+        variant: cli.variant.as_deref(),
+        previous: cli.previous_contract.as_deref(),
+        output: &cli.output,
+        allow_dirty: cli.allow_dirty_ingot,
+        shadow_buffer: cli.shadow_buffer,
+        sdk_binding: cli.sdk_binding.as_deref(),
+    }
+}
+
+/// Load, filter, validate and generate the model the command line names.
+///
+/// v2: renders with the templates `dispatch` loaded.
+/// v3: positions are stamped when each file is parsed (DataModel::from_toml), not here.
+/// v4: --target rust goes through generate_rust; C generation takes the CodegenOptions.
+/// @version 4
+/// @req REQ-ING-CLI-001
+fn run(cli: &Cli, tera: &tera::Tera) -> Result<(), Box<dyn std::error::Error>> {
     if cli.include_list.is_some() && cli.exclude_list.is_some() {
         return Err("--include-list and --exclude-list are mutually exclusive".into());
     }
 
-    let template_dir = resolve_template_dir(cli.templates.as_deref())?;
-
     let mut data_model = load_models(&cli.model)?;
-
-    // Stamp original key positions before filtering so encoded IDs survive
-    // include/exclude list pruning (matching gen_dm_code behaviour).
-    for class in &mut data_model.classes {
-        for (i, key) in class.keys.iter_mut().enumerate() {
-            if key.key_index.is_none() {
-                key.key_index = Some(i as u16);
-            }
-        }
-    }
 
     // Apply key filtering lists
     if let Some(ref path) = cli.include_list {
@@ -327,7 +355,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     let ns_id: u16 = data_model.meta.namespace_id.unwrap_or(0);
 
     if cli.target == Target::Rust {
-        return generate_rust(cli, &data_model, ns_id, &template_dir);
+        return generate_rust(cli, &data_model, ns_id, tera);
     }
 
     let target = match cli.target {
@@ -344,7 +372,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         &data_model,
         ns_id,
         &cli.output,
-        &template_dir,
+        tera,
         &target_config,
         codegen_options(cli),
     )?;
@@ -360,6 +388,8 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 /// entry, replace `values` with the variant's values.
 ///
 /// Returns (key_defaults_overridden, enums_overridden).
+/// @version 1
+/// @req REQ-ING-CLI-004
 fn resolve_variant(model: &mut model::DataModel, variant: &str) -> (usize, usize) {
     let mut key_count = 0;
     for class in &mut model.classes {
@@ -385,6 +415,10 @@ fn resolve_variant(model: &mut model::DataModel, variant: &str) -> (usize, usize
     (key_count, enum_count)
 }
 
+/// Print the model's key count per storage type to stdout.
+///
+/// @version 1
+/// @req REQ-ING-CLI-005
 fn print_statistics(model: &model::DataModel) {
     use model::schema::DataType;
 
@@ -432,6 +466,10 @@ fn print_statistics(model: &model::DataModel) {
     println!("  read-write string: {rw_string_count}");
 }
 
+/// Expand model paths to TOML files; a directory contributes its .toml files in sorted order.
+///
+/// @version 1
+/// @req REQ-ING-CLI-003
 fn expand_to_toml_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     let mut toml_files: Vec<PathBuf> = Vec::new();
     for path in paths {
@@ -458,14 +496,20 @@ fn expand_to_toml_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>, Box<dyn std::
     Ok(toml_files)
 }
 
+/// Validate several namespace files and merge them into one model, keeping each class's namespace.
+///
+/// v2: the merged meta no longer sets the removed, never-read `doc` field.
+/// v3: each file is parsed (and its positions stamped) by DataModel::from_toml.
+/// @version 3
+/// @req REQ-ING-CLI-003
 fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
     let mut merged_classes = Vec::new();
     let mut merged_enums = std::collections::BTreeMap::new();
 
     for path in paths {
         let model_str = std::fs::read_to_string(path)?;
-        let file_model: model::DataModel =
-            toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
+        let file_model = model::DataModel::from_toml(&model_str)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
 
         log::info!(
             "  {} — namespace '{}' (id={:?}), {} class(es), {} enum(s)",
@@ -486,12 +530,9 @@ fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::erro
         let ns_name = file_model.meta.id.clone();
         let ns_id = file_model.meta.namespace_id;
 
-        for (i, mut class) in file_model.classes.into_iter().enumerate() {
+        for mut class in file_model.classes {
             class.namespace_name = Some(ns_name.clone());
             class.namespace_id = ns_id;
-            if class.class_index.is_none() {
-                class.class_index = Some(i as u8);
-            }
             for key in &mut class.keys {
                 if let Some(ref enum_name) = key.enum_ref {
                     key.enum_ref = Some(format!("{}::{}", ns_name, enum_name));
@@ -509,7 +550,6 @@ fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::erro
         meta: model::schema::Meta {
             id: "unified".to_string(),
             version: "0.0.0".to_string(),
-            doc: None,
             namespace_id: None,
         },
         enums: merged_enums,
@@ -521,14 +561,17 @@ fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::erro
 ///
 /// A single file is loaded directly. Multiple paths or directories are
 /// merged into one DataModel with per-class namespace info preserved.
+/// v2: parsed (and positions stamped) by DataModel::from_toml.
+/// @version 2
+/// @req REQ-ING-CLI-003
 fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
     let toml_files = expand_to_toml_files(paths)?;
 
     if toml_files.len() == 1 {
         let path = &toml_files[0];
         let model_str = std::fs::read_to_string(path)?;
-        let m: model::DataModel =
-            toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
+        let m = model::DataModel::from_toml(&model_str)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
         log::info!("Parsed namespace '{}' v{}", m.meta.id, m.meta.version);
         return Ok(m);
     }

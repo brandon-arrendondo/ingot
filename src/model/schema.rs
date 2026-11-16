@@ -1,6 +1,10 @@
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
+/// Serde default for boolean fields that default to true (`helpers`).
+///
+/// @version 1
+/// @req REQ-ING-MOD-001
 fn default_true() -> bool {
     true
 }
@@ -34,12 +38,33 @@ pub struct DataModel {
     pub classes: Vec<Class>,
 }
 
+impl DataModel {
+    /// Parse one namespace file and stamp every class and key without an explicit index with
+    /// its declaration position, so encoded IDs survive key-list filtering. This is the only
+    /// place positions are assigned.
+    ///
+    /// @version 1
+    /// @req REQ-ING-KEY-002
+    pub fn from_toml(text: &str) -> Result<Self, toml::de::Error> {
+        let mut model: Self = toml::from_str(text)?;
+        for (i, class) in model.classes.iter_mut().enumerate() {
+            class.class_index.get_or_insert(i as u8);
+            for (k, key) in class.keys.iter_mut().enumerate() {
+                key.key_index.get_or_insert(k as u16);
+            }
+        }
+        Ok(model)
+    }
+}
+
+/// Message of the stamped-position invariant (DataModel::from_toml).
+pub const STAMPED: &str = "class and key positions are stamped by DataModel::from_toml";
+
 /// Model metadata.
 #[derive(Debug, Deserialize)]
 pub struct Meta {
     pub id: String,
     pub version: String,
-    pub doc: Option<String>,
     /// Optional 10-bit namespace identifier (0–1023) for key encoding.
     /// When set, this value occupies bits 31–22 of every generated key.
     /// Namespaces without an explicit ID get one assigned at build time.
@@ -61,7 +86,6 @@ pub struct EnumDef {
 #[derive(Debug, Deserialize)]
 pub struct Class {
     pub id: String,
-    pub doc: Option<String>,
     /// Optional original-case display name (e.g. "deviceConfig").
     ///
     /// A DM catalog pairs a lowercase `id` (which drives key encoding and the
@@ -95,7 +119,6 @@ pub struct KeyDef {
     pub name: Option<String>,
     #[serde(rename = "type")]
     pub data_type: DataType,
-    pub doc: Option<String>,
     pub unit: Option<String>,
 
     /// Optional 10-bit key index (0–1023) for key encoding.
@@ -148,6 +171,8 @@ impl DataType {
     /// Type code used in the 4-bit key encoding field.
     ///
     /// Ordering matches gen_dm_code: unsigned widths first, then signed.
+    /// @version 1
+    /// @req REQ-ING-MOD-002
     pub fn type_code(self) -> u8 {
         match self {
             DataType::Bool => 0,
@@ -163,19 +188,61 @@ impl DataType {
         }
     }
 
-    /// C type name for code generation.
-    pub fn c_type(self) -> &'static str {
+    /// C type of a value as the generated API passes it: the scalar type, or a const
+    /// pointer for string and binary.
+    ///
+    /// @version 1
+    /// @req REQ-ING-MOD-002
+    pub fn c_value_type(self) -> &'static str {
+        match self {
+            DataType::String => "const char *",
+            DataType::Binary => "const uint8_t *",
+            scalar => scalar.c_storage_type(),
+        }
+    }
+
+    /// C type a value is stored as: the scalar type, or the element type of the
+    /// fixed-size buffer for string (`char`) and binary (`uint8_t`).
+    ///
+    /// @version 1
+    /// @req REQ-ING-MOD-002
+    pub fn c_storage_type(self) -> &'static str {
         match self {
             DataType::Bool => "bool",
-            DataType::Uint8 => "uint8_t",
+            DataType::Uint8 | DataType::Binary => "uint8_t",
             DataType::Int8 => "int8_t",
             DataType::Uint16 => "uint16_t",
             DataType::Int16 => "int16_t",
             DataType::Uint32 => "uint32_t",
             DataType::Int32 => "int32_t",
-            DataType::String => "char *",
-            DataType::Binary => "uint8_t *",
+            DataType::String => "char",
         }
+    }
+
+    /// Field of the generated `dm_val_t` union that carries a scalar of this type;
+    /// empty for string and binary, which are passed as buffers.
+    ///
+    /// @version 1
+    /// @req REQ-ING-MOD-002
+    pub fn val_field(self) -> &'static str {
+        match self {
+            DataType::Bool => "bval",
+            DataType::Uint8 => "u8val",
+            DataType::Int8 => "s8val",
+            DataType::Uint16 => "u16val",
+            DataType::Int16 => "s16val",
+            DataType::Uint32 => "u32val",
+            DataType::Int32 => "s32val",
+            DataType::String | DataType::Binary => "",
+        }
+    }
+
+    /// Whether values of this type are byte buffers (string and binary).
+    ///
+    /// @version 1
+    /// @req REQ-ING-MOD-002
+    pub fn is_buffer(self) -> bool {
+        matches!(self, DataType::String | DataType::Binary)
     }
 
     /// Rust type name for code generation.
@@ -183,6 +250,8 @@ impl DataType {
     /// `String`/`Binary` have no single scalar Rust type (they're generated
     /// as fixed-size `[u8; N]` byte arrays) — this returns a byte-slice
     /// placeholder for those two variants.
+    /// @version 1
+    /// @req REQ-ING-MOD-002
     pub fn rust_type(self) -> &'static str {
         match self {
             DataType::Bool => "bool",
@@ -200,6 +269,18 @@ impl DataType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn from_toml_stamps_positions_and_keeps_explicit_indices() {
+        let model = DataModel::from_toml(
+            "[meta]\nid = \"a\"\nversion = \"1\"\n\n[[classes]]\nid = \"x\"\n[[classes.keys]]\nid = \"p\"\ntype = \"bool\"\n[[classes.keys]]\nid = \"q\"\ntype = \"bool\"\nkey_index = 7\n\n[[classes]]\nid = \"y\"\nclass_index = 5\n[[classes]]\nid = \"z\"\n",
+        )
+        .unwrap();
+        let classes: Vec<Option<u8>> = model.classes.iter().map(|c| c.class_index).collect();
+        assert_eq!(classes, [Some(0), Some(5), Some(2)]);
+        let keys: Vec<Option<u16>> = model.classes[0].keys.iter().map(|k| k.key_index).collect();
+        assert_eq!(keys, [Some(0), Some(7)]);
+    }
 
     #[test]
     fn parse_minimal_example() {
@@ -287,18 +368,33 @@ mod tests {
     }
 
     #[test]
-    fn data_type_c_names() {
-        assert_eq!(DataType::Uint8.c_type(), "uint8_t");
-        assert_eq!(DataType::Bool.c_type(), "bool");
-        assert_eq!(DataType::String.c_type(), "char *");
-    }
-
-    #[test]
     fn data_type_rust_names() {
         assert_eq!(DataType::Uint8.rust_type(), "u8");
         assert_eq!(DataType::Int32.rust_type(), "i32");
         assert_eq!(DataType::Bool.rust_type(), "bool");
         assert_eq!(DataType::String.rust_type(), "&[u8]");
         assert_eq!(DataType::Binary.rust_type(), "&[u8]");
+    }
+
+    #[test]
+    fn data_type_c_facts() {
+        // (type, value type, storage type, dm_val_t field, buffer)
+        let table = [
+            (DataType::Bool, "bool", "bool", "bval", false),
+            (DataType::Uint8, "uint8_t", "uint8_t", "u8val", false),
+            (DataType::Int8, "int8_t", "int8_t", "s8val", false),
+            (DataType::Uint16, "uint16_t", "uint16_t", "u16val", false),
+            (DataType::Int16, "int16_t", "int16_t", "s16val", false),
+            (DataType::Uint32, "uint32_t", "uint32_t", "u32val", false),
+            (DataType::Int32, "int32_t", "int32_t", "s32val", false),
+            (DataType::String, "const char *", "char", "", true),
+            (DataType::Binary, "const uint8_t *", "uint8_t", "", true),
+        ];
+        for (t, value, storage, field, buffer) in table {
+            assert_eq!(t.c_value_type(), value, "{t:?} value type");
+            assert_eq!(t.c_storage_type(), storage, "{t:?} storage type");
+            assert_eq!(t.val_field(), field, "{t:?} dm_val_t field");
+            assert_eq!(t.is_buffer(), buffer, "{t:?} buffer");
+        }
     }
 }

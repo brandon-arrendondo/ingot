@@ -27,6 +27,8 @@ pub struct RustEnumRenderable {
 /// Multi-file merges qualify enum keys as `"{namespace}::{enum_name}"` (see
 /// `main::merge_models`); single-file models leave the key bare, in which
 /// case the model's own `meta.id` is the namespace.
+/// @version 1
+/// @req REQ-ING-RST-003
 fn split_enum_key<'a>(raw: &'a str, model_id: &'a str) -> (&'a str, &'a str) {
     match raw.split_once("::") {
         Some((ns, name)) => (ns, name),
@@ -35,6 +37,8 @@ fn split_enum_key<'a>(raw: &'a str, model_id: &'a str) -> (&'a str, &'a str) {
 }
 
 /// Convert a `snake_case`/`kebab-case` identifier into `PascalCase`.
+/// @version 1
+/// @req REQ-ING-RST-003
 fn to_pascal_case(s: &str) -> String {
     s.split(['_', '-', ' '])
         .filter(|w| !w.is_empty())
@@ -50,12 +54,16 @@ fn to_pascal_case(s: &str) -> String {
 
 /// Rust type name for an enum, namespace-qualified to avoid collisions
 /// between namespaces that happen to define an enum with the same name.
+/// @version 1
+/// @req REQ-ING-RST-003
 fn enum_type_name(raw: &str, model_id: &str) -> String {
     let (ns, name) = split_enum_key(raw, model_id);
     format!("{}{}", to_pascal_case(ns), to_pascal_case(name))
 }
 
 /// Smallest Rust primitive integer type that can represent every value.
+/// @version 1
+/// @req REQ-ING-RST-003
 fn select_repr(values: impl Iterator<Item = i64>) -> &'static str {
     let mut min = 0i64;
     let mut max = 0i64;
@@ -93,6 +101,8 @@ fn select_repr(values: impl Iterator<Item = i64>) -> &'static str {
 ///
 /// Returns `None` if `raw_ref` doesn't name a known enum — callers only
 /// reach this after model validation, so that shouldn't happen in practice.
+/// @version 1
+/// @req REQ-ING-RST-003
 pub fn resolve_enum_ref(model: &DataModel, raw_ref: &str) -> Option<(String, String)> {
     let def = model.enums.get(raw_ref)?;
     let type_name = enum_type_name(raw_ref, &model.meta.id);
@@ -101,6 +111,8 @@ pub fn resolve_enum_ref(model: &DataModel, raw_ref: &str) -> Option<(String, Str
 }
 
 /// Collect every named enum in the model as a renderable Rust `#[repr]` enum.
+/// @version 1
+/// @req REQ-ING-RST-003
 pub fn collect_rust_enums(model: &DataModel) -> Vec<RustEnumRenderable> {
     model
         .enums
@@ -170,7 +182,7 @@ mod tests {
     #[test]
     fn collect_rust_enums_for_battery_example() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         let enums = collect_rust_enums(&model);
         assert_eq!(enums.len(), 2);
 
@@ -188,7 +200,7 @@ mod tests {
     #[test]
     fn resolve_enum_ref_matches_collect_rust_enums() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         let (type_name, repr) = resolve_enum_ref(&model, "level").unwrap();
         assert_eq!(type_name, "BatteryLevel");
         assert_eq!(repr, "u8");
@@ -197,7 +209,7 @@ mod tests {
     #[test]
     fn resolve_enum_ref_unknown_returns_none() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         assert!(resolve_enum_ref(&model, "nonexistent").is_none());
     }
 }

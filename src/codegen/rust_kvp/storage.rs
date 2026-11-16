@@ -1,10 +1,10 @@
 use crate::hash::{self, PerfectHash};
-use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
 use super::enums;
-use crate::codegen::{resolve_class_idx, resolve_ns_id};
+use crate::codegen::{join_list, key_stem, resolve_ns_name};
+use crate::model::key::key_id;
 
 /// One group of same-typed integer/bool keys sharing a perfect hash table.
 #[derive(Debug, Serialize)]
@@ -70,6 +70,10 @@ const INT_TYPES: &[DataType] = &[
     DataType::Int32,
 ];
 
+/// Name of the Rust storage field that holds keys of `data_type`.
+///
+/// @version 1
+/// @req REQ-ING-RST-002
 fn field_name_for(data_type: DataType) -> &'static str {
     match data_type {
         DataType::Bool => "bool_values",
@@ -96,39 +100,26 @@ struct ResolvedKey<'a> {
 }
 
 /// Walk every class/key in the model, resolving names and the 32-bit encoding.
+///
+/// v2: namespace name and key ID come from the shared resolve_ns_name and encode_key.
+/// v3: the key constant's name comes from the shared key_stem.
+/// v4: the key ID comes from model::key::key_id.
+/// @version 4
+/// @req REQ-ING-RST-002
 fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
     let mut out = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_idx = resolve_class_idx(class, pos);
-        let ns_name = class
-            .namespace_name
-            .as_deref()
-            .unwrap_or(&model.meta.id)
-            .to_string();
+    for class in &model.classes {
+        let ns_name = resolve_ns_name(class, model);
 
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: key.data_type.type_code(),
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-            let encoded = encoding.encode();
+        for key in &class.keys {
+            let encoded = key_id(class, ns_id, key);
 
             let key_name = key.id.to_lowercase().replace([' ', '-'], "_");
             let ns_lower = ns_name.to_lowercase();
             let class_lower = class.id.to_lowercase();
             let method_name = format!("{ns_lower}_{class_lower}_{key_name}");
-
-            let ns_upper = ns_name.to_uppercase();
-            let class_upper = class.id.to_uppercase();
-            let key_upper = key.id.to_uppercase().replace(' ', "_");
-            let const_name = format!("DM_KEY_{ns_upper}_{class_upper}_{key_upper}");
+            let const_name = format!("DM_KEY_{}", key_stem(class, model, key));
 
             let enum_info = if INT_TYPES.contains(&key.data_type) {
                 key.enum_ref
@@ -152,6 +143,8 @@ fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
 }
 
 /// Collect one perfect-hash-backed group per integer type present in the model.
+/// @version 1
+/// @req REQ-ING-RST-002
 pub fn collect_int_groups(
     model: &DataModel,
     ns_id: u16,
@@ -186,6 +179,8 @@ pub fn collect_int_groups(
 }
 
 /// Collect the single bool group, if any bool keys exist.
+/// @version 1
+/// @req REQ-ING-RST-002
 pub fn collect_bool_group(
     model: &DataModel,
     ns_id: u16,
@@ -208,6 +203,11 @@ pub fn collect_bool_group(
     Ok((Some(group), accessors))
 }
 
+/// Build one scalar storage group and its accessors in perfect-hash slot order.
+///
+/// v2: the G table is joined by the shared codegen::join_list.
+/// @version 2
+/// @req REQ-ING-RST-002
 fn build_scalar_group(
     rust_type: &str,
     field_name: &str,
@@ -246,7 +246,7 @@ fn build_scalar_group(
         seed1: ph.seed1,
         seed2: ph.seed2,
         g_size: ph.g_table.len(),
-        g_table_str: join_i32(&ph.g_table),
+        g_table_str: join_list(&ph.g_table),
         default_table_str: defaults.join(", "),
         keys_table_str: key_order
             .iter()
@@ -258,14 +258,10 @@ fn build_scalar_group(
     (group, accessors)
 }
 
-fn join_i32(values: &[i32]) -> String {
-    values
-        .iter()
-        .map(|v| v.to_string())
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
+/// Rust literal of an integer key's default (booleans as 0 or 1, missing as 0).
+///
+/// @version 1
+/// @req REQ-ING-RST-002
 fn format_int_default(default: &Option<toml::Value>) -> String {
     match default {
         Some(toml::Value::Integer(i)) => i.to_string(),
@@ -274,6 +270,10 @@ fn format_int_default(default: &Option<toml::Value>) -> String {
     }
 }
 
+/// Rust literal of a boolean key's default (non-zero integers count as true).
+///
+/// @version 1
+/// @req REQ-ING-RST-002
 fn format_bool_default(default: &Option<toml::Value>) -> String {
     let is_true = matches!(default, Some(toml::Value::Boolean(true)))
         || matches!(default, Some(toml::Value::Integer(i)) if *i != 0);
@@ -287,6 +287,8 @@ fn format_bool_default(default: &Option<toml::Value>) -> String {
 /// Collect string/binary keys, each backed by its own fixed-size field
 /// (max_size varies per key, so these can't share a uniform array the way
 /// scalar types do — no perfect hash needed since access is name-only).
+/// @version 1
+/// @req REQ-ING-RST-002
 pub fn collect_bytes_accessors(model: &DataModel, ns_id: u16) -> Vec<RustBytesAccessor> {
     let resolved = resolve_all_keys(model, ns_id);
 
@@ -315,6 +317,8 @@ pub fn collect_bytes_accessors(model: &DataModel, ns_id: u16) -> Vec<RustBytesAc
 
 /// Format a default string value as a Rust byte-string literal, escaping any
 /// bytes that aren't printable ASCII or the standard escape set.
+/// @version 1
+/// @req REQ-ING-RST-002
 fn format_bytes_default(default: &Option<toml::Value>) -> String {
     let s = match default {
         Some(toml::Value::String(s)) => s.clone(),
@@ -345,7 +349,7 @@ mod tests {
     #[test]
     fn collect_int_groups_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let (groups, accessors) = collect_int_groups(&model, 0).unwrap();
 
         // uint16 (temperature), uint8 (mode), uint32 (update_interval_ms)
@@ -360,7 +364,7 @@ mod tests {
     #[test]
     fn collect_bool_group_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let (group, accessors) = collect_bool_group(&model, 0).unwrap();
         let group = group.expect("should have a bool group");
         assert_eq!(group.num_keys, 1);
@@ -371,7 +375,7 @@ mod tests {
     #[test]
     fn collect_bytes_accessors_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let accessors = collect_bytes_accessors(&model, 0);
         assert_eq!(accessors.len(), 1);
         assert_eq!(accessors[0].method_name, "example_config_device_name");
@@ -393,7 +397,7 @@ mod tests {
             type = "uint32"
             default = 0
         "#;
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let (group, accessors) = collect_bool_group(&model, 0).unwrap();
         assert!(group.is_none());
         assert!(accessors.is_empty());

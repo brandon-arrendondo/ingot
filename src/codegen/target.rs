@@ -38,6 +38,10 @@ pub struct TargetConfig {
 }
 
 impl TargetConfig {
+    /// Platform settings (pointer width, alignment, inline size, mutex) for `target`.
+    ///
+    /// @version 1
+    /// @req REQ-ING-TGT-001
     pub fn for_target(target: Target) -> Self {
         match target {
             Target::Stm32 => Self {

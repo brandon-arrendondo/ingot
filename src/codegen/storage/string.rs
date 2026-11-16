@@ -1,5 +1,6 @@
+use super::select_g_table_type;
+use crate::codegen::{encoded_keys, join_list, EncodedKeys};
 use crate::hash;
-use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
@@ -37,36 +38,18 @@ pub struct StringEntry {
 }
 
 /// Collect string keys from the model, split into RO and RW groups.
+///
+/// v2: keys and their IDs come from the shared codegen::encoded_keys.
+/// @version 2
+/// @req REQ-ING-GEN-006
 pub fn collect_string_storage(
     model: &DataModel,
     ns_id: u16,
 ) -> Result<Option<StringStorage>, String> {
-    let mut ro_keys: Vec<(u32, &KeyDef)> = Vec::new();
-    let mut rw_keys: Vec<(u32, &KeyDef)> = Vec::new();
-
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = class.namespace_id.unwrap_or(ns_id);
-        let c_idx = class.class_index.unwrap_or(pos as u8);
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            if key.data_type == DataType::String {
-                let encoding = KeyEncoding {
-                    namespace: c_ns_id,
-                    class: c_idx,
-                    id: key.key_index.unwrap_or(key_pos as u16),
-                    data_type: key.data_type.type_code(),
-                    thread_safe: key.thread_safe,
-                    derived: false,
-                    read_only: key.read_only,
-                };
-                let encoded = encoding.encode();
-                if key.read_only {
-                    ro_keys.push((encoded, key));
-                } else {
-                    rw_keys.push((encoded, key));
-                }
-            }
-        }
-    }
+    let (ro_keys, rw_keys): (EncodedKeys, EncodedKeys) =
+        encoded_keys(model, ns_id, |k| k.data_type == DataType::String)
+            .into_iter()
+            .partition(|(_, k)| k.read_only);
 
     if ro_keys.is_empty() && rw_keys.is_empty() {
         return Ok(None);
@@ -88,6 +71,11 @@ pub fn collect_string_storage(
     Ok(Some(StringStorage { total_keys, ro, rw }))
 }
 
+/// Build one string storage group with its own perfect hash and fixed-size buffers.
+///
+/// v2: the G table is joined by the shared codegen::join_list.
+/// @version 2
+/// @req REQ-ING-GEN-006
 fn build_string_group(keys: &[(u32, &KeyDef)]) -> Result<StringGroup, String> {
     let encoded_keys: Vec<u32> = keys.iter().map(|(k, _)| *k).collect();
     let ph = hash::generate_deterministic(&encoded_keys, 100)
@@ -126,30 +114,14 @@ fn build_string_group(keys: &[(u32, &KeyDef)]) -> Result<StringGroup, String> {
         seed2: ph.seed2,
         g_size: ph.g_table.len(),
         g_c_type: g_c_type.to_string(),
-        g_table_str: ph
-            .g_table
-            .iter()
-            .map(|v| v.to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
+        g_table_str: join_list(&ph.g_table),
         entries,
     })
 }
 
-fn select_g_table_type(g: &[i32]) -> &'static str {
-    let min = g.iter().copied().min().unwrap_or(0);
-    let max = g.iter().copied().max().unwrap_or(0);
-
-    if min >= i8::MIN as i32 && max <= i8::MAX as i32 {
-        "int8_t"
-    } else if min >= i16::MIN as i32 && max <= i16::MAX as i32 {
-        "int16_t"
-    } else {
-        "int32_t"
-    }
-}
-
 /// Escape a string for use as a C string literal (with quotes).
+/// @version 1
+/// @req REQ-ING-GEN-006
 fn escape_c_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
@@ -176,7 +148,7 @@ mod tests {
     #[test]
     fn collect_from_battery_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         let storage = collect_string_storage(&model, 0).unwrap();
 
         // battery.toml has 1 string key: version (read_only, max_size=12, default="0.0.1")
@@ -194,7 +166,7 @@ mod tests {
     #[test]
     fn collect_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let storage = collect_string_storage(&model, 0).unwrap();
 
         // minimal.toml has 1 string key: device_name (not read_only, max_size=32, default="device")
@@ -222,7 +194,7 @@ mod tests {
             type = "uint32"
             default = 0
         "#;
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let storage = collect_string_storage(&model, 0).unwrap();
         assert!(storage.is_none());
     }
@@ -247,7 +219,7 @@ mod tests {
             max_size = 32
             default = "widget"
         "#;
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let storage = collect_string_storage(&model, 0).unwrap().unwrap();
         assert_eq!(storage.total_keys, 2);
         assert!(storage.ro.is_some());

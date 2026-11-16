@@ -1,0 +1,42 @@
+# clew configuration for ingot.
+# `guard:` is read by the clew-guard pre-commit hook; everything outside it is clew's index
+# declaration.
+
+guard:
+  output_dir: docs/generated/
+
+  validate:
+    exclude:
+      - "^tests/"            # integration tests and fixtures
+      - "^scripts/test_"     # unittest suites for the policy scripts
+      - "^templates/"        # Tera templates, not source (they contain C and Rust fragments)
+      - "^examples/"         # models and committed generated output
+      - "^deps/"
+      - "^target/"
+      - "^\\.venv/"
+      - "^\\.claude/"
+      - "^\\.codex/"
+    languages:
+      rust: {}
+    presence:
+      require_doxygen: true
+      require_return: true
+    version:
+      tag: "@version"
+      require_present: true
+      require_increment_on_change: true
+    tags:
+      req:
+        pattern: "^REQ-ING-[A-Z]+-[0-9]{3}$"
+        cross_reference: true
+
+  impact:
+    requirements:
+      file: docs/requirements.yaml
+      format: yaml
+
+requirements: docs/requirements.yaml
+
+test_paths:
+  - "tests/**"
+  - "scripts/test_*.py"

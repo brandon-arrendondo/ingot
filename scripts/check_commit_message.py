@@ -35,6 +35,10 @@ AI_ATTRIBUTION = re.compile(
 )
 
 
+## @brief Check a commit message file for a DCO sign-off and for trailers naming an AI tool.
+## @version 1
+## @req REQ-ING-POL-001
+## @return 0 when the message passes, 1 otherwise
 def main() -> int:
     if len(sys.argv) < 2:
         print("check_commit_message: expected a commit message file", file=sys.stderr)

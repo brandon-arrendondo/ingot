@@ -23,6 +23,12 @@ SEMVER = r"\d+\.\d+\.\d+"
 
 
 def _read_cargo_version():
+    """Read this crate's version from the package line of Cargo.toml.
+
+    @version 1
+    @req REQ-ING-TSK-002
+    @return the version string
+    """
     cargo = Path("Cargo.toml").read_text()
     # Match the package version line (anchored at start of line) — not the
     # `version = "..."` fields inside dependency tables.
@@ -43,6 +49,12 @@ def _read_cargo_version():
 # NOT touched (intentionally):
 #   - .pre-commit-config.yaml `rev: v1.8.2`  -> that pins knots, not this crate
 def _version_files(current):
+    """List the files that embed the crate version, with their patterns and replacements.
+
+    @version 1
+    @req REQ-ING-TSK-002
+    @return list of (path, pattern, replacement template)
+    """
     return [
         # (path, pattern, replacement-template)
         ("Cargo.toml", rf'^(version = "){re.escape(current)}(")', r"\g<1>{new}\g<2>"),
@@ -70,6 +82,9 @@ def bump_version(c, new_version=None):
 
     Args:
         new_version: Target version string, e.g. 1.0.2 (no leading 'v').
+
+    @version 1
+    @req REQ-ING-TSK-002
     """
     current = _read_cargo_version()
     version_files = _version_files(current)
@@ -113,7 +128,11 @@ def bump_version(c, new_version=None):
 
 @task
 def check(c):
-    """Run pre-commit hooks on all files."""
+    """Run pre-commit hooks on all files.
+
+    @version 1
+    @req REQ-ING-TSK-001
+    """
     c.run("pre-commit run --all-files", pty=True)
 
 
@@ -123,6 +142,9 @@ def build(c, release=False):
 
     Args:
         release: Build in release mode with LTO (default: debug).
+
+    @version 1
+    @req REQ-ING-TSK-001
     """
     cmd = "cargo build"
     if release:
@@ -132,7 +154,12 @@ def build(c, release=False):
 
 @task
 def test(c):
-    """Run all Rust unit tests and generated C/C++ integration tests."""
+    """Run all Rust unit tests and generated C/C++ integration tests.
+
+    v2: the generated C tests build with the sanitizers on (-DSANITIZE=ON).
+    @version 2
+    @req REQ-ING-TSK-001
+    """
     import tempfile, os
 
     c.run("cargo test", pty=True)
@@ -199,6 +226,9 @@ def coverage(c, output="coverage"):
 
     Args:
         output: Directory for coverage reports (default: coverage).
+
+    @version 1
+    @req REQ-ING-TSK-001
     """
     import shutil, os
 
@@ -272,7 +302,11 @@ def coverage(c, output="coverage"):
 
 @task
 def clean(c):
-    """Remove build artifacts and generated output."""
+    """Remove build artifacts and generated output.
+
+    @version 1
+    @req REQ-ING-TSK-001
+    """
     c.run("cargo clean", pty=True)
     c.run("rm -rf generated/ coverage/ lcov.info", pty=True)
 
@@ -285,5 +319,8 @@ def generate(c, model="examples/battery.toml", output="generated", target="linux
         model: Path to TOML data model file.
         output: Output directory for generated C code.
         target: Target platform (stm32, esp-xtensa, esp-riscv, mcu8bit, linux64).
+
+    @version 1
+    @req REQ-ING-TSK-001
     """
     c.run(f"cargo run -- --model {model} --output {output} --target {target} -v", pty=True)

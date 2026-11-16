@@ -27,6 +27,12 @@ ROM_SECTIONS = {".text", ".rodata", ".data"}
 
 
 def find_c_files(directory):
+    """List the generated .c files to measure, skipping the test harness.
+
+    @version 1
+    @req REQ-ING-ROM-001
+    @return sorted paths of the .c files
+    """
     files = []
     for name in sorted(os.listdir(directory)):
         if name.endswith(".c") and name not in SKIP_FILES:
@@ -35,6 +41,12 @@ def find_c_files(directory):
 
 
 def compile_to_object(c_file, include_dir, gcc, opt_level, tmpdir):
+    """Compile one generated C file to an object file in tmpdir.
+
+    @version 1
+    @req REQ-ING-ROM-001
+    @return the object path, or None when compilation fails
+    """
     base = os.path.splitext(os.path.basename(c_file))[0]
     obj = os.path.join(tmpdir, base + ".o")
     cmd = [gcc, "-c", "-std=c99", f"-O{opt_level}", f"-I{include_dir}", c_file, "-o", obj]
@@ -47,6 +59,12 @@ def compile_to_object(c_file, include_dir, gcc, opt_level, tmpdir):
 
 
 def parse_size_output(obj_file, size_cmd="size"):
+    """Sum the section sizes that size -A reports for an object file.
+
+    @version 1
+    @req REQ-ING-ROM-001
+    @return section name to size in bytes; empty when size fails
+    """
     result = subprocess.run([size_cmd, "-A", obj_file], capture_output=True, text=True)
     if result.returncode != 0:
         return {}
@@ -60,11 +78,20 @@ def parse_size_output(obj_file, size_cmd="size"):
 
 
 def format_bytes(n):
+    """Format a byte count for the report, with KB above 1024 bytes.
+
+    @version 1
+    @req REQ-ING-ROM-001
+    @return the formatted text
+    """
     if n >= 1024:
         return f"{n:>8,}  ({n / 1024:.1f} KB)"
     return f"{n:>8,}"
 
 
+## @brief Compile a generated directory and print its ROM estimate per file and in total.
+## @version 1
+## @req REQ-ING-ROM-001
 def main():
     parser = argparse.ArgumentParser(description="Estimate ROM usage of generated ingot code")
     parser.add_argument("directory", help="Path to generated C output directory")

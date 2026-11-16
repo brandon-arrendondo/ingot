@@ -1,0 +1,50 @@
+# Network credentials (secrets with reader lists) and the consumers' heartbeats.
+
+[meta]
+id = "net"
+namespace_id = 4
+
+[[classes]]
+id = "credentials"
+class_index = 0
+role = "config"
+persistence = "durable"
+
+[[classes.keys]]
+id = "wifi_psk"
+key_index = 0
+type = "string"
+max_size = 64
+introduced_in = "1.0"
+write_rate = "1/day"
+secret = true
+readers = ["app.net"]
+
+[[classes.keys]]
+id = "cloud_token"
+key_index = 1
+type = "binary"
+max_size = 128
+introduced_in = "1.0"
+write_rate = "1/day"
+secret = true
+readers = ["app.net", "integrator", "app.ota"]
+
+[[classes]]
+id = "health"
+class_index = 1
+role = "diag"
+
+[[classes.keys]]
+id = "integrator_hb"
+key_index = 0
+type = "uint32"
+introduced_in = "1.0"
+write_rate = "1/s"
+
+[[classes.keys]]
+id = "app_hb"
+key_index = 1
+type = "uint32"
+introduced_in = "1.0"
+write_rate = "1/s"
