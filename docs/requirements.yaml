@@ -45,11 +45,12 @@ requirements:
     name: Fixed table-interface header
     subsystem: Table interface
     description: >-
-      ingot emits dmt_types.h, the frozen TIV 1.0 table-interface header
+      ingot emits dmt_types.h, the table-interface header, TIV 1.1
       (type codes, persistence classes, roles, principal kinds, flags, sizing
       constants, the rights macro, the dmt_key_t, dmt_principal_t, dmt_uid_caps_t and
-      dmt_command_t layouts and the well-known role list). Its bytes depend only on the TIV, never
-      on a model; --table-types writes it with no model.
+      dmt_command_t layouts and the well-known role list of TIV 1.0, and the log stream codes and
+      dmt_log_stream_t layout TIV 1.1 appends). Its bytes depend only on the TIV, never on a
+      model; --table-types writes it with no model.
     acceptance_criteria: >-
       The header compiles as C99 with -Wall -Wextra -pedantic -Werror; a C check pins every
       frozen value, struct size and field offset; two runs give identical bytes.
@@ -1333,3 +1334,77 @@ requirements:
     acceptance_criteria: >-
       Against a previous contract of the same major, a key that gains a header, loses its header,
       or has a field retyped is refused; the same changes at a new major are accepted.
+  # -- per-principal log streams (runtime configuration, outside the digests) ------------------
+  REQ-ING-LOG-001:
+    name: Log stream declaration and the log stream table
+    subsystem: Contract mode
+    description: >-
+      A [[principals]] entry may declare one log stream as `log = { ... }` (an unknown field is
+      refused): name (default the principal's name with each dot an underscore), backing (off,
+      ring, flash_on_trigger or flash_group; default off) with backing_by_variant,
+      allowed_backings (default the backing) with allowed_backings_by_variant (off is always
+      allowed), ram_cap_bytes, max_line_bytes, default_level_ram and default_level_file (sets of
+      error, warning, info, debug), flash_seg_bytes, flash_seg_count, flash_rate_bytes_per_day,
+      flash_rate_burst_bytes, flush (fault, watchdog, shutdown, reboot, error_line, request,
+      restart_storm, high_water), ctl_key, drop_counter_key and introduced_in. Contract mode
+      emits dmt_log_streams (dmt_log_stream_t, table interface 1.1) and dmt_log_stream_names in
+      principal table order, each row with the variant's backing and allowed-backing mask, the
+      key IDs of its control key and drop counter and the principal's index, and the [bounds]
+      log budgets as defines. The table is runtime configuration: no KSET digest, no keyspace
+      file and no previous-contract check depends on it.
+    acceptance_criteria: >-
+      The generic model's streams appear row by row with each variant's backing and mask, and the
+      tables compile and pass a C walk of every row against the budgets; the digests and keyspace
+      files are identical with and without the log declarations; a model without one has
+      DMT_NUM_LOG_STREAMS 0.
+  REQ-ING-LOG-002:
+    name: Log RAM budget
+    subsystem: Contract mode
+    description: >-
+      [bounds] log_ram_budget_bytes is an upper bound on the log RAM of a variant with every
+      stream enabled at once: the sum of ram_cap_bytes over the streams the variant allows a
+      backing other than off. A sum above it is refused, on each variant's run, and so is a model
+      with a log stream and no log_ram_budget_bytes. The optional log_ram_default_budget_bytes
+      bounds the same sum over the streams whose boot backing on the variant is not off.
+    acceptance_criteria: >-
+      A sum one byte over either budget is refused and a sum equal to it accepted; a stream the
+      variant allows only off counts nothing there; a stream without a budget is refused.
+  REQ-ING-LOG-003:
+    name: Log flash bounds
+    subsystem: Contract mode
+    description: >-
+      On a variant where a stream may use a flash backing, its flash_seg_bytes, flash_seg_count
+      and flash_rate_bytes_per_day are above 0, and over those streams the sum of flash_seg_bytes
+      times flash_seg_count is within [bounds] log_flash_bytes and the sum of
+      flash_rate_bytes_per_day within [bounds] log_flash_bytes_per_day, each bound required then.
+      Ingot checks this structure and these sums only; it fixes no erase-block alignment and no
+      per-target wear figure.
+    acceptance_criteria: >-
+      A segment size, count or rate of 0 on a flash stream, a sum one byte over either bound and a
+      missing bound are each refused; sums equal to the bounds are accepted; a variant that
+      allows the stream no flash backing checks none of it.
+  REQ-ING-LOG-004:
+    name: Log stream refusals
+    subsystem: Contract mode
+    description: >-
+      Contract mode refuses a stream name used twice or not a lower-case identifier; a
+      default_level_file outside default_level_ram; a ctl_key that is not a key of the variant
+      or that no principal may write; a drop_counter_key that is not an unsigned integer key of
+      the variant; a backing outside the allowed backings of a variant, and a per-variant entry
+      for an undeclared variant; a max_line_bytes of 0, above ram_cap_bytes when a backing other
+      than off is allowed, or above flash_seg_bytes or flash_rate_burst_bytes when a flash
+      backing is; an introduced_in that does not parse or is later than the contract.
+    acceptance_criteria: >-
+      Each refusal has a model edit that triggers it, and the generic model triggers none.
+  REQ-ING-LOG-005:
+    name: Log streams in contract.json
+    subsystem: Contract mode
+    description: >-
+      contract.json lists every log stream of the variant (name, principal, resolved backing and
+      allowed backings, sizes, flash figures, levels, flush triggers, control and drop-counter
+      key paths, introduced_in), for tooling to read; --previous-contract does not compare them,
+      and a contract.json without them reads back.
+    acceptance_criteria: >-
+      The generic model's contract.json carries its streams as the variant resolves them, a model
+      without one has none, and an older contract.json without the section is still a valid
+      previous contract.
