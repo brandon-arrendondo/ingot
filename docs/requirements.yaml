@@ -38,7 +38,9 @@ requirements:
       directory in the working directory is used before the embedded set, and contract mode
       ignores it; a searched directory without dm_key_event_list.hpp still generates it under
       --emit-tinyfsm, from the embedded copy, and the warning names the template and the
-      directory.
+      directory; a templates/ beside the executable and one two levels above it are each used
+      before the working directory's. The tests run a copy of the binary in a fresh directory
+      tree, so they hold wherever cargo builds it.
   REQ-ING-TIV-001:
     name: Fixed table-interface header
     subsystem: Table interface
