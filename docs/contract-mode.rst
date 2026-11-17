@@ -45,7 +45,9 @@ store's rate limit off (a key or command that wants no limit omits ``write_rate`
 reason ``[bounds] default_rate_burst`` must be at least 1, whether or not any declaration uses
 it. A command type (``[[classes.commands]]``) creates its command, result
 and dedupe keys with its owner, payload kind and sizes; ``internal`` says why it is never
-requested on the wire. Its ``write_rate`` and ``rate_burst`` apply to all three keys alike (each
+requested on the wire. A principal ``owner`` reads the command and is the only principal that
+may write its result, so no sender can answer a command, its own or another's, in the owner's
+place; the core keeps every dedupe key and answers the commands it owns. A command type's ``write_rate`` and ``rate_burst`` apply to all three keys alike (each
 row of ``dmt_keys`` and each key of ``contract.json`` carries them), under the same rules:
 
 .. code-block:: toml
@@ -424,7 +426,10 @@ Every rule above has a refusal, grouped as follows:
 * **Variants:** an undeclared ``--variant`` or variant named anywhere; an enum variant that
   removes an unknown name or makes a code, name or string ambiguous.
 * **Rights and principals:** grants on unknown keys or scopes, a secret's reader that is not a
-  principal, a heartbeat with a second writer, duplicate or reserved principal names.
+  principal, a heartbeat with a second writer, duplicate or reserved principal names; a command
+  owner without read on its command or write on its result, any principal but the owner with
+  write on a principal-owned command's result (named with the command and the result key), and
+  any write on a dedupe key or on the result of a command the core answers.
 * **Error groups:** a non-bool or non-STATE error key, a bit outside the width or reserved, two
   keys on one bit, overlapping wire ids.
 * **Shadow:** a malformed path, two rows on one path in one document, a shadowed SETTINGS key

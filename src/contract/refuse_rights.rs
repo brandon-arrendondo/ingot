@@ -159,7 +159,8 @@ const CORE_ANSWERED: [&str; 2] = ["RESET_REQUEST", "TRACE_ENABLE"];
 
 /// Command owners (amended refusal C, 2026-11-03): the core answers RESET_REQUEST and
 /// TRACE_ENABLE and nobody writes their results; any other command has a principal owner that
-/// reads the command and writes the result; nobody writes any dedupe key (the core keeps them).
+/// reads the command and alone writes the result; nobody writes any dedupe key (the core keeps
+/// them).
 ///
 /// v2: core-answered commands, and dedupe keys kept by the core.
 /// @version 2
@@ -225,9 +226,11 @@ fn core_owner(
 }
 
 /// A principal-owned command is not core-answered, and its owner reads the command and writes
-/// the result.
+/// the result. The owner is the result's only writer: any other writer could answer the command
+/// before the owner, past the one-in-flight rule, or answer another sender's command.
 ///
-/// @version 1
+/// v2: the owner is the only writer of the result.
+/// @version 2
 /// @req REQ-ING-TIV-011
 fn principal_owner(
     tables: &Tables,
@@ -240,13 +243,19 @@ fn principal_owner(
     if core_answered {
         errors.push(format!("{path}: RESET_REQUEST and TRACE_ENABLE must be answered by the core (owner = \"core\")"));
     }
-    match tables.principal_index(owner) {
-        None => errors.push(format!("{path}: owner {owner} is not a principal")),
-        Some(p) if tables.rights[p][cmd] & READ == 0 || tables.rights[p][result] & WRITE == 0 => {
-            errors.push(format!(
-                "{path}: owner {owner} needs read on the command and write on its result"
-            ))
-        }
-        Some(_) => {}
+    let Some(p) = tables.principal_index(owner) else {
+        errors.push(format!("{path}: owner {owner} is not a principal"));
+        return;
+    };
+    if tables.rights[p][cmd] & READ == 0 || tables.rights[p][result] & WRITE == 0 {
+        errors.push(format!(
+            "{path}: owner {owner} needs read on the command and write on its result"
+        ));
+    }
+    for q in (0..tables.principals.len()).filter(|&q| q != p && tables.writes(q, result)) {
+        errors.push(format!(
+            "{path}: only its owner {owner} may write the result {}; principal {} has write on it",
+            tables.keys[result].path, tables.principals[q].name
+        ));
     }
 }

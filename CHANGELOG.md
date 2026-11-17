@@ -49,8 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `contract.json`, from a `contract.toml` and namespace files with
   explicit IDs. Every rule of the table interface is a generation-time
   refusal; `--previous-contract` checks that a minor only adds and that a
-  major reserves removed IDs, and writes a release-review report. The
-  tables state the ingot commit; a dirty build is refused unless
+  major reserves removed IDs, and writes a release-review report. Only
+  a command's principal owner may write its result; any other principal
+  with write on it is refused by name, with the command and the result
+  key. The tables state the ingot commit; a dirty build is refused unless
   `--allow-dirty-ingot`. `examples/contract/` holds a generic model at
   1.0, 1.1 and 2.0. In each, one principal writes a durable key, deferred
   keys at two intervals and volatile keys, so one batch can mix

@@ -284,6 +284,32 @@ fn the_last_key_grant_wins_and_none_removes() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// @brief A sender may read a principal-owned command's result: only write on it is the owner's.
+/// @version 1
+#[test]
+fn a_sender_may_read_the_owner_s_result() {
+    let dir = unique_dir("result-reader");
+    let model_dir = dir.join("model");
+    copy_dir(&model("v1_0"), &model_dir);
+    edit(
+        &model_dir.join("contract.toml"),
+        "{ key = \"drive.command.map_edit\", access = \"rw\" },",
+        "{ key = \"drive.command.map_edit\", access = \"rw\" },\n  { key = \"drive.command.map_edit_result\", access = \"r\" },",
+    );
+    let gen = dir.join("gen");
+    let (ok, stderr) = generate(&model_dir.join("contract.toml"), &gen, &[]);
+    assert!(ok, "{stderr}");
+    assert_eq!(
+        right(&gen, "app.cloud", "drive.command.map_edit_result"),
+        "r"
+    );
+    assert_eq!(
+        right(&gen, "app.map", "drive.command.map_edit_result"),
+        "rw"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn queue_bound_is_computed_from_rates_and_latency() {
     // ceil(200 * 1_216_830 writes/day * 50_000 ms / (100 * 86_400_000)) = 1409
