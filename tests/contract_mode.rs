@@ -10,17 +10,22 @@ use std::path::Path;
 use std::process::Command;
 
 /// @brief Compile the generated tables with the C walker and the value checks, run both, and
-/// cross-check the C digests, model hash and ingot provenance against contract.json.
+/// cross-check the C digests, model hash, ingot provenance and table interface version against
+/// contract.json.
 /// v3: the ingot version and commit too.
 /// v4: each principal's digests in minor order; the checks moved into helpers.
-/// @version 4
+/// v5: the table interface version dmt_tables.h and contract.json state is dmt_types.h's.
+/// @version 5
 fn compile_and_walk(gen: &Path) {
     for program in ["check_tables", "check_values"] {
         run_c_check(gen, program);
     }
     let json = contract_json(gen);
-    check_provenance(
-        &fs::read_to_string(gen.join("dmt_tables.h")).unwrap(),
+    let h = fs::read_to_string(gen.join("dmt_tables.h")).unwrap();
+    check_provenance(&h, &json);
+    check_tiv(
+        &h,
+        &fs::read_to_string(gen.join("dmt_types.h")).unwrap(),
         &json,
     );
     check_digest_rows(
@@ -41,6 +46,23 @@ fn check_provenance(h: &str, json: &serde_json::Value) {
     assert!(h.contains(&format!("DMT_INGOT_COMMIT          \"{commit}\"")));
     let version = json["ingot"]["version"].as_str().unwrap();
     assert!(h.contains(&format!("DMT_INGOT_VERSION         \"{version}\"")));
+}
+
+/// @brief The table interface version dmt_types.h defines (DMT_TIV_MAJOR.DMT_TIV_MINOR) is the
+/// one dmt_tables.h's header comment and contract.json's tiv state.
+/// @version 1
+fn check_tiv(h: &str, types: &str, json: &serde_json::Value) {
+    let define = |name: &str| {
+        let prefix = format!("#define {name} ");
+        let line = types.lines().find_map(|l| l.strip_prefix(prefix.as_str()));
+        line.expect("dmt_types.h defines the TIV")
+            .trim()
+            .to_string()
+    };
+    let tiv = format!("{}.{}", define("DMT_TIV_MAJOR"), define("DMT_TIV_MINOR"));
+    assert_eq!(json["tiv"], tiv.as_str(), "contract.json tiv");
+    let stated = format!("table interface {tiv}.\n");
+    assert!(h.contains(&stated), "dmt_tables.h must state '{stated}'");
 }
 
 /// @brief Each principal's dmt_digest row in dmt_tables.c is its contract.json digests, in

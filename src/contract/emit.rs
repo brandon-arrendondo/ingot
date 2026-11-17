@@ -169,12 +169,14 @@ pub fn context(tables: &Tables, commit: &str) -> Context {
     ctx
 }
 
-/// Contract version, variant and provenance.
+/// Contract version, table interface version, variant and provenance.
 ///
-/// @version 1
+/// v2: the table interface version, from types::TIV.
+/// @version 2
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-013
 fn insert_header(ctx: &mut Context, tables: &Tables, commit: &str) {
+    ctx.insert("tiv", super::types::TIV);
     ctx.insert("name", &c_string(Some(&tables.name)));
     ctx.insert("major", &tables.version.major);
     ctx.insert("minor", &tables.version.minor);
