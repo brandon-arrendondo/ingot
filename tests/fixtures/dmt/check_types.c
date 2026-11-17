@@ -96,7 +96,9 @@ PIN(DMT_LT_FAULT == 0x0001u); PIN(DMT_LT_WATCHDOG == 0x0002u); PIN(DMT_LT_SHUTDO
 PIN(DMT_LT_REBOOT == 0x0008u); PIN(DMT_LT_ERROR_LINE == 0x0010u); PIN(DMT_LT_REQUEST == 0x0020u);
 PIN(DMT_LT_RESTART_STORM == 0x0040u); PIN(DMT_LT_HIGH_WATER == 0x0080u);
 
-PIN(sizeof(dmt_log_stream_t) == 44);
+PIN(DMT_LOG_PRINCIPAL_CORE == 0xFFFFu);
+
+PIN(sizeof(dmt_log_stream_t) == 48);
 PIN(offsetof(dmt_log_stream_t, ram_cap_bytes) == 0);
 PIN(offsetof(dmt_log_stream_t, max_line_bytes) == 4);
 PIN(offsetof(dmt_log_stream_t, flash_seg_bytes) == 8);
@@ -105,12 +107,13 @@ PIN(offsetof(dmt_log_stream_t, flash_rate_bytes_per_day) == 16);
 PIN(offsetof(dmt_log_stream_t, flash_rate_burst_bytes) == 20);
 PIN(offsetof(dmt_log_stream_t, ctl_key) == 24);
 PIN(offsetof(dmt_log_stream_t, drop_counter_key) == 28);
-PIN(offsetof(dmt_log_stream_t, principal) == 32); PIN(offsetof(dmt_log_stream_t, flush) == 34);
-PIN(offsetof(dmt_log_stream_t, introduced_in) == 36);
-PIN(offsetof(dmt_log_stream_t, backing) == 38);
-PIN(offsetof(dmt_log_stream_t, allowed_backings) == 39);
-PIN(offsetof(dmt_log_stream_t, level_ram) == 40); PIN(offsetof(dmt_log_stream_t, level_file) == 41);
-PIN(offsetof(dmt_log_stream_t, reserved0) == 42);
+PIN(offsetof(dmt_log_stream_t, state_key) == 32);
+PIN(offsetof(dmt_log_stream_t, principal) == 36); PIN(offsetof(dmt_log_stream_t, flush) == 38);
+PIN(offsetof(dmt_log_stream_t, introduced_in) == 40);
+PIN(offsetof(dmt_log_stream_t, backing) == 42);
+PIN(offsetof(dmt_log_stream_t, allowed_backings) == 43);
+PIN(offsetof(dmt_log_stream_t, level_ram) == 44); PIN(offsetof(dmt_log_stream_t, level_file) == 45);
+PIN(offsetof(dmt_log_stream_t, reserved0) == 46);
 
 /**
  * @brief   Check DMT_RIGHTS against the bit layout: key i in byte i/4, read bit 2*(i%4).

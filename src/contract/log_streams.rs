@@ -1,6 +1,6 @@
-//! Per-principal log streams: resolution for a variant, the `dmt_log_streams` rows and the
-//! contract.json entries. The table is runtime configuration: no digest, keyspace file or
-//! previous-contract check reads it.
+//! Log streams, the core's and the principals': resolution for a variant, the
+//! `dmt_log_streams` rows and the contract.json entries. The table is runtime configuration: no
+//! digest, keyspace file or previous-contract check reads it.
 
 use super::emit::c_string;
 use super::keys::Errors;
@@ -8,10 +8,13 @@ use super::model::Tables;
 use super::schema::{
     level_code, mask, trigger_code, Backing, FlushTrigger, Level, LogDef, PrincipalDef, BACKINGS,
 };
-use super::types::Version;
+use super::types::{Version, OWNER_CORE};
 use serde::{Deserialize, Serialize};
 
-/// A principal's log stream, its name resolved and its version parsed.
+/// The `principal` value of the core's row in `dmt_log_streams`.
+const PRINCIPAL_CORE: &str = "DMT_LOG_PRINCIPAL_CORE";
+
+/// A log stream, its name resolved and its version parsed.
 #[derive(Debug)]
 pub struct LogStream {
     pub name: String,
@@ -50,16 +53,21 @@ pub fn resolve(principal: &str, def: LogDef, errors: &mut Errors) -> LogStream {
     }
 }
 
-/// Every (where, variant) the log declarations name, for the declared-variant check.
+/// Every (where, variant) the log declarations name, the core's (`core`) and the principals',
+/// for the declared-variant check.
 ///
-/// @version 1
+/// v2: the core's declaration too.
+/// @version 2
 /// @req REQ-ING-LOG-004
+/// @req REQ-ING-LOG-006
 /// @return the pairs.
-pub fn variant_uses(principals: &[PrincipalDef]) -> Vec<(String, String)> {
+pub fn variant_uses(principals: &[PrincipalDef], core: Option<&LogDef>) -> Vec<(String, String)> {
+    let declared = principals
+        .iter()
+        .filter_map(|p| p.log.as_ref().map(|d| (p.name.as_str(), d)));
     let mut out = Vec::new();
-    for p in principals {
-        let Some(def) = &p.log else { continue };
-        let at = format!("log stream {}", stream_name(&p.name, def));
+    for (owner, def) in core.map(|d| (OWNER_CORE, d)).into_iter().chain(declared) {
+        let at = format!("log stream {}", stream_name(owner, def));
         let named = def
             .backing_by_variant
             .keys()
@@ -119,6 +127,19 @@ impl LogStream {
             .any(|b| b.flash() && allowed & (1 << b.code()) != 0)
     }
 
+    /// Whether any of `variants` (none declared: the base) allows a flash backing.
+    ///
+    /// @version 1
+    /// @req REQ-ING-LOG-009
+    /// @return true when the stream may write flash somewhere.
+    pub fn may_flash_on_any(&self, variants: &[String]) -> bool {
+        if variants.is_empty() {
+            self.may_flash("")
+        } else {
+            variants.iter().any(|v| self.may_flash(v))
+        }
+    }
+
     /// The level masks (RAM, file).
     ///
     /// @version 1
@@ -132,29 +153,32 @@ impl LogStream {
     }
 }
 
-/// Every log stream of `tables`, with its principal's index, in principal table order.
+/// Every log stream of `tables` with its principal's index: the core's first (no index), then
+/// the principals' in principal table order.
 ///
-/// @version 1
+/// v2: the core's stream first.
+/// @version 2
 /// @req REQ-ING-LOG-001
+/// @req REQ-ING-LOG-006
 /// @return the (principal index, stream) pairs.
-pub fn streams(tables: &Tables) -> impl Iterator<Item = (usize, &LogStream)> {
-    tables
-        .principals
-        .iter()
-        .enumerate()
-        .filter_map(|(i, p)| p.log.as_ref().map(|l| (i, l)))
+pub fn streams(tables: &Tables) -> impl Iterator<Item = (Option<usize>, &LogStream)> {
+    let core = tables.core_log.iter().map(|s| (None, s));
+    let principals = tables.principals.iter().enumerate();
+    core.chain(principals.filter_map(|(i, p)| p.log.as_ref().map(|l| (Some(i), l))))
 }
 
 /// The `dmt_log_streams` rows (one zero row when there are none, so the array is never empty).
 ///
-/// @version 1
+/// v2: the state key.
+/// @version 2
 /// @req REQ-ING-LOG-001
+/// @req REQ-ING-LOG-007
 /// @return the C initialisers.
 pub fn rows(tables: &Tables) -> Vec<String> {
     let rows: Vec<String> = streams(tables).map(|(p, s)| row(tables, p, s)).collect();
     if rows.is_empty() {
         vec![
-            "{ 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0x0000u, 0u, 0u, 0x00u, 0x00u, 0x00u, 0u }"
+            "{ 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0x0000u, 0u, 0u, 0x00u, 0x00u, 0x00u, 0u }"
                 .into(),
         ]
     } else {
@@ -162,21 +186,26 @@ pub fn rows(tables: &Tables) -> Vec<String> {
     }
 }
 
-/// One `dmt_log_streams` row of stream `s` of principal `p`, for the tables' variant.
+/// One `dmt_log_streams` row of stream `s` of principal `p` (`None`: the core's stream), for
+/// the tables' variant.
 ///
-/// @version 1
+/// v2: the state key, and the core's principal value.
+/// @version 2
 /// @req REQ-ING-LOG-001
+/// @req REQ-ING-LOG-006
+/// @req REQ-ING-LOG-007
 /// @return the C initialiser.
-fn row(tables: &Tables, p: usize, s: &LogStream) -> String {
+fn row(tables: &Tables, p: Option<usize>, s: &LogStream) -> String {
     let d = &s.def;
     let id = |path: &str| format!("{:#010X}U", tables.id_of(Some(path)));
+    let principal = p.map_or_else(|| PRINCIPAL_CORE.to_string(), |p| format!("{p}u"));
     let (ram, file) = s.levels();
     let v = &tables.variant;
     format!(
-        "{{ {}u, {}u, {}u, {}u, {}u, {}u, {}, {}, {p}u, {:#06x}u, {}u, {}u, {:#04x}u, {:#04x}u, {:#04x}u, 0u }}",
+        "{{ {}u, {}u, {}u, {}u, {}u, {}u, {}, {}, {}, {principal}, {:#06x}u, {}u, {}u, {:#04x}u, {:#04x}u, {:#04x}u, 0u }}",
         d.ram_cap_bytes, d.max_line_bytes, d.flash_seg_bytes, d.flash_seg_count,
         d.flash_rate_bytes_per_day, d.flash_rate_burst_bytes, id(&d.ctl_key),
-        id(&d.drop_counter_key), mask(&d.flush, trigger_code),
+        id(&d.drop_counter_key), id(&d.state_key), mask(&d.flush, trigger_code),
         s.introduced.minor_in(tables.version.major), s.backing(v).code(), s.allowed(v), ram, file
     )
 }
@@ -201,7 +230,9 @@ pub fn names(tables: &Tables) -> Vec<String> {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct LogStreamJson {
     pub name: String,
-    pub principal: String,
+    /// The principal's name; absent for the core's stream.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub principal: Option<String>,
     pub backing: Backing,
     pub allowed_backings: Vec<Backing>,
     pub ram_cap_bytes: u32,
@@ -215,6 +246,7 @@ pub struct LogStreamJson {
     pub flush: Vec<FlushTrigger>,
     pub ctl_key: String,
     pub drop_counter_key: String,
+    pub state_key: String,
     pub introduced_in: String,
 }
 
@@ -229,17 +261,20 @@ pub fn json(tables: &Tables) -> Vec<LogStreamJson> {
         .collect()
 }
 
-/// The contract.json entry of stream `s` of principal `p`.
+/// The contract.json entry of stream `s` of principal `p` (`None`: the core's stream).
 ///
-/// @version 1
+/// v2: the state key; no principal for the core's stream.
+/// @version 2
 /// @req REQ-ING-LOG-005
+/// @req REQ-ING-LOG-006
+/// @req REQ-ING-LOG-007
 /// @return the entry.
-fn stream_json(tables: &Tables, p: usize, s: &LogStream) -> LogStreamJson {
+fn stream_json(tables: &Tables, p: Option<usize>, s: &LogStream) -> LogStreamJson {
     let (d, v) = (&s.def, &tables.variant);
     let allowed = s.allowed(v);
     LogStreamJson {
         name: s.name.clone(),
-        principal: tables.principals[p].name.clone(),
+        principal: p.map(|p| tables.principals[p].name.clone()),
         backing: s.backing(v),
         allowed_backings: BACKINGS
             .into_iter()
@@ -256,6 +291,40 @@ fn stream_json(tables: &Tables, p: usize, s: &LogStream) -> LogStreamJson {
         flush: d.flush.clone(),
         ctl_key: d.ctl_key.clone(),
         drop_counter_key: d.drop_counter_key.clone(),
+        state_key: d.state_key.clone(),
         introduced_in: s.introduced.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// @brief A stream from the log fields `extra`, with its keys and version filled in.
+    /// @version 1
+    fn stream(extra: &str) -> LogStream {
+        let text = format!(
+            "{extra}\nctl_key = \"a.b.c\"\ndrop_counter_key = \"a.b.d\"\nstate_key = \"a.b.e\"\nintroduced_in = \"1.0\""
+        );
+        let def: LogDef = toml::from_str(&text).unwrap();
+        resolve("p", def, &mut Errors::new())
+    }
+
+    #[test]
+    fn flash_on_any_variant_is_the_base_without_variants() {
+        let flash = stream("backing = \"flash_group\"");
+        let ring = stream("backing = \"ring\"");
+        assert!(flash.may_flash_on_any(&[]));
+        assert!(!ring.may_flash_on_any(&[]));
+    }
+
+    #[test]
+    fn flash_on_any_variant_asks_each_declared_variant() {
+        let only_b = stream(
+            "backing = \"ring\"\nallowed_backings_by_variant = { b = [\"ring\", \"flash_group\"] }",
+        );
+        let variants = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(only_b.may_flash_on_any(&variants(&["a", "b"])));
+        assert!(!only_b.may_flash_on_any(&variants(&["a"])));
     }
 }

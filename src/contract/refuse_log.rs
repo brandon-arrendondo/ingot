@@ -1,25 +1,33 @@
-//! Refusals of the log streams on the selected variant: names, level masks, the control and
-//! drop-counter keys, backings, line caps, flash structure and versions. The budgets are in
+//! Refusals of the log streams, the core's and the principals', on the selected variant: names,
+//! key roles, level masks, the control, drop-counter and state keys, who may switch a stream,
+//! backings, flush triggers, line caps, flash structure and versions. The budgets are in
 //! bounds.rs.
 
 use super::keys::Errors;
 use super::log_streams::{streams, LogStream};
 use super::model::Tables;
-use super::schema::KeyType;
-use std::collections::BTreeSet;
+use super::schema::{Backing, KeyType};
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Run every log stream refusal.
 ///
-/// @version 1
+/// v2: key roles, state keys, the stream's own process and flush triggers.
+/// @version 2
 /// @req REQ-ING-LOG-004
 /// @req REQ-ING-LOG-003
+/// @req REQ-ING-LOG-006
+/// @req REQ-ING-LOG-008
 pub fn check(tables: &Tables, errors: &mut Errors) {
     names(tables, errors);
-    for (_, s) in streams(tables) {
-        let mut refuse = |why: String| errors.push(format!("log stream {}: {why}", s.name));
-        for why in keys(tables, s).into_iter().chain(shape(tables, s)) {
-            refuse(why);
-        }
+    roles(tables, errors);
+    for (p, s) in streams(tables) {
+        let reasons = keys(tables, s)
+            .into_iter()
+            .chain(own_switch(tables, p, s))
+            .chain(shape(tables, s))
+            .chain(triggers(tables, s));
+        errors.extend(reasons.map(|why| format!("log stream {}: {why}", s.name)));
     }
 }
 
@@ -42,6 +50,37 @@ fn names(tables: &Tables, errors: &mut Errors) {
     }
 }
 
+/// Each key serves one log role in one stream: a key named again, as any of the ctl_key,
+/// drop_counter_key and state_key of any stream, is refused where it is named again.
+///
+/// @version 1
+/// @req REQ-ING-LOG-008
+fn roles(tables: &Tables, errors: &mut Errors) {
+    let mut seen: BTreeMap<&str, (&str, &str)> = BTreeMap::new();
+    for (_, s) in streams(tables) {
+        let d = &s.def;
+        let named = [
+            ("ctl_key", &d.ctl_key),
+            ("drop_counter_key", &d.drop_counter_key),
+            ("state_key", &d.state_key),
+        ];
+        for (role, key) in named {
+            match seen.entry(key.as_str()) {
+                Entry::Occupied(first) => {
+                    let (was, owner) = first.get();
+                    errors.push(format!(
+                        "log stream {}: {role} {key} is also the {was} of log stream {owner}",
+                        s.name
+                    ));
+                }
+                Entry::Vacant(slot) => {
+                    slot.insert((role, s.name.as_str()));
+                }
+            }
+        }
+    }
+}
+
 /// Whether `name` is `[a-z][a-z0-9_]*`.
 ///
 /// @version 1
@@ -53,10 +92,25 @@ fn identifier(name: &str) -> bool {
         && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
-/// What is wrong with the stream's control and drop-counter keys.
+/// Index of the key at `path` when it is an unsigned integer key.
 ///
 /// @version 1
 /// @req REQ-ING-LOG-004
+/// @req REQ-ING-LOG-007
+/// @return the index, or None.
+fn unsigned_key(tables: &Tables, path: &str) -> Option<usize> {
+    let unsigned = [KeyType::Uint8, KeyType::Uint16, KeyType::Uint32];
+    tables
+        .key_index(path)
+        .filter(|&k| unsigned.contains(&tables.keys[k].ty))
+}
+
+/// What is wrong with the stream's control, drop-counter and state keys.
+///
+/// v2: the state key: an unsigned integer key no principal may write.
+/// @version 2
+/// @req REQ-ING-LOG-004
+/// @req REQ-ING-LOG-007
 /// @return the reasons.
 fn keys(tables: &Tables, s: &LogStream) -> Vec<String> {
     let mut out = Vec::new();
@@ -69,16 +123,47 @@ fn keys(tables: &Tables, s: &LogStream) -> Vec<String> {
         Some(_) => {}
     }
     let drop = &s.def.drop_counter_key;
-    let unsigned = [KeyType::Uint8, KeyType::Uint16, KeyType::Uint32];
-    if !tables
-        .key_index(drop)
-        .is_some_and(|k| unsigned.contains(&tables.keys[k].ty))
-    {
+    if unsigned_key(tables, drop).is_none() {
         out.push(format!(
             "drop_counter_key {drop} is not an unsigned integer key"
         ));
     }
+    let state = &s.def.state_key;
+    match unsigned_key(tables, state) {
+        None => out.push(format!("state_key {state} is not an unsigned integer key")),
+        Some(k) => {
+            let writer = (0..tables.principals.len()).find(|&p| tables.writes(p, k));
+            let name = writer.map(|p| &tables.principals[p].name);
+            out.extend(name.map(|w| format!("principal {w} may write state_key {state}")));
+        }
+    }
     out
+}
+
+/// Every principal of the process of stream principal `p` (same kind and uid: a token issuer
+/// and its token sub-consumers) that may write the stream's ctl_key; the core's stream (`None`)
+/// has none.
+///
+/// @version 1
+/// @req REQ-ING-LOG-008
+/// @return the reasons.
+fn own_switch(tables: &Tables, p: Option<usize>, s: &LogStream) -> Vec<String> {
+    let ctl = &s.def.ctl_key;
+    let (Some(p), Some(k)) = (p, tables.key_index(ctl)) else {
+        return Vec::new();
+    };
+    let me = &tables.principals[p];
+    let process = |q: &usize| {
+        let other = &tables.principals[*q];
+        other.kind == me.kind && other.uid == me.uid
+    };
+    (0..tables.principals.len())
+        .filter(|q| process(q) && tables.writes(*q, k))
+        .map(|q| {
+            let name = &tables.principals[q].name;
+            format!("principal {name} runs in the stream's own process and may write ctl_key {ctl}")
+        })
+        .collect()
 }
 
 /// What is wrong with the stream's levels, backing, line cap, flash figures and version on the
@@ -113,6 +198,28 @@ fn shape(tables: &Tables, s: &LogStream) -> Vec<String> {
     }
     if s.introduced > tables.version {
         out.push("introduced_in is later than the contract".to_string());
+    }
+    out
+}
+
+/// What is wrong with the stream's flush triggers: triggers with no flash backing on any
+/// variant, and flash on trigger allowed on the tables' variant with no trigger.
+///
+/// @version 1
+/// @req REQ-ING-LOG-009
+/// @return the reasons.
+fn triggers(tables: &Tables, s: &LogStream) -> Vec<String> {
+    let flush = &s.def.flush;
+    let mut out = Vec::new();
+    if !flush.is_empty() && !s.may_flash_on_any(&tables.variants) {
+        out.push("flush triggers need a flash backing, which no variant allows".to_string());
+    }
+    let on_trigger = 1 << Backing::FlashOnTrigger.code();
+    if flush.is_empty() && s.allowed(&tables.variant) & on_trigger != 0 {
+        out.push(
+            "flash_on_trigger is allowed on this variant but no flush trigger is declared"
+                .to_string(),
+        );
     }
     out
 }

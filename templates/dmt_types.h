@@ -144,6 +144,8 @@ enum { DMT_LL_ERROR = 0, DMT_LL_WARNING = 1, DMT_LL_INFO = 2, DMT_LL_DEBUG = 3 }
 #define DMT_LT_RESTART_STORM 0x0040u
 #define DMT_LT_HIGH_WATER    0x0080u
 
+#define DMT_LOG_PRINCIPAL_CORE 0xFFFFu   /* dmt_log_stream_t.principal: the core's own stream */
+
 typedef struct {
     uint32_t ram_cap_bytes;            /* RAM while enabled with a backing other than OFF */
     uint32_t max_line_bytes;           /* a longer line is dropped whole and counted */
@@ -153,7 +155,9 @@ typedef struct {
     uint32_t flash_rate_burst_bytes;   /* flash token-bucket capacity, bytes */
     uint32_t ctl_key;                  /* key ID of the runtime switch */
     uint32_t drop_counter_key;         /* key ID of the dropped-lines counter */
-    uint16_t principal;                /* index into dmt_principals (build-local) */
+    uint32_t state_key;                /* key ID the core writes with the effective state */
+    uint16_t principal;                /* index into dmt_principals (build-local), or
+                                          DMT_LOG_PRINCIPAL_CORE in row 0 */
     uint16_t flush;                    /* DMT_LT_* */
     uint16_t introduced_in;            /* contract minor within the current major */
     uint8_t  backing;                  /* DMT_LB_* at boot, variant-resolved */

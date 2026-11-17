@@ -1,6 +1,6 @@
-//! Contract-mode input of a principal's log stream: `log = { ... }` in `[[principals]]`
-//! (docs/contract-mode.rst), and the table-interface codes of its backings, levels and flush
-//! triggers. Unknown fields are errors.
+//! Contract-mode input of a log stream: the core's `[core_log]` and a principal's `log = { ... }`
+//! in `[[principals]]` (docs/contract-mode.rst), and the table-interface codes of its backings,
+//! levels and flush triggers. Unknown fields are errors.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -113,11 +113,12 @@ pub fn trigger_code(trigger: FlushTrigger) -> u8 {
     trigger as u8
 }
 
-/// `log = { ... }`: one principal's log stream.
+/// `[core_log]` or a principal's `log = { ... }`: one log stream.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct LogDef {
-    /// The stream's name; absent: the principal's name, each dot an underscore.
+    /// The stream's name; absent: the principal's name, each dot an underscore (`core` for the
+    /// core's stream).
     pub name: Option<String>,
     /// The backing at boot.
     #[serde(default)]
@@ -148,5 +149,7 @@ pub struct LogDef {
     pub flush: Vec<FlushTrigger>,
     pub ctl_key: String,
     pub drop_counter_key: String,
+    /// The key the core writes with the stream's effective state; no principal may write it.
+    pub state_key: String,
     pub introduced_in: String,
 }

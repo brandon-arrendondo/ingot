@@ -16,6 +16,8 @@ pub struct ContractFile {
     pub reserved: Vec<Reserved>,
     #[serde(default)]
     pub principals: Vec<PrincipalDef>,
+    /// The store core's own log stream, when it has one.
+    pub core_log: Option<LogDef>,
     #[serde(default)]
     pub uid_caps: Vec<UidCapsDef>,
     #[serde(default)]

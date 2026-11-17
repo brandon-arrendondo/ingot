@@ -84,13 +84,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Contract mode, log streams: a principal may declare one log stream
   (`log = { ... }`: backing off, ring, flash_on_trigger or flash_group,
   allowed backings per variant, RAM cap, line cap, level masks, flash
-  segments, byte rate and flush triggers, a runtime switch key and a
-  drop-counter key). They are emitted as `dmt_log_streams` (TIV 1.1, outside
-  every digest and keyspace file) and listed in `contract.json`;
+  segments, byte rate and flush triggers, a runtime switch key, a
+  drop-counter key and a state key the core writes), and the store core its
+  own (`[core_log]`, same fields). They are emitted as `dmt_log_streams`
+  (TIV 1.1, outside every digest and keyspace file; the core's row first,
+  with principal `DMT_LOG_PRINCIPAL_CORE`) and listed in `contract.json`;
   `[bounds] log_ram_budget_bytes` is an upper bound on the RAM of every
   stream enabled at once, and `log_ram_default_budget_bytes`,
   `log_flash_bytes` and `log_flash_bytes_per_day` bound the boot RAM and the
-  flash sums.
+  flash sums. A key serves one log role in one stream, no process may write
+  its own stream's switch, a state key is written by no principal, flush
+  triggers need a flash backing on some variant, and `flash_on_trigger`
+  needs a trigger.
 
 ### Changed
 - `ingot --version` also prints the commit the binary was built from.

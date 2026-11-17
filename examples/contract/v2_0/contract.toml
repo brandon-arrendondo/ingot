@@ -18,8 +18,8 @@ default_rate_burst = 4
 staging_total_bytes = 262144
 inproc_queue_bytes = 8192
 inproc_snapshot_bytes = 4096
-log_ram_budget_bytes = 12288         # every stream enabled at once: 8192 + 4096
-log_ram_default_budget_bytes = 8192  # the streams enabled at boot: integrator's ring
+log_ram_budget_bytes = 14336         # every stream enabled at once: 2048 + 8192 + 4096
+log_ram_default_budget_bytes = 10240 # the streams enabled at boot: the core's and integrator's rings
 log_flash_bytes = 65536              # integrator's 4 segments of 16384
 log_flash_bytes_per_day = 262144
 
@@ -52,6 +52,17 @@ id = 0x00C201C0   # drive.state.label (string): removed in 2.0
 [[reserved]]
 id = 0x00C00138   # drive.settings.gain (float32): replaced by gain_pct in 2.0
 
+# -- the store core's own log stream, a RAM ring at boot ---------------------------------------
+[core_log]
+backing = "ring"
+ram_cap_bytes = 2048
+max_line_bytes = 256
+default_level_ram = ["error", "warning", "info"]
+ctl_key = "core.log.core_cfg"
+drop_counter_key = "core.diag.log_core_drops"
+state_key = "core.diag.log_core_state"
+introduced_in = "1.1"
+
 # -- integrator: owns the reset commands and answers the trace-enable command -----------------
 [[principals]]
 name = "integrator"
@@ -80,7 +91,8 @@ grants = [
   { key = "core.command.trace_enable", access = "r" },
   { key = "drive.command.drive", access = "r" },
   { key = "drive.command.drive_result", access = "rw" },
-  { namespace = "core", class = "log", access = "rw" },   # switches the log streams
+  { key = "core.log.core_cfg", access = "rw" },          # switches the core's stream
+  { key = "core.log.app_cloud_cfg", access = "rw" },     # and app.cloud's, never its own
 ]
 
 # a RAM ring at boot; flash on trigger may be switched on, except on sku_b
@@ -99,6 +111,7 @@ flash_rate_burst_bytes = 16384
 flush = ["fault", "watchdog", "shutdown", "error_line"]
 ctl_key = "core.log.integrator_cfg"
 drop_counter_key = "core.diag.log_integrator_drops"
+state_key = "core.diag.log_integrator_state"
 introduced_in = "1.1"
 
 # -- app: the library process; its FSMs connect with tokens 1..3 ------------------------------
@@ -120,6 +133,7 @@ grants = [
   { namespace = "drive", class = "state", access = "r" },
   { namespace = "core", class = "diag", access = "r" },
   { key = "net.health.app_hb", access = "rw" },
+  { key = "core.log.integrator_cfg", access = "rw" },    # switches integrator's stream
 ]
 
 [[principals]]
@@ -149,6 +163,7 @@ max_line_bytes = 256
 default_level_ram = ["error", "warning", "info", "debug"]
 ctl_key = "core.log.app_cloud_cfg"
 drop_counter_key = "core.diag.log_app_cloud_drops"
+state_key = "core.diag.log_app_cloud_state"
 introduced_in = "1.1"
 
 [[principals]]

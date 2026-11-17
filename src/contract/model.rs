@@ -5,6 +5,7 @@ use super::error_groups::{self, ErrorGroup};
 use super::keys::{
     command_key_names, command_keys, command_outcome, declared_key, ClassCtx, Errors, Key,
 };
+use super::log_streams::{self, LogStream};
 use super::ranges::Units;
 use super::rights::{self, Principal};
 use super::schema::{
@@ -12,7 +13,7 @@ use super::schema::{
     UnitsFile,
 };
 use super::shadow::{self, Shadow};
-use super::types::{Version, WK_RULES};
+use super::types::{Version, OWNER_CORE, WK_RULES};
 use super::variants;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -61,6 +62,8 @@ pub struct Tables {
     pub keys: Vec<Key>,
     pub reserved: Vec<u32>,
     pub principals: Vec<Principal>,
+    /// The store core's own log stream, when the model declares one.
+    pub core_log: Option<LogStream>,
     pub rights: Vec<Vec<u8>>,
     pub commands: Vec<Command>,
     pub uid_caps: Vec<UidCapsDef>,
@@ -96,8 +99,10 @@ struct Loaded {
 /// v11: the internal row constants are checked.
 /// v12: the struct value header names are checked, every check through check_resolved.
 /// v13: the log streams' per-variant entries are checked too.
-/// @version 13
+/// v14: and the core's log stream, resolved.
+/// @version 14
 /// @return the tables and their refusals, or why the model could not be read.
+/// @req REQ-ING-LOG-006
 /// @req REQ-ING-LOG-004
 /// @req REQ-ING-HDR-002
 /// @req REQ-ING-TIV-017
@@ -119,6 +124,10 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
     let (principals, rights) =
         principal_rights(loaded.contract.principals, &known, &keys, &mut errors);
     let reserved = reserved_ids(&loaded.contract.reserved);
+    let core_log = loaded
+        .contract
+        .core_log
+        .map(|l| log_streams::resolve(OWNER_CORE, l, &mut errors));
     let meta = loaded.contract.contract;
     let tables = Tables {
         layout: loaded.namespaces.iter().map(layout).collect(),
@@ -136,6 +145,7 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
         keys,
         reserved,
         principals,
+        core_log,
         rights,
         commands,
         uid_caps: loaded.contract.uid_caps,
@@ -150,13 +160,18 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
 /// Refuse a per-variant entry for an undeclared variant: in the namespace files, the
 /// contract-level shadow rows and the log streams.
 ///
-/// @version 1
+/// v2: the core's log stream too.
+/// @version 2
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-LOG-004
+/// @req REQ-ING-LOG-006
 fn check_variant_entries(loaded: &Loaded, errors: &mut Errors) {
-    let principals = &loaded.contract.principals;
+    let c = &loaded.contract;
     let mut uses = loaded.shadow.variant_uses.clone();
-    uses.extend(super::log_streams::variant_uses(principals));
+    uses.extend(log_streams::variant_uses(
+        &c.principals,
+        c.core_log.as_ref(),
+    ));
     let declared = &loaded.contract.contract.variants;
     variants::check_entries(declared, &loaded.namespaces, &uses, errors);
 }

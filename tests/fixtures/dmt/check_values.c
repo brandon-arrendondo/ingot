@@ -190,7 +190,8 @@ static void common(void)
  *          its alias) and app.ota; 2.0 drops speed, label and gain and adds gain_pct.
  *          v2: drive.map.map_data: 64 KiB in 1.x, 128 KiB in 2.0.
  *          v3: 1.1 adds the four log keys.
- * @version 3
+ *          v4: and the core stream's switch and counter and the three state keys (nine).
+ * @version 4
  */
 static void versioned(void)
 {
@@ -207,7 +208,7 @@ static void versioned(void)
     EXPECT(DMT_NUM_KEYS == 48 && DMT_NUM_PRINCIPALS == 8 && DMT_DEFAULT_BLOB_LEN == 18);
     key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0000u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
 #else
-    EXPECT(DMT_NUM_KEYS == 54 && DMT_NUM_PRINCIPALS == 9);
+    EXPECT(DMT_NUM_KEYS == 59 && DMT_NUM_PRINCIPALS == 9);
     key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0004u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
     value(0x00C20028u, NULL, 0u, 0x00C202A8u);
     key(0x00C202A8u, 2u, 864000u, 20u, 0u, 0x0000u, 1u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
@@ -258,16 +259,18 @@ static void batches(void)
 #if !(DMT_CONTRACT_MAJOR == 1 && DMT_CONTRACT_MINOR == 0)
 /**
  * @brief   Check one log stream row against its hand-derived values (flash figures, flush mask
- *          and introduced_in are checked by the caller).
- * @version 1
+ *          and introduced_in are checked by the caller); `keys` holds the control,
+ *          drop-counter and state key IDs.
+ *          v2: and the state key.
+ * @version 2
  */
-static void log_stream(size_t i, uint32_t ram, uint32_t ctl, uint32_t drop, uint16_t principal,
+static void log_stream(size_t i, uint32_t ram, const uint32_t keys[3], uint16_t principal,
                        uint8_t backing, uint8_t allowed, uint8_t level_ram, uint8_t level_file,
                        const char *name)
 {
     const dmt_log_stream_t *s = &dmt_log_streams[i];
-    EXPECT(s->ram_cap_bytes == ram && s->max_line_bytes == 256u);
-    EXPECT(s->ctl_key == ctl && s->drop_counter_key == drop && s->principal == principal);
+    EXPECT(s->ram_cap_bytes == ram && s->max_line_bytes == 256u && s->principal == principal);
+    EXPECT(s->ctl_key == keys[0] && s->drop_counter_key == keys[1] && s->state_key == keys[2]);
     EXPECT(s->backing == backing && s->allowed_backings == allowed);
     EXPECT(s->level_ram == level_ram && s->level_file == level_file && s->reserved0 == 0u);
     EXPECT(strcmp(dmt_log_stream_names[i], name) == 0);
@@ -275,34 +278,50 @@ static void log_stream(size_t i, uint32_t ram, uint32_t ctl, uint32_t drop, uint
 #endif
 
 /**
- * @brief   The log streams: none in 1.0; from 1.1 on integrator's (a ring at boot, flash on
- *          trigger allowed on sku_a) and app.cloud's (off at boot, a ring allowed), the budgets,
- *          and the switch and drop-counter keys (core.log.*_cfg written by integrator, index 0).
- * @version 1
+ * @brief   The log streams: none in 1.0; from 1.1 on the core's (row 0, a ring at boot),
+ *          integrator's (a ring at boot, flash on trigger allowed on sku_a) and app.cloud's (off
+ *          at boot, a ring allowed), the budgets, and the switch, drop-counter and state keys:
+ *          each switch is written from another process (integrator, index 0, writes the core's
+ *          and app.cloud's; app, index 1, writes integrator's), each state key by no principal.
+ *          v2: the core's stream, the state keys and the switch writers.
+ * @version 2
  */
 static void logs(void)
 {
 #if DMT_CONTRACT_MAJOR == 1 && DMT_CONTRACT_MINOR == 0
     EXPECT(DMT_NUM_LOG_STREAMS == 0 && DMT_LOG_RAM_BUDGET_BYTES == 0u && DMT_LOG_FLASH_BYTES == 0u);
 #else
+    static const uint32_t core[3] = { 0x00460118u, 0x00400518u, 0x00400598u };
+    static const uint32_t integrator[3] = { 0x00460018u, 0x00400318u, 0x00400418u };
+    static const uint32_t app_cloud[3] = { 0x00460098u, 0x00400398u, 0x00400498u };
     const uint16_t minor = DMT_CONTRACT_MAJOR == 1 ? 1u : 0u;
-    const dmt_log_stream_t *s = &dmt_log_streams[0];
-    EXPECT(DMT_NUM_LOG_STREAMS == 2 && DMT_LOG_RAM_BUDGET_BYTES == 12288u);
-    EXPECT(DMT_LOG_RAM_DEFAULT_BUDGET_BYTES == 8192u && DMT_LOG_FLASH_BYTES == 65536u);
+    const dmt_log_stream_t *s = &dmt_log_streams[1];
+    size_t p;
+    EXPECT(DMT_NUM_LOG_STREAMS == 3 && DMT_LOG_RAM_BUDGET_BYTES == 14336u);
+    EXPECT(DMT_LOG_RAM_DEFAULT_BUDGET_BYTES == 10240u && DMT_LOG_FLASH_BYTES == 65536u);
     EXPECT(DMT_LOG_FLASH_BYTES_PER_DAY == 262144u);
-    log_stream(0u, 8192u, 0x00460018u, 0x00400318u, 0u, DMT_LB_RING,
+    log_stream(0u, 2048u, core, DMT_LOG_PRINCIPAL_CORE, DMT_LB_RING,
+               (1u << DMT_LB_OFF) | (1u << DMT_LB_RING), 0x07u, 0x00u, "core");
+    EXPECT(dmt_log_streams[0].flash_seg_bytes == 0u && dmt_log_streams[0].flush == 0u);
+    log_stream(1u, 8192u, integrator, 0u, DMT_LB_RING,
                (1u << DMT_LB_OFF) | (1u << DMT_LB_RING) | (1u << DMT_LB_FLASH_ON_TRIGGER),
                0x07u, 0x03u, "integrator");
     EXPECT(s->flash_seg_bytes == 16384u && s->flash_seg_count == 4u);
     EXPECT(s->flash_rate_bytes_per_day == 262144u && s->flash_rate_burst_bytes == 16384u);
     EXPECT(s->flush == (DMT_LT_FAULT | DMT_LT_WATCHDOG | DMT_LT_SHUTDOWN | DMT_LT_ERROR_LINE));
-    EXPECT(s->introduced_in == minor && dmt_log_streams[1].introduced_in == minor);
-    log_stream(1u, 4096u, 0x00460098u, 0x00400398u, 2u, DMT_LB_OFF,
+    EXPECT(dmt_log_streams[0].introduced_in == minor && s->introduced_in == minor);
+    EXPECT(dmt_log_streams[2].introduced_in == minor);
+    log_stream(2u, 4096u, app_cloud, 2u, DMT_LB_OFF,
                (1u << DMT_LB_OFF) | (1u << DMT_LB_RING), 0x0Fu, 0x00u, "app_cloud");
-    EXPECT(dmt_log_streams[1].flash_seg_bytes == 0u && dmt_log_streams[1].flush == 0u);
+    EXPECT(dmt_log_streams[2].flash_seg_bytes == 0u && dmt_log_streams[2].flush == 0u);
     key(0x00400318u, 4u, 0u, 0u, 0u, 0x0000u, minor, DMT_T_U32, DMT_P_NONE, DMT_R_DIAG, 0x07u);
-    key(0x00460018u, 4u, 1440u, 4u, 0u, 0x0000u, minor, DMT_T_U32, DMT_P_NONE, DMT_R_CONFIG, 0x07u);
-    EXPECT(rights(0u, 0x00460018u) == 3u && rights(0u, 0x00460098u) == 3u);
+    key(0x00400598u, 4u, 0u, 0u, 0u, 0x0000u, minor, DMT_T_U32, DMT_P_NONE, DMT_R_DIAG, 0x07u);
+    key(0x00460118u, 4u, 1440u, 4u, 0u, 0x0000u, minor, DMT_T_U32, DMT_P_NONE, DMT_R_CONFIG, 0x07u);
+    EXPECT(rights(0u, 0x00460118u) == 3u && rights(0u, 0x00460098u) == 3u);
+    EXPECT(rights(0u, 0x00460018u) == 0u && rights(1u, 0x00460018u) == 3u);
+    for (p = 0u; p < DMT_NUM_PRINCIPALS; p++) {
+        EXPECT((rights(p, core[2]) | rights(p, integrator[2]) | rights(p, app_cloud[2])) < 2u);
+    }
 #endif
 }
 
