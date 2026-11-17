@@ -1392,9 +1392,10 @@ requirements:
       default_level_file outside default_level_ram; a ctl_key that is not a key of the variant
       or that no principal may write; a drop_counter_key that is not an unsigned integer key of
       the variant; a backing outside the allowed backings of a variant, and a per-variant entry
-      for an undeclared variant; a max_line_bytes of 0, above ram_cap_bytes when a backing other
-      than off is allowed, or above flash_seg_bytes or flash_rate_burst_bytes when a flash
-      backing is; an introduced_in that does not parse or is later than the contract.
+      for an undeclared variant; a max_line_bytes of 0, too long for the stream's RAM ring
+      (REQ-ING-LOG-010) when a backing other than off is allowed, or above flash_seg_bytes or
+      flash_rate_burst_bytes when a flash backing is; an introduced_in that does not parse or is
+      later than the contract.
     acceptance_criteria: >-
       Each refusal has a model edit that triggers it, and the generic model triggers none.
   REQ-ING-LOG-005:
@@ -1458,3 +1459,16 @@ requirements:
       Flush triggers on a RAM-only stream, and flash_on_trigger allowed without a trigger, are
       each refused; flush triggers on a stream that only another variant lets write flash are
       accepted.
+  REQ-ING-LOG-010:
+    name: Log line fits one ring record
+    subsystem: Contract mode
+    description: >-
+      Every backing other than off stages lines in the stream's RAM ring, where each line is one
+      record of a fixed 24-byte ring record header (the ring record header overhead) and the
+      line. On a variant that allows a stream a backing other than off, max_line_bytes plus that
+      header must be within ram_cap_bytes, so the longest line always fits one record in an empty
+      ring; a stream that breaks this is refused, naming the stream.
+    acceptance_criteria: >-
+      A max_line_bytes one byte over ram_cap_bytes minus 24 is refused with the stream's name, and
+      ram_cap_bytes minus 24 exactly is accepted; a variant that allows the stream only off checks
+      none of it.
