@@ -49,7 +49,8 @@ requirements:
       (type codes, persistence classes, roles, principal kinds, flags, sizing
       constants, the rights macro, the dmt_key_t, dmt_principal_t, dmt_uid_caps_t and
       dmt_command_t layouts and the well-known role list of TIV 1.0, and the log stream codes,
-      DMT_LOG_PRINCIPAL_CORE and the dmt_log_stream_t layout TIV 1.1 appends). Its bytes depend only on the TIV, never on a
+      DMT_LOG_PRINCIPAL_CORE, DMT_LOG_RING_RECORD_HEADER_BYTES and the dmt_log_stream_t layout
+      TIV 1.1 appends). Its bytes depend only on the TIV, never on a
       model; --table-types writes it with no model.
     acceptance_criteria: >-
       The header compiles as C99 with -Wall -Wextra -pedantic -Werror; a C check pins every
@@ -1474,3 +1475,13 @@ requirements:
       A max_line_bytes one byte over ram_cap_bytes minus 24 is refused with the stream's name, and
       ram_cap_bytes minus 24 exactly is accepted; a variant that allows the stream only off checks
       none of it.
+  REQ-ING-LOG-011:
+    name: Ring record header size in dmt_types.h
+    subsystem: Table interface
+    description: >-
+      dmt_types.h defines DMT_LOG_RING_RECORD_HEADER_BYTES, the ring record header overhead of
+      REQ-ING-LOG-010, so a store core can assert its own record header against it. The value is
+      rendered from the one constant the line check uses; there is no second copy of the number.
+    acceptance_criteria: >-
+      A C check pins DMT_LOG_RING_RECORD_HEADER_BYTES == 24u; the emitted define equals the line
+      check's constant, and the template takes the value from that constant, not a literal.
