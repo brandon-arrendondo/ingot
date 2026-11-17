@@ -48,8 +48,8 @@ requirements:
       ingot emits dmt_types.h, the table-interface header, TIV 1.1
       (type codes, persistence classes, roles, principal kinds, flags, sizing
       constants, the rights macro, the dmt_key_t, dmt_principal_t, dmt_uid_caps_t and
-      dmt_command_t layouts and the well-known role list of TIV 1.0, and the log stream codes and
-      dmt_log_stream_t layout TIV 1.1 appends). Its bytes depend only on the TIV, never on a
+      dmt_command_t layouts and the well-known role list of TIV 1.0, and the log stream codes,
+      DMT_LOG_PRINCIPAL_CORE and the dmt_log_stream_t layout TIV 1.1 appends). Its bytes depend only on the TIV, never on a
       model; --table-types writes it with no model.
     acceptance_criteria: >-
       The header compiles as C99 with -Wall -Wextra -pedantic -Werror; a C check pins every
@@ -1346,10 +1346,11 @@ requirements:
       allowed), ram_cap_bytes, max_line_bytes, default_level_ram and default_level_file (sets of
       error, warning, info, debug), flash_seg_bytes, flash_seg_count, flash_rate_bytes_per_day,
       flash_rate_burst_bytes, flush (fault, watchdog, shutdown, reboot, error_line, request,
-      restart_storm, high_water), ctl_key, drop_counter_key and introduced_in. Contract mode
-      emits dmt_log_streams (dmt_log_stream_t, table interface 1.1) and dmt_log_stream_names in
-      principal table order, each row with the variant's backing and allowed-backing mask, the
-      key IDs of its control key and drop counter and the principal's index, and the [bounds]
+      restart_storm, high_water), ctl_key, drop_counter_key, state_key and introduced_in.
+      Contract mode emits dmt_log_streams (dmt_log_stream_t, table interface 1.1) and
+      dmt_log_stream_names, the core's stream first and then the principals' in principal table
+      order, each row with the variant's backing and allowed-backing mask, the key IDs of its
+      control key, drop counter and state key and the principal's index, and the [bounds]
       log budgets as defines. The table is runtime configuration: no KSET digest, no keyspace
       file and no previous-contract check depends on it.
     acceptance_criteria: >-
@@ -1400,11 +1401,60 @@ requirements:
     name: Log streams in contract.json
     subsystem: Contract mode
     description: >-
-      contract.json lists every log stream of the variant (name, principal, resolved backing and
-      allowed backings, sizes, flash figures, levels, flush triggers, control and drop-counter
-      key paths, introduced_in), for tooling to read; --previous-contract does not compare them,
+      contract.json lists every log stream of the variant (name, principal (absent for the
+      core's), resolved backing and allowed backings, sizes, flash figures, levels, flush
+      triggers, control, drop-counter and state key paths, introduced_in), for tooling to read; --previous-contract does not compare them,
       and a contract.json without them reads back.
     acceptance_criteria: >-
       The generic model's contract.json carries its streams as the variant resolves them, a model
       without one has none, and an older contract.json without the section is still a valid
       previous contract.
+  REQ-ING-LOG-006:
+    name: Core log stream
+    subsystem: Contract mode
+    description: >-
+      contract.toml may declare the store core's own log stream as a top-level [core_log] table
+      with the fields of a principal's log declaration (name default core). Its row is the first
+      of dmt_log_streams, with principal DMT_LOG_PRINCIPAL_CORE (0xFFFF, never a principal
+      index); in contract.json it has no principal. It takes part in every log refusal, in the
+      [bounds] log budgets and in the declared-variant check as a principal's stream does.
+    acceptance_criteria: >-
+      The generic model's core stream is row 0 with the core principal value on every variant
+      and counts in the RAM budgets; its contract.json entry has no principal; a refusal of a
+      principal's stream triggers on the core stream as well.
+  REQ-ING-LOG-007:
+    name: Log stream state key
+    subsystem: Contract mode
+    description: >-
+      Every log stream declares state_key, the key the core writes with the stream's effective
+      state (off, on, or an enable refused), so a refused enable is visible. It must be an
+      unsigned integer key of the variant that no principal may write. Its key ID is in the
+      stream's row and its path in contract.json.
+    acceptance_criteria: >-
+      The generic model's rows carry the state key IDs; a state_key that is missing, not a key,
+      not an unsigned integer key, or writable by a principal is refused.
+  REQ-ING-LOG-008:
+    name: Log stream key roles
+    subsystem: Contract mode
+    description: >-
+      Each key serves at most one log role in one stream: a key named twice among the ctl_key,
+      drop_counter_key and state_key of all streams (the core's included) is refused. A stream
+      whose ctl_key may be written by its own principal, or by any principal of the same kind
+      and uid (one process: a token issuer and its token sub-consumers), is refused, so no
+      process can switch its own stream; the core stream has no principal and is not affected.
+    acceptance_criteria: >-
+      Two streams sharing a ctl_key, a drop_counter_key or a state_key, one stream using a key as
+      both its drop counter and its state key, a principal granted write on its own stream's
+      ctl_key, and a principal granted write on the ctl_key of a stream of another principal
+      with its kind and uid are each refused; the generic model triggers none.
+  REQ-ING-LOG-009:
+    name: Log stream flush triggers
+    subsystem: Contract mode
+    description: >-
+      Flush triggers act only on a flash backing: a stream with flush triggers that no variant
+      allows a flash backing is refused, and so is a stream with flash_on_trigger allowed on the
+      variant and no flush trigger, which could never write its flash.
+    acceptance_criteria: >-
+      Flush triggers on a RAM-only stream, and flash_on_trigger allowed without a trigger, are
+      each refused; flush triggers on a stream that only another variant lets write flash are
+      accepted.
