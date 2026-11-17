@@ -163,6 +163,12 @@ process may switch its own stream: neither the stream's principal nor any princi
 ``kind`` and ``uid`` (a token issuer and its token sub-consumers share a process) may write its
 ``ctl_key``.
 
+Every backing other than ``off`` stages lines in the stream's RAM ring, one record per line: the
+ring record header overhead, a fixed 24 bytes (``RING_RECORD_HEADER_BYTES``), then the line. On a
+variant that allows a stream any backing but ``off``, ``max_line_bytes`` plus that header must be
+within ``ram_cap_bytes``, so the longest line always fits one record of an empty ring; a stream
+that breaks this is refused by name.
+
 The flush triggers are ``fault``, ``watchdog``, ``shutdown``, ``reboot``, ``error_line``,
 ``request``, ``restart_storm`` and ``high_water``. They act on a flash backing only: flush
 triggers on a stream that no variant allows a flash backing are refused, and so is
@@ -441,7 +447,8 @@ Every rule above has a refusal, grouped as follows:
   serving two log roles; a boot backing outside the variant's allowed backings, or a per-variant
   entry for an undeclared variant; flush triggers with no flash backing on any variant, or
   ``flash_on_trigger`` allowed with no flush trigger; a ``max_line_bytes`` of 0, above
-  ``ram_cap_bytes`` when the stream may be enabled, or above ``flash_seg_bytes`` or
+  ``ram_cap_bytes`` less the 24-byte ring record header when the stream may be enabled, or above
+  ``flash_seg_bytes`` or
   ``flash_rate_burst_bytes`` when it may write flash; a flash stream with a segment size, segment
   count or byte rate of 0; an ``introduced_in`` later than the contract; a sum above its
   ``[bounds]`` log budget, or a missing budget the streams need.

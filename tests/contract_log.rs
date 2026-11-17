@@ -59,8 +59,11 @@ const CASES: &[Case] = &[
     ("contract.toml", INTEGRATOR_LOG, "[principals.log]\nbacking_by_variant = { sku_b = \"flash_on_trigger\" }\nbacking = \"ring\"", "sku_b", "log stream integrator: backing flash_on_trigger is not an allowed backing on this variant"),
     ("contract.toml", "allowed_backings_by_variant = { sku_b = [\"ring\"] }", "allowed_backings_by_variant = { sku_c = [\"ring\"] }", "sku_a", "log stream integrator: variant sku_c is not declared"),
     ("contract.toml", INTEGRATOR_LOG, "[principals.log]\nbacking_by_variant = { sku_c = \"ring\" }\nbacking = \"ring\"", "sku_a", "log stream integrator: variant sku_c is not declared"),
-    ("contract.toml", "ram_cap_bytes = 4096\nmax_line_bytes = 256", "ram_cap_bytes = 4096\nmax_line_bytes = 0", "sku_a", "log stream app_cloud: max_line_bytes 0 must be above 0 and within ram_cap_bytes 4096"),
-    ("contract.toml", "ram_cap_bytes = 4096\nmax_line_bytes = 256", "ram_cap_bytes = 4096\nmax_line_bytes = 4097", "sku_a", "log stream app_cloud: max_line_bytes 4097 must be above 0 and within ram_cap_bytes 4096"),
+    ("contract.toml", "ram_cap_bytes = 4096\nmax_line_bytes = 256", "ram_cap_bytes = 4096\nmax_line_bytes = 0", "sku_a", "log stream app_cloud: max_line_bytes 0 must be above 0 and, with the 24-byte ring record header, within ram_cap_bytes 4096"),
+    ("contract.toml", "ram_cap_bytes = 4096\nmax_line_bytes = 256", "ram_cap_bytes = 4096\nmax_line_bytes = 4097", "sku_a", "log stream app_cloud: max_line_bytes 4097 must be above 0 and, with the 24-byte ring record header, within ram_cap_bytes 4096"),
+    // REQ-ING-LOG-010: one byte too long for one ring record, on a ring and on a flash stream
+    ("contract.toml", "ram_cap_bytes = 4096\nmax_line_bytes = 256", "ram_cap_bytes = 4096\nmax_line_bytes = 4073", "sku_a", "log stream app_cloud: max_line_bytes 4073 must be above 0 and, with the 24-byte ring record header, within ram_cap_bytes 4096"),
+    ("contract.toml", "ram_cap_bytes = 8192\nmax_line_bytes = 256", "ram_cap_bytes = 8192\nmax_line_bytes = 8169", "sku_a", "log stream integrator: max_line_bytes 8169 must be above 0 and, with the 24-byte ring record header, within ram_cap_bytes 8192"),
     ("contract.toml", "max_line_bytes = 256\ndefault_level_ram = [\"error\", \"warning\", \"info\"]\ndefault_level_file", "max_line_bytes = 16385\ndefault_level_ram = [\"error\", \"warning\", \"info\"]\ndefault_level_file", "sku_a", "log stream integrator: max_line_bytes 16385 must be within flash_seg_bytes 16384 and flash_rate_burst_bytes 16384"),
     ("contract.toml", "flash_seg_bytes = 16384", "flash_seg_bytes = 255", "sku_a", "log stream integrator: max_line_bytes 256 must be within flash_seg_bytes 255 and flash_rate_burst_bytes 16384"),
     ("contract.toml", "flash_rate_burst_bytes = 16384", "flash_rate_burst_bytes = 255", "sku_a", "log stream integrator: max_line_bytes 256 must be within flash_seg_bytes 16384 and flash_rate_burst_bytes 255"),
@@ -101,6 +104,10 @@ const ACCEPTED: &[(&str, &str, &str, &str)] = &[
     ("contract.toml", "flush = [\"fault\", \"watchdog\", \"shutdown\", \"error_line\"]\n", "", "sku_b"),
     // a token sub-consumer may switch another process's stream
     ("contract.toml", "{ key = \"drive.command.drive\", access = \"rw\" },\n]", "{ key = \"drive.command.drive\", access = \"rw\" },\n  { key = \"core.log.integrator_cfg\", access = \"rw\" },\n]", "sku_a"),
+    // REQ-ING-LOG-010: the longest line and its ring record header fill the ring exactly
+    ("contract.toml", "ram_cap_bytes = 4096\nmax_line_bytes = 256", "ram_cap_bytes = 4096\nmax_line_bytes = 4072", "sku_a"),
+    // a variant that allows the stream only off checks no ring record
+    ("contract.toml", "ram_cap_bytes = 4096\nmax_line_bytes = 256", "allowed_backings_by_variant = { sku_b = [\"off\"] }\nram_cap_bytes = 4096\nmax_line_bytes = 4097", "sku_b"),
 ];
 
 /// @brief Edits next to a log rule that do not break it: each generation succeeds. integrator

@@ -94,8 +94,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `log_flash_bytes` and `log_flash_bytes_per_day` bound the boot RAM and the
   flash sums. A key serves one log role in one stream, no process may write
   its own stream's switch, a state key is written by no principal, flush
-  triggers need a flash backing on some variant, and `flash_on_trigger`
-  needs a trigger.
+  triggers need a flash backing on some variant, `flash_on_trigger`
+  needs a trigger, and a stream that may be enabled must fit its longest
+  line plus the 24-byte ring record header in its RAM cap.
 
 ### Changed
 - `ingot --version` also prints the commit the binary was built from.

@@ -10,6 +10,10 @@ use super::schema::{Backing, KeyType};
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// The ring record header overhead: the fixed bytes of a stream's RAM ring record ahead of the
+/// line it carries. The longest line and this header must fit `ram_cap_bytes` (REQ-ING-LOG-010).
+pub const RING_RECORD_HEADER_BYTES: u32 = 24;
+
 /// Run every log stream refusal.
 ///
 /// v2: key roles, state keys, the stream's own process and flush triggers.
@@ -169,9 +173,11 @@ fn own_switch(tables: &Tables, p: Option<usize>, s: &LogStream) -> Vec<String> {
 /// What is wrong with the stream's levels, backing, line cap, flash figures and version on the
 /// tables' variant.
 ///
-/// @version 1
+/// v2: the longest line fits one ring record (`line_fits`).
+/// @version 2
 /// @req REQ-ING-LOG-004
 /// @req REQ-ING-LOG-003
+/// @req REQ-ING-LOG-010
 /// @return the reasons.
 fn shape(tables: &Tables, s: &LogStream) -> Vec<String> {
     let (d, v) = (&s.def, tables.variant.as_str());
@@ -187,9 +193,10 @@ fn shape(tables: &Tables, s: &LogStream) -> Vec<String> {
             "backing {name} is not an allowed backing on this variant"
         ));
     }
-    if d.max_line_bytes == 0 || (s.may_enable(v) && d.max_line_bytes > d.ram_cap_bytes) {
+    if d.max_line_bytes == 0 || (s.may_enable(v) && !line_fits(d.max_line_bytes, d.ram_cap_bytes)) {
         out.push(format!(
-            "max_line_bytes {} must be above 0 and within ram_cap_bytes {}",
+            "max_line_bytes {} must be above 0 and, with the {RING_RECORD_HEADER_BYTES}-byte ring \
+             record header, within ram_cap_bytes {}",
             d.max_line_bytes, d.ram_cap_bytes
         ));
     }
@@ -200,6 +207,16 @@ fn shape(tables: &Tables, s: &LogStream) -> Vec<String> {
         out.push("introduced_in is later than the contract".to_string());
     }
     out
+}
+
+/// Whether a line of `max_line` bytes and its ring record header fit a ring of `ram_cap` bytes;
+/// the sum is taken in 64 bits so no declared size can wrap it.
+///
+/// @version 1
+/// @req REQ-ING-LOG-010
+/// @return true when the longest line fits one record of an empty ring.
+fn line_fits(max_line: u32, ram_cap: u32) -> bool {
+    u64::from(max_line) + u64::from(RING_RECORD_HEADER_BYTES) <= u64::from(ram_cap)
 }
 
 /// What is wrong with the stream's flush triggers: triggers with no flash backing on any
@@ -247,4 +264,18 @@ fn flash(s: &LogStream) -> Vec<String> {
         ));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_line_fits_when_it_and_the_record_header_fill_the_ring_at_most() {
+        assert_eq!(RING_RECORD_HEADER_BYTES, 24);
+        assert!(line_fits(4072, 4096));
+        assert!(!line_fits(4073, 4096));
+        assert!(!line_fits(u32::MAX, u32::MAX), "the sum must not wrap");
+        assert!(!line_fits(u32::MAX - 23, 16), "the sum must not wrap");
+    }
 }
