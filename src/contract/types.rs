@@ -26,6 +26,11 @@ pub const CMD_HEADER_BYTES: u32 = 8;
 pub const RESULT_HEADER_BYTES: u32 = 12;
 pub const DEDUPE_ENTRY_BYTES: u32 = 64;
 
+/// `DMT_LOG_RING_RECORD_HEADER_BYTES`, the ring record header overhead: the fixed bytes of a
+/// stream's RAM ring record ahead of the line it carries. The longest line and this header must
+/// fit `ram_cap_bytes` (REQ-ING-LOG-010); dmt_types.h states it (REQ-ING-LOG-011).
+pub const RING_RECORD_HEADER_BYTES: u32 = 24;
+
 /// The command owner that means "the core answers it"; reserved, never a principal name.
 pub const OWNER_CORE: &str = "core";
 /// `DMT_OWNER_CORE`, its `owner_principal` value.

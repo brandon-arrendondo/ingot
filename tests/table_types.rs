@@ -96,6 +96,10 @@ fn frozen_values_layout_and_rights_macro() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// @brief Two runs give identical bytes, and the header is its template with only the TIV
+/// constants filled in.
+/// v2: DMT_LOG_RING_RECORD_HEADER_BYTES is rendered from the line check's constant.
+/// @version 2
 #[test]
 fn header_bytes_depend_on_nothing_but_the_tiv() {
     let dir = unique_dir("bytes");
@@ -104,11 +108,15 @@ fn header_bytes_depend_on_nothing_but_the_tiv() {
     emit_types(&b);
     let first = fs::read(a.join("dmt_types.h")).unwrap();
     assert_eq!(first, fs::read(b.join("dmt_types.h")).unwrap());
+    // Only the TIV constants ingot's own checks use are rendered in; nothing else varies.
     let template = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates/dmt_types.h");
+    let expected = fs::read_to_string(template)
+        .unwrap()
+        .replace("{{ log_ring_record_header_bytes }}", "24");
     assert_eq!(
-        first,
-        fs::read(template).unwrap(),
-        "rendering must not alter the header"
+        String::from_utf8(first).unwrap(),
+        expected,
+        "rendering may only fill in the TIV constants"
     );
     let _ = fs::remove_dir_all(&dir);
 }

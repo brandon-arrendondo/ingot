@@ -166,7 +166,8 @@ process may switch its own stream: neither the stream's principal nor any princi
 ``ctl_key``.
 
 Every backing other than ``off`` stages lines in the stream's RAM ring, one record per line: the
-ring record header overhead, a fixed 24 bytes (``RING_RECORD_HEADER_BYTES``), then the line. On a
+ring record header overhead, a fixed 24 bytes (``DMT_LOG_RING_RECORD_HEADER_BYTES`` in
+``dmt_types.h``, rendered from the constant this check uses), then the line. On a
 variant that allows a stream any backing but ``off``, ``max_line_bytes`` plus that header must be
 within ``ram_cap_bytes``, so the longest line always fits one record of an empty ring; a stream
 that breaks this is refused by name.
@@ -285,7 +286,8 @@ Outputs
 ``dmt_types.h``
    The fixed table interface (TIV) of the store tables. TIV 1.1 appends the log stream codes
    (``DMT_LB_*`` backings, ``DMT_LL_*`` levels, ``DMT_LT_*`` flush triggers),
-   ``DMT_LOG_PRINCIPAL_CORE`` (``0xFFFF``) and ``dmt_log_stream_t`` (48 bytes; the switch,
+   ``DMT_LOG_PRINCIPAL_CORE`` (``0xFFFF``), ``DMT_LOG_RING_RECORD_HEADER_BYTES`` (``24u``, the
+   ring record header the line check counts) and ``dmt_log_stream_t`` (48 bytes; the switch,
    drop-counter and state key IDs at offsets 24, 28 and 32).
 
 ``dmt_tables.h``, ``dmt_tables.c``

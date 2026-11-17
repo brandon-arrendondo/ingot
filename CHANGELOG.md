@@ -42,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   classes, roles, flags, sizing constants and the key, principal, uid-cap,
   command and log stream table layouts. Its bytes depend only on the TIV.
   `DMT_OWNER_CORE` marks commands the store core answers itself.
+  `DMT_LOG_RING_RECORD_HEADER_BYTES` (24) states the ring record header
+  the log line check counts, from the same constant, so a store core can
+  assert its own record header against it.
 - Contract mode (`--contract`): generates the store tables of a keyed
   model (`dmt_tables.h/.c`: keys, defaults, reserved IDs, principals,
   rights bitmap, per-uid caps, commands, well-known roles, KSET v1

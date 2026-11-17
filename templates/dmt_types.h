@@ -145,6 +145,9 @@ enum { DMT_LL_ERROR = 0, DMT_LL_WARNING = 1, DMT_LL_INFO = 2, DMT_LL_DEBUG = 3 }
 #define DMT_LT_HIGH_WATER    0x0080u
 
 #define DMT_LOG_PRINCIPAL_CORE 0xFFFFu   /* dmt_log_stream_t.principal: the core's own stream */
+/* The fixed bytes of a stream's RAM ring record ahead of its line: on a stream that may be
+ * enabled, max_line_bytes plus this is within ram_cap_bytes. */
+#define DMT_LOG_RING_RECORD_HEADER_BYTES {{ log_ring_record_header_bytes }}u
 
 typedef struct {
     uint32_t ram_cap_bytes;            /* RAM while enabled with a backing other than OFF */

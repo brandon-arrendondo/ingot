@@ -7,12 +7,9 @@ use super::keys::Errors;
 use super::log_streams::{streams, LogStream};
 use super::model::Tables;
 use super::schema::{Backing, KeyType};
+use super::types::RING_RECORD_HEADER_BYTES;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
-
-/// The ring record header overhead: the fixed bytes of a stream's RAM ring record ahead of the
-/// line it carries. The longest line and this header must fit `ram_cap_bytes` (REQ-ING-LOG-010).
-pub const RING_RECORD_HEADER_BYTES: u32 = 24;
 
 /// Run every log stream refusal.
 ///

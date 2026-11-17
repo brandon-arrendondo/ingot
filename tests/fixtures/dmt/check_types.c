@@ -97,6 +97,7 @@ PIN(DMT_LT_REBOOT == 0x0008u); PIN(DMT_LT_ERROR_LINE == 0x0010u); PIN(DMT_LT_REQ
 PIN(DMT_LT_RESTART_STORM == 0x0040u); PIN(DMT_LT_HIGH_WATER == 0x0080u);
 
 PIN(DMT_LOG_PRINCIPAL_CORE == 0xFFFFu);
+PIN(DMT_LOG_RING_RECORD_HEADER_BYTES == 24u);
 
 PIN(sizeof(dmt_log_stream_t) == 48);
 PIN(offsetof(dmt_log_stream_t, ram_cap_bytes) == 0);
