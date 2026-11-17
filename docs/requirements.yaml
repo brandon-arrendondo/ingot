@@ -531,10 +531,12 @@ requirements:
       reset, MFG or trace-enable keys, heartbeat keys writable by another principal or shared,
       writes to core-written well-known keys, a trace-enable command without exactly one writer,
       RESET_REQUEST or TRACE_ENABLE not owned by the core (and core ownership anywhere else), a
-      principal owner without read on its command and write on its result, and any write on a
-      dedupe key or on the result of a core-answered command.
+      principal owner without read on its command and write on its result, write on a
+      principal-owned command's result by any principal but its owner (named with the command and
+      the result key), and any write on a dedupe key or on the result of a core-answered command.
     acceptance_criteria: >-
-      Each refusal has a model that triggers it.
+      Each refusal has a model that triggers it; a sender with write on the owner's result is
+      refused, and the generic models, whose owners alone write their results, generate.
   REQ-ING-TIV-012:
     name: Previous-contract checks and release review
     subsystem: Table interface
