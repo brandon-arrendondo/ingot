@@ -535,9 +535,13 @@ requirements:
       principal owner without read on its command and write on its result, write on a
       principal-owned command's result by any principal but its owner (named with the command and
       the result key), and any write on a dedupe key or on the result of a core-answered command.
+      A command whose command, result or dedupe key ID resolves to no key is refused, named with
+      the command, the part and the ID; its rights are never checked against another key.
     acceptance_criteria: >-
       Each refusal has a model that triggers it; a sender with write on the owner's result is
-      refused, and the generic models, whose owners alone write their results, generate.
+      refused, and the generic models, whose owners alone write their results, generate. Tables
+      whose command's result or dedupe key is missing are refused naming the command and the
+      unresolved ID.
   REQ-ING-TIV-012:
     name: Previous-contract checks and release review
     subsystem: Table interface
