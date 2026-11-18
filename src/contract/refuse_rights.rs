@@ -2,7 +2,7 @@
 //! core-written keys and command owners.
 
 use super::keys::Errors;
-use super::model::Tables;
+use super::model::{Command, Tables};
 use super::rights::{READ, WRITE};
 use super::schema::{KeyType, Kind};
 use super::types::{wk_index, OWNER_CORE, WK_RULES};
@@ -157,18 +157,51 @@ fn trace_enable_writers(tables: &Tables, errors: &mut Errors) {
 /// Commands the core answers itself: owner must be `core`.
 const CORE_ANSWERED: [&str; 2] = ["RESET_REQUEST", "TRACE_ENABLE"];
 
+/// The names of a command's three keys, in `Command::keys` order.
+const COMMAND_PARTS: [&str; 3] = ["command", "result", "dedupe"];
+
+/// The indices of a command's command, result and dedupe keys. Each ID that resolves to no key
+/// is refused, naming the command, the part and the ID, and the command is then not checked.
+///
+/// @version 1
+/// @return the three key indices, or `None` when any ID resolves to no key.
+/// @req REQ-ING-TIV-011
+fn command_key_indices(
+    tables: &Tables,
+    command: &Command,
+    errors: &mut Errors,
+) -> Option<[usize; 3]> {
+    let found = command
+        .keys
+        .map(|id| tables.keys.iter().position(|k| k.id == id));
+    for ((part, id), index) in COMMAND_PARTS.iter().zip(command.keys).zip(found) {
+        if index.is_none() {
+            errors.push(format!(
+                "{}: its {part} key ID {id:#010X} resolves to no key",
+                command.path
+            ));
+        }
+    }
+    let [Some(cmd), Some(result), Some(dedupe)] = found else {
+        return None;
+    };
+    Some([cmd, result, dedupe])
+}
+
 /// Command owners (amended refusal C, 2026-11-03): the core answers RESET_REQUEST and
 /// TRACE_ENABLE and nobody writes their results; any other command has a principal owner that
 /// reads the command and alone writes the result; nobody writes any dedupe key (the core keeps
 /// them).
 ///
 /// v2: core-answered commands, and dedupe keys kept by the core.
-/// @version 2
+/// v3: a key ID that resolves to no key is refused, no longer checked as the first key.
+/// @version 3
 /// @req REQ-ING-TIV-011
 fn command_owners(tables: &Tables, errors: &mut Errors) {
     for command in &tables.commands {
-        let index = |id: u32| tables.keys.iter().position(|k| k.id == id);
-        let [cmd, result, dedupe] = command.keys.map(|id| index(id).unwrap_or(0));
+        let Some([cmd, result, dedupe]) = command_key_indices(tables, command, errors) else {
+            continue;
+        };
         let role = tables.keys[cmd].wk.map(|w| WK_RULES[w].name);
         let core_answered = role.is_some_and(|r| CORE_ANSWERED.contains(&r));
         if command.owner == OWNER_CORE {
@@ -257,5 +290,67 @@ fn principal_owner(
             "{path}: only its owner {owner} may write the result {}; principal {} has write on it",
             tables.keys[result].path, tables.principals[q].name
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    /// The rights refusals of the generic 1.0 model (variant sku_a) after removing
+    /// `drive.command.map_edit`'s key `part` (1 result, 2 dedupe; `None`: intact) from the tables,
+    /// and the removed key's ID.
+    ///
+    /// @version 1
+    /// @return the refusals and the removed key's ID (0 when intact).
+    /// @req REQ-ING-TIV-011
+    fn refusals_without(part: Option<usize>) -> (Errors, u32) {
+        let model =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/contract/v1_0/contract.toml");
+        let (mut tables, _) = super::super::model::build(&model, Some("sku_a")).expect("loads");
+        let command = tables
+            .commands
+            .iter()
+            .find(|c| c.path == "drive.command.map_edit");
+        let id = part.map_or(0, |part| command.expect("map_edit").keys[part]);
+        if let Some(k) = tables.keys.iter().position(|key| key.id == id) {
+            tables.keys.remove(k);
+            for row in &mut tables.rights {
+                row.remove(k);
+            }
+        }
+        let mut errors = Errors::new();
+        check(&tables, &mut errors);
+        (errors, id)
+    }
+
+    #[test]
+    fn the_generic_model_resolves_every_command_key() {
+        assert_eq!(refusals_without(None).0, Errors::new());
+    }
+
+    #[test]
+    fn a_command_whose_result_key_is_missing_is_refused() {
+        let (errors, id) = refusals_without(Some(1));
+        let want =
+            format!("drive.command.map_edit: its result key ID {id:#010X} resolves to no key");
+        assert_eq!(errors, [want]);
+    }
+
+    #[test]
+    fn a_command_whose_dedupe_key_is_missing_is_refused() {
+        let (errors, id) = refusals_without(Some(2));
+        let want =
+            format!("drive.command.map_edit: its dedupe key ID {id:#010X} resolves to no key");
+        assert_eq!(errors, [want]);
+    }
+
+    #[test]
+    fn a_command_whose_command_key_is_missing_is_refused() {
+        let (errors, id) = refusals_without(Some(0));
+        let want =
+            format!("drive.command.map_edit: its command key ID {id:#010X} resolves to no key");
+        assert_eq!(errors, [want]);
     }
 }

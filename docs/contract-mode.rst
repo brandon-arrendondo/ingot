@@ -430,8 +430,10 @@ Every rule above has a refusal, grouped as follows:
 * **Rights and principals:** grants on unknown keys or scopes, a secret's reader that is not a
   principal, a heartbeat with a second writer, duplicate or reserved principal names; a command
   owner without read on its command or write on its result, any principal but the owner with
-  write on a principal-owned command's result (named with the command and the result key), and
-  any write on a dedupe key or on the result of a command the core answers.
+  write on a principal-owned command's result (named with the command and the result key), any
+  write on a dedupe key or on the result of a command the core answers, and a command whose
+  command, result or dedupe key ID resolves to no key (named with the command, the part and the
+  ID; such a command's rights are not checked against any other key).
 * **Error groups:** a non-bool or non-STATE error key, a bit outside the width or reserved, two
   keys on one bit, overlapping wire ids.
 * **Shadow:** a malformed path, two rows on one path in one document, a shadowed SETTINGS key

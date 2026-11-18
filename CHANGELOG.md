@@ -55,7 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   major reserves removed IDs, and writes a release-review report. Only
   a command's principal owner may write its result; any other principal
   with write on it is refused by name, with the command and the result
-  key. The tables state the ingot commit; a dirty build is refused unless
+  key; a command whose command, result or dedupe key ID resolves to no
+  key is refused with the command, the part and the ID, never checked
+  against another key. The tables state the ingot commit; a dirty build is refused unless
   `--allow-dirty-ingot`. `examples/contract/` holds a generic model at
   1.0, 1.1 and 2.0. In each, one principal writes a durable key, deferred
   keys at two intervals and volatile keys, so one batch can mix
