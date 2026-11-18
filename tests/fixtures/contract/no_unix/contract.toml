@@ -1,0 +1,48 @@
+# Edge-case model: no UNIX principal (so no uid_caps rows), no reserved IDs beyond ID 0 and no
+# key defaults (so an empty default blob). The tables must still be valid C.
+
+[contract]
+name = "no_unix"
+major = 1
+minor = 0
+patch = 0
+namespace_dir = "ns"
+
+[bounds]
+headroom_pct = 200
+min_queue = 16
+default_rate_burst = 4
+staging_total_bytes = 16384
+inproc_queue_bytes = 8192
+inproc_snapshot_bytes = 4096
+
+# -- an in-process application: owns the pre-reset command and writes trace-enable --------------
+[[principals]]
+name = "app"
+uid = 10
+kind = "inproc"
+latency_budget_ms = 50
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 8192
+introduced_in = "1.0"
+grants = [
+  { namespace = "core", class = "diag", access = "r" },
+  { key = "core.command.pre_reset", access = "r" },
+  { key = "core.command.pre_reset_result", access = "rw" },
+  { key = "core.command.trace_enable", access = "w" },
+]
+
+# -- a peer MCU on UART port 1 ---------------------------------------------------------------
+[[principals]]
+name = "peer"
+uid = 1
+kind = "uart"
+latency_budget_ms = 20
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 4096
+introduced_in = "1.0"
+grants = [
+  { namespace = "core", class = "diag", access = "r" },
+]

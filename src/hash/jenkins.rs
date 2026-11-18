@@ -5,6 +5,8 @@
 /// match the C version exactly for cross-language compatibility.
 ///
 /// Reference: Bob Jenkins, lookup3.c (public domain)
+/// @version 1
+/// @req REQ-ING-HSH-001
 pub fn jenkins_hash(seed: u32, key: u32) -> u32 {
     let (mut a, mut b, mut c) = (key, seed, 0x9e3779b9u32);
 

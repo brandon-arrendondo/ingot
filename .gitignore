@@ -12,3 +12,6 @@ __pycache__/
 *.py[cod]
 
 /todo-sqlite-cli.db
+
+# clew-guard impact report
+docs/generated/

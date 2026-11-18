@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/brandon-arrendondo/ingot/main/templates/keyspace.schema.json",
+  "title": "ingot keyspace declaration, schema_version 1.0",
+  "description": "The keys a device declares, for tooling. Consumers ignore unknown properties, keys and enum codes (or show them raw), treat a JSON number where an enum wire string is expected as an unknown code, and refuse an unknown schema_version major. No property names a UI class, a layout or an endpoint.",
+  "$defs": {
+    "trusted": {
+      "propertyNames": {
+        "not": { "pattern": "(?i)(^|_)(widget|layout|label|ui|url|endpoint|href|icon|colou?r)(_|$)" }
+      }
+    },
+    "presence": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "variants": {
+      "description": "The declared variants an entry exists on; absent: every variant.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "field": {
+      "description": "A request field: dotted identifiers, each dot one nested JSON object (net.reset is {\"net\":{\"reset\":...}}).",
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+    },
+    "key": {
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["id", "name", "type", "role", "present"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "type": { "enum": ["bool", "uint8", "int8", "uint16", "int16", "uint32", "int32", "float32", "string", "binary", "struct"] },
+        "role": { "enum": ["settings", "state", "command", "config", "diag"] },
+        "present": { "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/presence" }] },
+        "shadow": {
+          "description": "The key's shadow paths, each once (dotted, under state.desired for SETTINGS, state.reported for STATE).",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "shadow_forms": {
+          "description": "Every path entry, present only when one declares a form, scope or variants. One path may appear once per variant, with its own form and scope.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "as": { "enum": ["enum", "integer"] },
+              "scope": { "enum": ["full", "delta", "both"] },
+              "variants": { "$ref": "#/$defs/variants" }
+            }
+          }
+        }
+      }
+    },
+    "enum": {
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["name", "values"],
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["code", "name", "wire"],
+            "properties": {
+              "code": { "type": "integer" },
+              "name": { "type": "string" },
+              "wire": { "description": "The reported string (the report_as target's when present).", "type": "string" },
+              "report_as": { "description": "The member whose wire string this code reports; it has no inbound string of its own, only its accept aliases.", "type": "string" },
+              "accept": { "description": "Further inbound strings meaning this code.", "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "arg": {
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["key"],
+      "properties": {
+        "field": { "$ref": "#/$defs/field" },
+        "key": { "type": "string" }
+      }
+    },
+    "command_row": {
+      "description": "One way a request reaches the store: selector, body, the command with its args and the further commands (also) it submits after it, or an answer, an internal verb or a settings body.",
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["topic", "selector"],
+      "properties": {
+        "topic": { "type": "string" },
+        "internal_id": { "description": "An internal row's stable action id.", "type": "integer", "minimum": 1, "maximum": 65535 },
+        "variants": { "$ref": "#/$defs/variants" },
+        "selector": {
+          "type": "object",
+          "required": ["field"],
+          "properties": { "field": { "$ref": "#/$defs/field" } }
+        },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "$ref": "#/$defs/arg" } },
+        "also": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": { "type": "string" },
+              "args": { "type": "array", "items": { "$ref": "#/$defs/arg" } }
+            }
+          }
+        }
+      }
+    },
+    "topic": {
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["id", "template", "direction", "connection"],
+      "properties": {
+        "id": { "type": "string" },
+        "template": { "type": "string" },
+        "direction": { "enum": ["pub", "sub"] },
+        "connection": { "type": "string" },
+        "variants": { "$ref": "#/$defs/variants" },
+        "settings_in_every_body": {
+          "description": "Every body on this topic, whatever its verb, also runs the settings binder on its top-level fields before the verb.",
+          "type": "boolean"
+        },
+        "vars": {
+          "description": "Placeholders of a pub topic that the publisher fills per message, each {name} in the template, with its longest value in bytes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["name", "max_len"],
+            "properties": { "name": { "type": "string" }, "max_len": { "type": "integer", "minimum": 1, "maximum": 128 } }
+          }
+        }
+      }
+    }
+  },
+  "$ref": "#/$defs/trusted",
+  "type": "object",
+  "required": ["schema_version", "contract", "tiv", "ingot", "variants", "namespaces", "enums", "commands", "rights"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+    "contract": {
+      "type": "object",
+      "required": ["name", "major", "minor", "patch"]
+    },
+    "variants": { "type": "array", "items": { "type": "string" } },
+    "namespaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/trusted",
+        "type": "object",
+        "required": ["id", "name", "classes"],
+        "properties": {
+          "classes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/trusted",
+              "type": "object",
+              "required": ["index", "name", "role", "keys"],
+              "properties": { "keys": { "type": "array", "items": { "$ref": "#/$defs/key" } } }
+            }
+          }
+        }
+      }
+    },
+    "enums": { "type": "array", "items": { "$ref": "#/$defs/enum" } },
+    "commands": { "type": "array", "items": { "$ref": "#/$defs/trusted", "type": "object" } },
+    "rights": { "type": "array", "items": { "$ref": "#/$defs/trusted", "type": "object" } },
+    "shadow": {
+      "description": "The shadow wire mapping of the file's variant (all rows, each with its variants, in the all-variants file).",
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "properties": {
+        "topics": { "type": "array", "items": { "$ref": "#/$defs/topic" } },
+        "commands": { "type": "array", "items": { "$ref": "#/$defs/command_row" } },
+        "echo": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["path", "type"],
+            "properties": {
+              "variants": { "$ref": "#/$defs/variants" },
+              "scope": { "description": "The reported documents the echo is in; absent: both.", "enum": ["full", "delta", "both"] }
+            }
+          }
+        },
+        "payload": {
+          "description": "The members of the pub topics' payloads: per topic, a dotted path from a key (its value, an enum key's in its wire form) or a constant.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["topic", "path"],
+            "properties": { "topic": { "type": "string" }, "path": { "type": "string" }, "key": { "type": "string" }, "variants": { "$ref": "#/$defs/variants" } }
+          }
+        },
+        "rejected": {
+          "description": "Where the binder lists the desired members it rejected in the update it answers (the delta only); absent: no list.",
+          "$ref": "#/$defs/trusted",
+          "type": "object",
+          "required": ["path"],
+          "properties": { "path": { "type": "string" }, "variants": { "$ref": "#/$defs/variants" } }
+        },
+        "placeholders": {
+          "description": "Named values the consumer is configured with (a build or device value), usable as {name} in any topic template, with the longest value in bytes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["name", "max_len"],
+            "properties": { "name": { "type": "string" }, "max_len": { "type": "integer", "minimum": 1, "maximum": 128 } }
+          }
+        },
+        "full_max_bytes": { "type": "integer" },
+        "delta_forced_bytes": { "type": "integer" }
+      }
+    }
+  }
+}

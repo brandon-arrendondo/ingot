@@ -92,6 +92,10 @@ pub enum ValidationError {
 
 /// A display `name` becomes part of a C identifier (spaces map to `_`), so it
 /// may only hold ASCII letters, digits, underscores and spaces.
+///
+/// @version 1
+/// @req REQ-ING-VAL-002
+/// @return true when `name` is non-empty and holds only those characters
 fn is_identifier_fragment(name: &str) -> bool {
     !name.is_empty()
         && name
@@ -99,6 +103,11 @@ fn is_identifier_fragment(name: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ' ')
 }
 
+/// Record an InvalidName error, labelled by `what`, when a declared display `name` is not an
+/// identifier fragment.
+///
+/// @version 1
+/// @req REQ-ING-VAL-002
 fn validate_name(
     errors: &mut Vec<ValidationError>,
     what: impl FnOnce() -> String,
@@ -115,6 +124,9 @@ fn validate_name(
 }
 
 /// Check the optional display `name` of a class and each of its keys.
+///
+/// @version 1
+/// @req REQ-ING-VAL-002
 fn validate_names(errors: &mut Vec<ValidationError>, ns: &str, class: &Class) {
     validate_name(errors, || format!("class {ns}.{}", class.id), &class.name);
     for key in &class.keys {
@@ -126,6 +138,10 @@ fn validate_names(errors: &mut Vec<ValidationError>, ns: &str, class: &Class) {
     }
 }
 
+/// Check one key and record every violation it has.
+///
+/// @version 1
+/// @req REQ-ING-VAL-001
 fn validate_key(
     errors: &mut Vec<ValidationError>,
     ns: &str,
@@ -195,6 +211,10 @@ fn validate_key(
     }
 }
 
+/// Check one class and each of its keys, recording every violation.
+///
+/// @version 1
+/// @req REQ-ING-VAL-001
 fn validate_class(
     errors: &mut Vec<ValidationError>,
     ns: &str,
@@ -258,6 +278,9 @@ fn validate_class(
 }
 
 /// Each namespace holds at most 31 classes.
+///
+/// @version 1
+/// @req REQ-ING-VAL-001
 fn check_class_counts(errors: &mut Vec<ValidationError>, counts: &HashMap<String, usize>) {
     for (ns, count) in counts {
         if *count > 31 {
@@ -269,6 +292,11 @@ fn check_class_counts(errors: &mut Vec<ValidationError>, counts: &HashMap<String
     }
 }
 
+/// Validate the whole model.
+///
+/// v2: checks display names; class counts move to check_class_counts.
+/// @version 2
+/// @req REQ-ING-VAL-001
 pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
 

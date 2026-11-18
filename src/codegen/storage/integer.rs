@@ -1,3 +1,5 @@
+use super::select_g_table_type;
+use crate::codegen::{encoded_keys, join_list};
 use crate::hash::{self, PerfectHash};
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
@@ -94,43 +96,24 @@ const INT_TYPES: &[TypeDesc] = &[
 ];
 
 /// Collect all integer keys from the model, grouped by type, with perfect hashes.
+///
+/// v2: keys and their IDs come from the shared codegen::encoded_keys.
+/// @version 2
+/// @req REQ-ING-GEN-005
 pub fn collect_integer_storage(
     model: &DataModel,
     ns_id: u16,
 ) -> Result<Vec<IntTypeStorage>, String> {
-    use crate::model::key::KeyEncoding;
-
     let mut result = Vec::new();
 
     for desc in INT_TYPES {
-        // Collect keys of this type along with their encoded 32-bit key value and default
-        let mut keys_with_meta: Vec<(u32, &KeyDef)> = Vec::new();
-
-        for (pos, class) in model.classes.iter().enumerate() {
-            let c_ns_id = class.namespace_id.unwrap_or(ns_id);
-            let c_idx = class.class_index.unwrap_or(pos as u8);
-            for (key_pos, key) in class.keys.iter().enumerate() {
-                if key.data_type == desc.data_type {
-                    let encoding = KeyEncoding {
-                        namespace: c_ns_id,
-                        class: c_idx,
-                        id: key.key_index.unwrap_or(key_pos as u16),
-                        data_type: key.data_type.type_code(),
-                        thread_safe: key.thread_safe,
-                        derived: false,
-                        read_only: key.read_only,
-                    };
-                    keys_with_meta.push((encoding.encode(), key));
-                }
-            }
-        }
-
+        let keys_with_meta = encoded_keys(model, ns_id, |k| k.data_type == desc.data_type);
         if keys_with_meta.is_empty() {
             continue;
         }
 
-        let encoded_keys: Vec<u32> = keys_with_meta.iter().map(|(k, _)| *k).collect();
-        let ph = hash::generate_deterministic(&encoded_keys, 100)
+        let ids: Vec<u32> = keys_with_meta.iter().map(|(k, _)| *k).collect();
+        let ph = hash::generate_deterministic(&ids, 100)
             .ok_or_else(|| format!("Failed to generate perfect hash for {} keys", desc.label))?;
 
         let storage = build_int_type_storage(desc, &keys_with_meta, &ph);
@@ -140,6 +123,11 @@ pub fn collect_integer_storage(
     Ok(result)
 }
 
+/// Build the storage group of one integer type in perfect-hash slot order.
+///
+/// v2: the G table is joined by the shared codegen::join_list.
+/// @version 2
+/// @req REQ-ING-GEN-005
 fn build_int_type_storage(
     desc: &TypeDesc,
     keys_with_meta: &[(u32, &KeyDef)],
@@ -173,33 +161,15 @@ fn build_int_type_storage(
         seed2: ph.seed2,
         g_size: ph.g_table.len(),
         g_c_type: g_c_type.to_string(),
-        g_table_str: format_i32_array(&ph.g_table),
+        g_table_str: join_list(&ph.g_table),
         init_table_str: init_values.join(", "),
     }
 }
 
-/// Pick the smallest signed C integer type that can hold all G table values.
-fn select_g_table_type(g: &[i32]) -> &'static str {
-    let min = g.iter().copied().min().unwrap_or(0);
-    let max = g.iter().copied().max().unwrap_or(0);
-
-    if min >= i8::MIN as i32 && max <= i8::MAX as i32 {
-        "int8_t"
-    } else if min >= i16::MIN as i32 && max <= i16::MAX as i32 {
-        "int16_t"
-    } else {
-        "int32_t"
-    }
-}
-
-fn format_i32_array(values: &[i32]) -> String {
-    values
-        .iter()
-        .map(|v| v.to_string())
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
+/// C literal of an integer key's default (booleans as 1 or 0).
+///
+/// @version 1
+/// @req REQ-ING-GEN-005
 fn format_c_value(val: &toml::Value, _data_type: DataType) -> String {
     match val {
         toml::Value::Integer(i) => i.to_string(),
@@ -221,24 +191,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn select_g_type_fits_i8() {
-        assert_eq!(select_g_table_type(&[0, 1, -1, 127, -128]), "int8_t");
-    }
-
-    #[test]
-    fn select_g_type_fits_i16() {
-        assert_eq!(select_g_table_type(&[0, 128, -129]), "int16_t");
-    }
-
-    #[test]
-    fn select_g_type_needs_i32() {
-        assert_eq!(select_g_table_type(&[0, 40000, -40000]), "int32_t");
-    }
-
-    #[test]
     fn collect_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let storages = collect_integer_storage(&model, 0).unwrap();
 
         // minimal.toml has: temperature(uint16), mode(uint8), update_interval_ms(uint32)

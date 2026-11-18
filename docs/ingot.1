@@ -1,4 +1,4 @@
-.TH INGOT 1 "2026-07-23" "ingot 1.2.0" "Ingot Manual"
+.TH INGOT 1 "2026-11-16" "ingot 1.3.0" "Ingot Manual"
 .SH NAME
 ingot \- embedded database code generator with compile-time perfect hashing
 .SH SYNOPSIS
@@ -127,8 +127,25 @@ a legacy \fBdm_enums.h\fR declaring the same types. \fImacro\fR must be a
 C identifier.
 .TP
 .BI \-\-templates " " dir
-Use templates from the specified directory. Also configurable through
+Use the templates in the specified directory instead of the searched
+templates and the templates built into ingot. Also configurable through
 \fBINGOT_TEMPLATES_DIR\fR.
+.TP
+.B \-\-table\-types
+Write only dmt_types.h, the model-independent table-interface header, to the
+output directory.
+.TP
+.BI \-\-contract " " file
+Contract mode: generate dmt_types.h, dmt_tables.h, dmt_tables.c and
+contract.json from a contract.toml and its namespace files, or nothing if the
+model breaks any rule. Uses the built-in templates only.
+.TP
+.BI \-\-previous\-contract " " file
+Contract mode: check against the previous release's contract.json and write
+release-review.txt.
+.TP
+.B \-\-allow\-dirty\-ingot
+Contract mode: accept an ingot built from a dirty tree; the output says -dirty.
 .TP
 .BI \-\-include\-list " " file
 YAML file listing key define names to include (whitelist).
@@ -296,11 +313,25 @@ ingot -m device.toml -vv
 .fi
 .RE
 .SH ENVIRONMENT
-.B ingot
-looks for its Tera template files in a
+.B INGOT_TEMPLATES_DIR
+replaces the searched and built-in templates with the files in that
+directory, as
+.B \-\-templates
+does.
+.SH FILES
+Without \fB\-\-templates\fR, model mode uses the first
 .I templates/
-directory relative to the executable, then relative to the current working
-directory.
+directory found next to the executable, in
+.IR <exe>/../share/ingot/templates ,
+in
+.IR <exe>/../../templates ,
+in the current working directory, or in
+.IR /usr/share/ingot/templates ,
+and the templates built into
+.B ingot
+when there is none. A template the found directory lacks is taken from the
+built-in set, with a warning. Contract mode and \fB\-\-table\-types\fR use the
+built-in templates.
 .SH SEE ALSO
 The full user guide is available at
 .I docs/user\-guide.md

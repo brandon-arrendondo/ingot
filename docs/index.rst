@@ -14,6 +14,7 @@ O(1) key lookup and statically allocated storage.
    installation
    quick-start
    cli-reference
+   contract-mode
    schema-reference
    generated-api
    build-integration

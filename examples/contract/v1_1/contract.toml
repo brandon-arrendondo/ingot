@@ -1,0 +1,370 @@
+# Generic test model, contract 1.1: 1.0 plus a rename (velocity, with speed kept as its alias),
+# an appended setting, a new principal (app.ota) with read on an existing secret, and three log
+# streams (the core's, integrator, app.cloud) with their switch, drop-counter and state keys.
+# Generated with --previous-contract against 1.0.
+
+[contract]
+name = "generic"
+major = 1
+minor = 1
+patch = 0
+namespace_dir = "ns"
+variants = ["sku_a", "sku_b"]
+units = "units.toml"
+
+[bounds]
+headroom_pct = 200
+min_queue = 16
+default_rate_burst = 4
+staging_total_bytes = 262144
+inproc_queue_bytes = 8192
+inproc_snapshot_bytes = 4096
+log_ram_budget_bytes = 14336         # every stream enabled at once: 2048 + 8192 + 4096
+log_ram_default_budget_bytes = 10240 # the streams enabled at boot: the core's and integrator's rings
+log_flash_bytes = 65536              # integrator's 4 segments of 16384
+log_flash_bytes_per_day = 262144
+
+[[reserved]]
+id = 0x00C20480   # drive.state index 9 (bool): retired before 1.0
+
+# -- error groups: one bool STATE key per error, published as "e<wire_base + bit>" ----
+[[error_groups]]
+id = "product"
+width = 32
+wire_base = 0
+writer = "integrator"
+reserved_bits = [0]                  # bit 0 is never an error
+shadow = "state.errors"
+
+[[error_groups]]
+id = "dock"
+width = 32
+wire_base = 32
+wire_bases = { sku_b = 50 }          # sku_b numbers its dock errors from 50
+writer = "integrator"
+shadow = "state.errors"
+
+# -- new in 1.1: the store core's own log stream, a RAM ring at boot ---------------------------
+[core_log]
+backing = "ring"
+ram_cap_bytes = 2048
+max_line_bytes = 256
+default_level_ram = ["error", "warning", "info"]
+ctl_key = "core.log.core_cfg"
+drop_counter_key = "core.diag.log_core_drops"
+state_key = "core.diag.log_core_state"
+introduced_in = "1.1"
+
+# -- integrator: owns the reset commands and answers the trace-enable command -----------------
+[[principals]]
+name = "integrator"
+uid = 2001
+kind = "unix"
+flags = ["watchdog_required"]
+heartbeat = "net.health.integrator_hb"
+heartbeat_window_ms = 2000
+latency_budget_ms = 50
+caps = { inflight_fd = 4, inflight_bytes = 1048576, open_fds = 16, trace_share_pct = 25 }
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 65536
+introduced_in = "1.0"
+grants = [
+  { namespace = "drive", class = "state", access = "rw" },
+  { namespace = "drive", class = "settings", access = "r" },
+  { namespace = "drive", class = "map", access = "r" },
+  { namespace = "core", class = "diag", access = "r" },
+  { namespace = "mfg", access = "r" },
+  { namespace = "net", class = "health", access = "r" },
+  { key = "net.health.integrator_hb", access = "rw" },
+  { key = "core.command.factory_reset", access = "r" },
+  { key = "core.command.pre_reset", access = "r" },
+  { key = "core.command.pre_reset_result", access = "rw" },
+  { key = "core.command.trace_enable", access = "r" },
+  { key = "drive.command.drive", access = "r" },
+  { key = "drive.command.drive_result", access = "rw" },
+  { key = "core.log.core_cfg", access = "rw" },          # switches the core's stream
+  { key = "core.log.app_cloud_cfg", access = "rw" },     # and app.cloud's, never its own
+]
+
+# new in 1.1: a RAM ring at boot; flash on trigger may be switched on, except on sku_b
+[principals.log]
+backing = "ring"
+allowed_backings = ["ring", "flash_on_trigger"]
+allowed_backings_by_variant = { sku_b = ["ring"] }
+ram_cap_bytes = 8192
+max_line_bytes = 256
+default_level_ram = ["error", "warning", "info"]
+default_level_file = ["error", "warning"]
+flash_seg_bytes = 16384
+flash_seg_count = 4
+flash_rate_bytes_per_day = 262144
+flash_rate_burst_bytes = 16384
+flush = ["fault", "watchdog", "shutdown", "error_line"]
+ctl_key = "core.log.integrator_cfg"
+drop_counter_key = "core.diag.log_integrator_drops"
+state_key = "core.diag.log_integrator_state"
+introduced_in = "1.1"
+
+# -- app: the library process; its FSMs connect with tokens 1..3 ------------------------------
+[[principals]]
+name = "app"
+uid = 2002
+kind = "unix"
+flags = ["token_issuer"]
+heartbeat = "net.health.app_hb"
+heartbeat_window_ms = 5000
+latency_budget_ms = 100
+caps = { inflight_fd = 4, inflight_bytes = 1048576, open_fds = 16, trace_share_pct = 25 }
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 65536
+introduced_in = "1.0"
+grants = [
+  { namespace = "drive", class = "settings", access = "rw" },
+  { namespace = "drive", class = "state", access = "r" },
+  { namespace = "core", class = "diag", access = "r" },
+  { key = "net.health.app_hb", access = "rw" },
+  { key = "core.log.integrator_cfg", access = "rw" },    # switches integrator's stream
+]
+
+[[principals]]
+name = "app.cloud"
+uid = 2002
+token = 1
+kind = "unix"
+latency_budget_ms = 100
+caps = { inflight_fd = 2, inflight_bytes = 262144, open_fds = 4, trace_share_pct = 10 }
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 16384
+introduced_in = "1.0"
+grants = [
+  { namespace = "drive", class = "settings", access = "rw" },
+  { key = "core.command.factory_reset", access = "rw" },
+  { key = "core.command.trace_enable", access = "rw" },
+  { key = "drive.command.map_edit", access = "rw" },
+  { key = "drive.command.drive", access = "rw" },
+]
+
+# new in 1.1: a token sub-consumer's stream, off at boot, a RAM ring when switched on
+[principals.log]
+allowed_backings = ["ring"]
+ram_cap_bytes = 4096
+max_line_bytes = 256
+default_level_ram = ["error", "warning", "info", "debug"]
+ctl_key = "core.log.app_cloud_cfg"
+drop_counter_key = "core.diag.log_app_cloud_drops"
+state_key = "core.diag.log_app_cloud_state"
+introduced_in = "1.1"
+
+[[principals]]
+name = "app.net"
+uid = 2002
+token = 2
+kind = "unix"
+latency_budget_ms = 100
+caps = { inflight_fd = 1, inflight_bytes = 65536, open_fds = 4, trace_share_pct = 10 }
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 16384
+introduced_in = "1.0"
+grants = [
+  { namespace = "net", class = "credentials", access = "w" },
+]
+
+[[principals]]
+name = "app.map"
+uid = 2002
+token = 3
+kind = "unix"
+latency_budget_ms = 200
+caps = { inflight_fd = 8, inflight_bytes = 4194304, open_fds = 8, trace_share_pct = 10 }
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 131072
+introduced_in = "1.0"
+grants = [
+  { namespace = "drive", class = "map", access = "rw" },
+  { key = "drive.command.map_edit", access = "r" },
+  { key = "drive.command.map_edit_result", access = "rw" },
+]
+
+# -- tool: the diagnostic identity that may dump the trace ring --------------------------------
+[[principals]]
+name = "tool"
+uid = 2003
+kind = "unix"
+flags = ["trace_reader"]
+latency_budget_ms = 1000
+resync_k = 1
+resync_t_ms = 60000
+staging_bound_bytes = 16384
+introduced_in = "1.0"
+grants = [
+  { namespace = "core", class = "diag", access = "r" },
+]
+
+# -- a peer MCU on UART port 1: least rights ---------------------------------------------------
+[[principals]]
+name = "mcu"
+uid = 1
+kind = "uart"
+latency_budget_ms = 20
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 4096
+introduced_in = "1.0"
+grants = [
+  { namespace = "drive", class = "settings", access = "r" },
+  { key = "drive.state.speed", access = "rw" },
+  { key = "drive.state.velocity", access = "rw" },
+]
+
+# -- an in-process consumer (compile-time role 10) ---------------------------------------------
+[[principals]]
+name = "inproc"
+uid = 10
+kind = "inproc"
+latency_budget_ms = 50
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 8192
+introduced_in = "1.0"
+grants = [
+  { namespace = "drive", class = "settings", access = "r" },
+  { namespace = "drive", class = "state", access = "r" },
+  { key = "drive.settings.mode", access = "rw" },   # an in-process role writes a key
+  { key = "drive.command.drive", access = "w" },    # and submits a command
+]
+
+# -- new in 1.1: the OTA FSM of app -----------------------------------------------------------
+[[principals]]
+name = "app.ota"
+uid = 2002
+token = 4
+kind = "unix"
+latency_budget_ms = 500
+caps = { inflight_fd = 2, inflight_bytes = 1048576, open_fds = 4, trace_share_pct = 10 }
+resync_k = 3
+resync_t_ms = 60000
+staging_bound_bytes = 16384
+introduced_in = "1.1"
+grants = [
+  { namespace = "drive", class = "settings", access = "r" },
+]
+
+[[uid_caps]]
+uid = 2001
+inflight_fd = 4
+inflight_bytes = 1048576
+open_fds = 16
+
+[[uid_caps]]
+uid = 2002
+inflight_fd = 16
+inflight_bytes = 8388608
+open_fds = 48
+
+[[uid_caps]]
+uid = 2003
+inflight_fd = 1
+inflight_bytes = 65536
+open_fds = 4
+
+# -- shadow wire mapping: apply groups, echo-only paths, constant reported rows -------
+[[apply_groups]]
+id = "motion"
+doc = "Drive settings one desired update writes as one store batch."
+
+[[shadow_echo]]
+path = "settings.planExists"         # app metadata: echoed back so the delta clears, no key
+type = "bool"
+
+[[shadow_echo]]
+path = "settings.trim"
+type = "float"
+command_key = "drive.settings.gain"  # the delta path echoes it; command bodies apply it
+
+[[shadow_constant]]
+path = "state.connected"
+value = true
+forced = true                        # re-emitted on every delta
+
+[[shadow_constant]]
+path = "sv"
+value = "1.0-gen"
+
+[[shadow_constant]]
+path = "config.cv"
+image = "contract_version"
+
+[[shadow_constant]]
+path = "config.cvHash"
+image = "contract_hash"
+
+[[topics]]
+id = "shadow_update"
+template = "$aws/things/{duid}/shadow/name/{shadow_name}/update"
+direction = "pub"
+
+[[topics]]
+id = "shadow_delta"
+template = "$aws/things/{duid}/shadow/name/{shadow_name}/update/delta"
+direction = "sub"
+subscribe_order = 1
+local_wrapper = "shadow_delta"
+
+[[topics]]
+id = "command_topic"
+template = "{stage}/{duid}/cmd/req"
+direction = "sub"
+subscribe_order = 2
+local_wrapper = "command_topic"
+ack = "command_resp"
+settings_in_every_body = true
+envelope = { id = { field = "id", required = true }, source = { field = "source", enum = "core::origin", absent = "unspecified" } }
+
+[[topics]]
+id = "command_resp"
+template = "{stage}/{duid}/cmd/resp"
+direction = "pub"
+
+[[topics]]
+id = "mapjob_topic"
+template = "{stage}/{duid}/mapjob/req"
+direction = "sub"
+subscribe_order = 3
+local_wrapper = "mapjob_topic"
+ack = "mapjob_resp"
+envelope = { id = { field = "id", required = true }, source = { enum = "core::origin", absent = "unspecified" } }
+
+[[topics]]
+id = "mapjob_resp"
+template = "{stage}/{duid}/mapjob/resp"
+direction = "pub"
+
+[[topics]]
+id = "error_topic"
+template = "{stage}/{model}/{duid}/errors"
+direction = "pub"
+
+[[topics]]
+id = "telemetry"
+template = "{stage}/{duid}/telemetry"
+direction = "pub"
+connection = "telemetry"
+
+# the resolved keyspace on request: {"id","hash"} in, {"id","hash","encoding","body"} out
+[[topics]]
+id = "contract_req"
+template = "{stage}/{duid}/contract/req"
+direction = "sub"
+subscribe_order = 4                  # after cmd/req and mapjob/req
+ack = "contract_resp"
+envelope = { id = { field = "id", required = true } }
+
+[[topics]]
+id = "contract_resp"
+template = "{stage}/{duid}/contract/resp"
+direction = "pub"

@@ -21,6 +21,8 @@ pub struct EnumRenderable {
 /// Multi-file merges qualify enum keys as `"{namespace}::{enum_name}"` (see
 /// `main::merge_models`); single-file models leave the key bare, in which
 /// case the model's own `meta.id` is the namespace.
+/// @version 1
+/// @req REQ-ING-GEN-010
 fn split_enum_key<'a>(raw: &'a str, model_id: &'a str) -> (&'a str, &'a str) {
     match raw.split_once("::") {
         Some((ns, name)) => (ns, name),
@@ -29,12 +31,18 @@ fn split_enum_key<'a>(raw: &'a str, model_id: &'a str) -> (&'a str, &'a str) {
 }
 
 /// C identifier stem shared by an enum's typedef name and its members.
+///
+/// v2: crate-visible, so the --dm-compat per-key enum typedefs share the stem.
+/// @version 2
+/// @req REQ-ING-GEN-010
 pub(crate) fn enum_stem(raw: &str, model_id: &str) -> String {
     let (ns, name) = split_enum_key(raw, model_id);
     format!("{}_{}", ns.to_uppercase(), name.to_uppercase())
 }
 
 /// Resolve the generated C typedef name for a key's `enum = "..."` reference.
+/// @version 1
+/// @req REQ-ING-GEN-010
 pub fn enum_type_name(raw: &str, model_id: &str) -> String {
     format!("{}_T", enum_stem(raw, model_id))
 }
@@ -44,6 +52,8 @@ pub fn enum_type_name(raw: &str, model_id: &str) -> String {
 /// Per-variant overrides are expected to already be resolved (see
 /// `main::resolve_variant`) — this just renders whatever `values` map is
 /// currently on each `EnumDef`.
+/// @version 1
+/// @req REQ-ING-GEN-010
 pub fn collect_enums(model: &DataModel) -> Vec<EnumRenderable> {
     model
         .enums
@@ -93,7 +103,7 @@ mod tests {
     #[test]
     fn collect_enums_for_battery_example() {
         let toml_str = include_str!("../../examples/battery.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
 
         let enums = collect_enums(&model);
         assert_eq!(enums.len(), 2);
@@ -118,7 +128,7 @@ mod tests {
     #[test]
     fn members_are_sorted_by_value() {
         let toml_str = include_str!("../../examples/battery.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let enums = collect_enums(&model);
 
         let level = enums

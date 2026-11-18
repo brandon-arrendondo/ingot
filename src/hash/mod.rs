@@ -2,7 +2,6 @@ mod jenkins;
 
 pub use jenkins::jenkins_hash;
 
-use rand::Rng;
 use std::collections::HashSet;
 
 /// Result of perfect hash generation for a set of keys.
@@ -22,6 +21,8 @@ pub struct PerfectHash {
 
 impl PerfectHash {
     /// Look up the storage index for a key.
+    /// @version 1
+    /// @req REQ-ING-HSH-002
     pub fn lookup(&self, key: u32) -> usize {
         if self.num_keys == 0 {
             return 0;
@@ -35,6 +36,8 @@ impl PerfectHash {
     }
 
     /// Verify that all keys map to unique indices in [0, num_keys).
+    /// @version 1
+    /// @req REQ-ING-HSH-002
     pub fn verify(&self, keys: &[u32]) -> bool {
         let mut seen = HashSet::new();
         for &key in keys {
@@ -46,67 +49,9 @@ impl PerfectHash {
     }
 }
 
-/// Generate a minimal perfect hash function for the given set of keys.
-///
-/// Uses the CHM (Czech-Havas-Majewski) algorithm:
-/// 1. Pick two random hash seeds
-/// 2. Build an undirected graph where each key creates an edge between
-///    two vertices (determined by hashing with seed1 and seed2)
-/// 3. If the graph is acyclic, assign edge values via DFS to build the G table
-/// 4. If cyclic, retry with new seeds
-///
-/// Returns `None` if generation fails after `max_iters` attempts.
-pub fn generate(keys: &[u32], max_iters: u32) -> Option<PerfectHash> {
-    if keys.is_empty() {
-        return Some(PerfectHash {
-            seed1: 0,
-            seed2: 0,
-            g_table: vec![],
-            num_keys: 0,
-        });
-    }
-
-    // Deduplicate
-    let unique: Vec<u32> = {
-        let mut set = HashSet::new();
-        keys.iter().filter(|&&k| set.insert(k)).copied().collect()
-    };
-    let num_keys = unique.len();
-
-    if num_keys == 1 {
-        return Some(PerfectHash {
-            seed1: 0,
-            seed2: 0,
-            g_table: vec![0],
-            num_keys: 1,
-        });
-    }
-
-    // Graph size: ceil(2.09 * num_keys)
-    let n = ((2.09 * num_keys as f64).ceil()) as usize;
-    let mut rng = rand::rng();
-
-    for _ in 0..max_iters {
-        let seed1: u32 = rng.random();
-        let seed2: u32 = rng.random();
-
-        if let Some(g_table) = try_build(&unique, n, seed1, seed2) {
-            let ph = PerfectHash {
-                seed1,
-                seed2,
-                g_table,
-                num_keys,
-            };
-            if ph.verify(&unique) {
-                return Some(ph);
-            }
-        }
-    }
-
-    None
-}
-
 /// Generate with specific seeds (for deterministic testing).
+/// @version 1
+/// @req REQ-ING-HSH-002
 pub fn generate_with_seeds(keys: &[u32], seed1: u32, seed2: u32) -> Option<PerfectHash> {
     if keys.is_empty() {
         return Some(PerfectHash {
@@ -145,22 +90,25 @@ const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 /// FNV-1a 64-bit prime (2^40 + 2^8 + 0xb3). Paired with the offset basis above.
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-/// Generate a perfect hash whose seeds are derived from the key set, so the
-/// same keys always produce byte-identical output — no system entropy.
+/// Generate a minimal perfect hash whose seeds are derived from the key set, so
+/// the same keys always produce byte-identical output — no system entropy.
 ///
 /// This is the entry point for code generation, where the emitted tables are
-/// committed to source control and must be reproducible (an entropy-seeded
-/// table would re-diff on every regen). The CHM algorithm, `try_build`, and
-/// `verify` are identical to [`generate`]; only the seed *source* differs.
+/// committed to source control and must be reproducible. It uses the CHM
+/// (Czech-Havas-Majewski) algorithm: each key is an edge between the two
+/// vertices its two seeded hashes select; an acyclic graph is walked by DFS to
+/// assign the G table ([`try_build`]), and the result is checked by `verify`.
 ///
 /// The base seed pair is the FNV-1a hash of the keys (see [`fnv1a_keys`]),
 /// split into two `u32`s. CHM almost always succeeds on this first pair; if a
 /// pair produces a cyclic graph or fails `verify`, the attempt counter is mixed
-/// in (via the FNV prime) to derive the next deterministic pair, mirroring
-/// `generate`'s retry loop without `rand::rng()`. Empty- and single-key
-/// shortcuts match `generate` exactly.
+/// in (via the FNV prime) to derive the next deterministic pair. An empty set
+/// gives an empty table and a single key a one-entry table.
 ///
 /// Returns `None` if no valid hash is found within `max_iters` attempts.
+///
+/// @version 1
+/// @req REQ-ING-HSH-003
 pub fn generate_deterministic(keys: &[u32], max_iters: u32) -> Option<PerfectHash> {
     if keys.is_empty() {
         return Some(PerfectHash {
@@ -205,6 +153,8 @@ pub fn generate_deterministic(keys: &[u32], max_iters: u32) -> Option<PerfectHas
 /// Stable and entropy-free, so the derived seed depends only on the key set.
 /// The model's key ordering is itself deterministic, so identical input always
 /// hashes to the same value.
+/// @version 1
+/// @req REQ-ING-HSH-003
 fn fnv1a_keys(keys: &[u32]) -> u64 {
     let mut h = FNV_OFFSET_BASIS;
     for key in keys {
@@ -223,6 +173,8 @@ fn fnv1a_keys(keys: &[u32]) -> u64 {
 /// sequential DFS edge_id, G[u] + G[v] = edge_id.
 ///
 /// Returns None if the graph has cycles or self-loops.
+/// @version 1
+/// @req REQ-ING-HSH-002
 fn try_build(keys: &[u32], n: usize, seed1: u32, seed2: u32) -> Option<Vec<i32>> {
     // Adjacency list: each entry is (neighbor_vertex)
     let mut adj: Vec<Vec<usize>> = vec![vec![]; n];
@@ -291,19 +243,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_keyset() {
-        let ph = generate(&[], 100).unwrap();
-        assert_eq!(ph.num_keys, 0);
-    }
-
-    #[test]
-    fn single_key() {
-        let ph = generate(&[42], 100).unwrap();
-        assert_eq!(ph.num_keys, 1);
-        assert_eq!(ph.lookup(42), 0);
-    }
-
-    #[test]
     fn known_seeds_produce_valid_hash() {
         // Seeds from Python reference: seed1=0xa3b1799d, seed2=0x1c80317f
         // The G table may differ from Python (different DFS order) but
@@ -364,7 +303,7 @@ mod tests {
     #[test]
     fn generate_small_set() {
         let keys: Vec<u32> = vec![10, 20, 30, 40, 50];
-        let ph = generate(&keys, 100).unwrap();
+        let ph = generate_deterministic(&keys, 100).unwrap();
         assert_eq!(ph.num_keys, 5);
         assert!(ph.verify(&keys));
 
@@ -377,7 +316,7 @@ mod tests {
     #[test]
     fn generate_medium_set() {
         let keys: Vec<u32> = (1..=100).collect();
-        let ph = generate(&keys, 100).unwrap();
+        let ph = generate_deterministic(&keys, 100).unwrap();
         assert_eq!(ph.num_keys, 100);
         assert!(ph.verify(&keys));
     }
@@ -386,23 +325,15 @@ mod tests {
     fn generate_larger_set() {
         // Simulate a real-world key set (~500 keys)
         let keys: Vec<u32> = (0..500).map(|i| i * 0x1234 + 0xABCD0000).collect();
-        let ph = generate(&keys, 100).unwrap();
+        let ph = generate_deterministic(&keys, 100).unwrap();
         assert_eq!(ph.num_keys, 500);
         assert!(ph.verify(&keys));
     }
 
     #[test]
-    fn deduplicates_input() {
-        let keys = vec![1, 2, 3, 1, 2, 3];
-        let ph = generate(&keys, 100).unwrap();
-        assert_eq!(ph.num_keys, 3);
-        assert!(ph.verify(&[1, 2, 3]));
-    }
-
-    #[test]
     fn g_table_size() {
         let keys: Vec<u32> = (1..=50).collect();
-        let ph = generate(&keys, 100).unwrap();
+        let ph = generate_deterministic(&keys, 100).unwrap();
         // G table should be ceil(2.09 * 50) = 105
         assert_eq!(ph.g_table.len(), 105);
     }

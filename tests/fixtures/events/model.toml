@@ -1,0 +1,36 @@
+# Golden-output fixture for the --emit-tinyfsm event headers: two classes, event and non-event
+# keys interleaved, so each golden pins both the event filter and the declaration order.
+
+[meta]
+id = "rig"
+namespace_id = 3
+version = "1.0.0"
+
+[[classes]]
+id = "motor"
+
+[[classes.keys]]
+id = "speed"
+type = "uint16"
+default = 0
+event = true
+
+[[classes.keys]]
+id = "temp"
+type = "int16"
+default = 0
+
+[[classes.keys]]
+id = "fault"
+type = "bool"
+default = false
+event = true
+
+[[classes]]
+id = "door"
+
+[[classes.keys]]
+id = "open"
+type = "bool"
+default = false
+event = true

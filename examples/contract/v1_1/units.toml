@@ -1,0 +1,13 @@
+# Unit vocabulary of the generic model: the one fixed set of tokens a key's unit may take.
+
+[units."mm/s"]
+quantity = "speed"
+meaning = "millimetre per second"
+
+[units."mm/s2"]
+quantity = "acceleration"
+meaning = "millimetre per second squared"
+
+[units."%"]
+quantity = "ratio"
+meaning = "percent"

@@ -1,0 +1,21 @@
+# Manufacturing identity.
+
+[meta]
+id = "mfg"
+namespace_id = 2
+mfg = true
+
+[[classes]]
+id = "identity"
+class_index = 0
+role = "config"
+persistence = "durable"
+
+[[classes.keys]]
+id = "device_id"
+key_index = 0
+type = "string"
+max_size = 64
+introduced_in = "1.0"
+write_rate = "1/day"
+wk = "DEVICE_ID"

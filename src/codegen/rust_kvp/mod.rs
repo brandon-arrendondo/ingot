@@ -18,20 +18,17 @@ struct KeyConst {
 /// Generate a single `dm.rs` file exposing the data model as a `no_std`
 /// struct with named accessor methods, backed by the same perfect-hash
 /// static-array storage strategy as the C backend.
+///
+/// v2: renders with the templates the caller loaded (embedded unless --templates).
+/// @version 2
+/// @req REQ-ING-RST-001
 pub fn generate(
     model: &DataModel,
     ns_id: u16,
     output_dir: &Path,
-    template_dir: &Path,
+    tera: &Tera,
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
-
-    let tera = Tera::new(
-        template_dir
-            .join("*")
-            .to_str()
-            .ok_or("invalid template path")?,
-    )?;
 
     let version = env!("CARGO_PKG_VERSION");
 

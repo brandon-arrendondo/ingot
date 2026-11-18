@@ -16,6 +16,12 @@ VALUE_OPTIONS = {
 
 
 def bypass_flag(arguments):
+    """Whether git commit arguments carry --no-verify or a short -n flag.
+
+    @version 1
+    @req REQ-ING-POL-002
+    @return True when a hook-bypass flag is present
+    """
     iterator = iter(arguments)
     for argument in iterator:
         if argument == "--":
@@ -34,6 +40,12 @@ def bypass_flag(arguments):
 
 
 def git_arguments(tokens):
+    """Find a git invocation's commit arguments and whether it overrides core.hooksPath.
+
+    @version 1
+    @req REQ-ING-POL-002
+    @return (hooks_override, commit arguments) or (False, None) when it is not a commit
+    """
     iterator = iter(tokens[1:])
     hooks_override = False
     for token in iterator:
@@ -54,6 +66,12 @@ def git_arguments(tokens):
 
 
 def unwrap_command(tokens):
+    """Strip variable assignments and env, command, time, sudo and nice wrappers from a command.
+
+    @version 1
+    @req REQ-ING-POL-002
+    @return the tokens of the wrapped command
+    """
     while tokens:
         program = Path(tokens[0]).name
         if "=" in tokens[0] or program in {"env", "command", "time", "sudo", "nice"}:
@@ -71,6 +89,12 @@ def unwrap_command(tokens):
 
 
 def blocked_segment(tokens):
+    """Whether one shell segment is a git commit that bypasses the hooks.
+
+    @version 1
+    @req REQ-ING-POL-002
+    @return True when the segment must be denied
+    """
     tokens = unwrap_command(tokens)
     if not tokens:
         return False
@@ -83,6 +107,12 @@ def blocked_segment(tokens):
 
 
 def blocked_command(command):
+    """Whether any segment of a shell command line bypasses the commit hooks.
+
+    @version 1
+    @req REQ-ING-POL-002
+    @return True when the command must be denied
+    """
     lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -98,6 +128,12 @@ def blocked_command(command):
 
 
 def main():
+    """Read a PreToolUse payload from stdin and print a deny decision for a hook-bypassing commit.
+
+    @version 1
+    @req REQ-ING-POL-002
+    @return 0 always; the decision is the printed JSON
+    """
     try:
         payload = json.load(sys.stdin)
         tool_input = payload.get("tool_input", {})
